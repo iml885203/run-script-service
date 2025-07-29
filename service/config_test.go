@@ -98,3 +98,162 @@ func TestConfig_SaveConfig(t *testing.T) {
 		t.Errorf("expected config content %q, got %q", expectedContent, string(data))
 	}
 }
+
+func TestServiceConfig_LoadMultiScriptConfig(t *testing.T) {
+	tests := []struct {
+		name            string
+		configContent   string
+		expectedScripts int
+		expectedWebPort int
+		expectError     bool
+	}{
+		{
+			name: "valid multi-script config",
+			configContent: `{
+				"scripts": [
+					{
+						"name": "main",
+						"path": "./run.sh",
+						"interval": 3600,
+						"enabled": true,
+						"max_log_lines": 100,
+						"timeout": 300
+					},
+					{
+						"name": "backup",
+						"path": "./backup.sh", 
+						"interval": 86400,
+						"enabled": true,
+						"max_log_lines": 50,
+						"timeout": 1800
+					}
+				],
+				"web_port": 8080
+			}`,
+			expectedScripts: 2,
+			expectedWebPort: 8080,
+			expectError:     false,
+		},
+		{
+			name: "empty scripts array",
+			configContent: `{
+				"scripts": [],
+				"web_port": 9090
+			}`,
+			expectedScripts: 0,
+			expectedWebPort: 9090,
+			expectError:     false,
+		},
+		{
+			name: "backward compatibility - old config format",
+			configContent: `{
+				"interval": 1800
+			}`,
+			expectedScripts: 1,    // should create default script
+			expectedWebPort: 8080, // default
+			expectError:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir, err := os.MkdirTemp("", "config_test")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.RemoveAll(tempDir)
+
+			configPath := filepath.Join(tempDir, "test_config.json")
+			err = os.WriteFile(configPath, []byte(tt.configContent), 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			config := &ServiceConfig{WebPort: 8080} // default
+			err = LoadServiceConfig(configPath, config)
+
+			if tt.expectError && err == nil {
+				t.Error("expected error but got none")
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+
+			if len(config.Scripts) != tt.expectedScripts {
+				t.Errorf("expected %d scripts, got %d", tt.expectedScripts, len(config.Scripts))
+			}
+
+			if config.WebPort != tt.expectedWebPort {
+				t.Errorf("expected web port %d, got %d", tt.expectedWebPort, config.WebPort)
+			}
+		})
+	}
+}
+
+func TestScriptConfig_Validation(t *testing.T) {
+	tests := []struct {
+		name        string
+		script      ScriptConfig
+		expectValid bool
+	}{
+		{
+			name: "valid script config",
+			script: ScriptConfig{
+				Name:        "test",
+				Path:        "./test.sh",
+				Interval:    3600,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     300,
+			},
+			expectValid: true,
+		},
+		{
+			name: "empty name should be invalid",
+			script: ScriptConfig{
+				Name:        "",
+				Path:        "./test.sh",
+				Interval:    3600,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     300,
+			},
+			expectValid: false,
+		},
+		{
+			name: "empty path should be invalid",
+			script: ScriptConfig{
+				Name:        "test",
+				Path:        "",
+				Interval:    3600,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     300,
+			},
+			expectValid: false,
+		},
+		{
+			name: "negative interval should be invalid",
+			script: ScriptConfig{
+				Name:        "test",
+				Path:        "./test.sh",
+				Interval:    -1,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     300,
+			},
+			expectValid: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.script.Validate()
+			isValid := err == nil
+
+			if isValid != tt.expectValid {
+				t.Errorf("expected valid=%v, got valid=%v, error=%v", tt.expectValid, isValid, err)
+			}
+		})
+	}
+}
