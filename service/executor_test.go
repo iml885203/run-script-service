@@ -156,3 +156,39 @@ func TestExecutor_WriteLog(t *testing.T) {
 		t.Errorf("expected log content %q, got %q", testContent, string(data))
 	}
 }
+
+func TestExecutor_LogError(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "log_error_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	logPath := filepath.Join(tempDir, "test.log")
+	executor := NewExecutor("", logPath, 100)
+
+	// Test the logError method indirectly by creating a script that doesn't exist
+	// This will trigger the logError method in ExecuteScript
+	executor.scriptPath = filepath.Join(tempDir, "nonexistent.sh")
+	result := executor.ExecuteScript()
+
+	// Check that the script failed
+	if result.ExitCode == 0 {
+		t.Error("expected non-zero exit code for nonexistent script")
+	}
+
+	// Check that error was logged
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	logContent := string(data)
+	if !strings.Contains(logContent, "ERROR:") {
+		t.Error("expected error message in log")
+	}
+
+	if !strings.Contains(logContent, "----") {
+		t.Error("expected error separator in log")
+	}
+}

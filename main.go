@@ -100,18 +100,41 @@ func parseInterval(intervalStr string) (int, error) {
 	value, err := strconv.Atoi(valueStr)
 	if err != nil {
 		// Try parsing as plain number (seconds)
-		return strconv.Atoi(intervalStr)
+		result, parseErr := strconv.Atoi(intervalStr)
+		if parseErr != nil {
+			return 0, parseErr
+		}
+		if result < 0 {
+			return 0, fmt.Errorf("negative interval not allowed")
+		}
+		return result, nil
 	}
 
 	switch suffix {
 	case "s":
+		if value < 0 {
+			return 0, fmt.Errorf("negative interval not allowed")
+		}
 		return value, nil
 	case "m":
+		if value < 0 {
+			return 0, fmt.Errorf("negative interval not allowed")
+		}
 		return value * 60, nil
 	case "h":
+		if value < 0 {
+			return 0, fmt.Errorf("negative interval not allowed")
+		}
 		return value * 3600, nil
 	default:
 		// No suffix, treat as seconds
-		return strconv.Atoi(intervalStr)
+		result, err := strconv.Atoi(intervalStr)
+		if err != nil {
+			return 0, err
+		}
+		if result < 0 {
+			return 0, fmt.Errorf("negative interval not allowed")
+		}
+		return result, nil
 	}
 }

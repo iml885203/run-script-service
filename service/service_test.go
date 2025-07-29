@@ -158,3 +158,69 @@ func TestService_LoadExistingConfig(t *testing.T) {
 		t.Errorf("expected loaded interval 2400, got %d", service.config.Interval)
 	}
 }
+
+func TestService_ShowConfig(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "service_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	scriptPath := filepath.Join(tempDir, "run.sh")
+	logPath := filepath.Join(tempDir, "run.log")
+	configPath := filepath.Join(tempDir, "service_config.json")
+
+	service := NewService(scriptPath, logPath, configPath, 100)
+
+	// This test mainly verifies the function doesn't panic
+	// Full output testing would require capturing stdout
+	service.ShowConfig()
+}
+
+func TestFormatDuration(t *testing.T) {
+	tests := []struct {
+		name     string
+		seconds  int
+		expected string
+	}{
+		{
+			name:     "seconds only",
+			seconds:  30,
+			expected: "30s",
+		},
+		{
+			name:     "single minute",
+			seconds:  60,
+			expected: "1m",
+		},
+		{
+			name:     "multiple minutes",
+			seconds:  300,
+			expected: "5m",
+		},
+		{
+			name:     "single hour",
+			seconds:  3600,
+			expected: "1h",
+		},
+		{
+			name:     "multiple hours",
+			seconds:  7200,
+			expected: "2h",
+		},
+		{
+			name:     "zero seconds",
+			seconds:  0,
+			expected: "0s",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatDuration(tt.seconds)
+			if result != tt.expected {
+				t.Errorf("formatDuration(%d) = %q, expected %q", tt.seconds, result, tt.expected)
+			}
+		})
+	}
+}
