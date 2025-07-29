@@ -12,6 +12,48 @@ import (
 	"run-script-service/service"
 )
 
+// CommandResult represents the result of command processing
+type CommandResult struct {
+	shouldRunService bool
+}
+
+// handleCommand processes command line arguments and returns appropriate action
+func handleCommand(args []string, scriptPath, logPath, configPath string, maxLines int) (CommandResult, error) {
+	svc := service.NewService(scriptPath, logPath, configPath, maxLines)
+
+	if len(args) < 2 {
+		return CommandResult{shouldRunService: true}, nil
+	}
+
+	command := args[1]
+
+	switch command {
+	case "run":
+		return CommandResult{shouldRunService: true}, nil
+	case "set-interval":
+		if len(args) != 3 {
+			return CommandResult{shouldRunService: false},
+				fmt.Errorf("Usage: ./run-script-service set-interval <interval>\nExamples: 30s, 5m, 1h, 3600")
+		}
+		interval, err := parseInterval(args[2])
+		if err != nil {
+			return CommandResult{shouldRunService: false},
+				fmt.Errorf("Invalid interval: %v", err)
+		}
+		if err := svc.SetInterval(interval); err != nil {
+			return CommandResult{shouldRunService: false},
+				fmt.Errorf("Error setting interval: %v", err)
+		}
+		return CommandResult{shouldRunService: false}, nil
+	case "show-config":
+		svc.ShowConfig()
+		return CommandResult{shouldRunService: false}, nil
+	default:
+		return CommandResult{shouldRunService: false},
+			fmt.Errorf("Unknown command: %s\nAvailable commands: run, set-interval, show-config", command)
+	}
+}
+
 func main() {
 	// Get paths relative to executable
 	dir, err := os.Executable()
@@ -26,39 +68,15 @@ func main() {
 	configPath := filepath.Join(dir, "service_config.json")
 	maxLines := 100
 
-	svc := service.NewService(scriptPath, logPath, configPath, maxLines)
-
-	if len(os.Args) < 2 {
-		runService(svc)
-		return
+	result, err := handleCommand(os.Args, scriptPath, logPath, configPath, maxLines)
+	if err != nil {
+		fmt.Printf("%v\n", err)
+		os.Exit(1)
 	}
 
-	command := os.Args[1]
-
-	switch command {
-	case "run":
+	if result.shouldRunService {
+		svc := service.NewService(scriptPath, logPath, configPath, maxLines)
 		runService(svc)
-	case "set-interval":
-		if len(os.Args) != 3 {
-			fmt.Println("Usage: ./run-script-service set-interval <interval>")
-			fmt.Println("Examples: 30s, 5m, 1h, 3600")
-			os.Exit(1)
-		}
-		interval, err := parseInterval(os.Args[2])
-		if err != nil {
-			fmt.Printf("Invalid interval: %v\n", err)
-			os.Exit(1)
-		}
-		if err := svc.SetInterval(interval); err != nil {
-			fmt.Printf("Error setting interval: %v\n", err)
-			os.Exit(1)
-		}
-	case "show-config":
-		svc.ShowConfig()
-	default:
-		fmt.Printf("Unknown command: %s\n", command)
-		fmt.Println("Available commands: run, set-interval, show-config")
-		os.Exit(1)
 	}
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -100,55 +101,93 @@ func TestParseInterval(t *testing.T) {
 	}
 }
 
-func TestMain_ArgumentParsing(t *testing.T) {
-	// Save original args
-	oldArgs := os.Args
-	defer func() { os.Args = oldArgs }()
-
+func TestHandleCommand(t *testing.T) {
 	tests := []struct {
-		name     string
-		args     []string
-		expected string // Expected behavior description
+		name       string
+		args       []string
+		expectRun  bool
+		expectErr  bool
+		errMessage string
 	}{
 		{
-			name:     "no arguments",
-			args:     []string{"run-script-service"},
-			expected: "should run service",
+			name:      "no arguments",
+			args:      []string{"run-script-service"},
+			expectRun: true,
+			expectErr: false,
 		},
 		{
-			name:     "run command",
-			args:     []string{"run-script-service", "run"},
-			expected: "should run service",
+			name:      "run command",
+			args:      []string{"run-script-service", "run"},
+			expectRun: true,
+			expectErr: false,
 		},
 		{
-			name:     "show-config command",
-			args:     []string{"run-script-service", "show-config"},
-			expected: "should show config",
+			name:      "show-config command",
+			args:      []string{"run-script-service", "show-config"},
+			expectRun: false,
+			expectErr: false,
 		},
 		{
-			name:     "set-interval with valid time",
-			args:     []string{"run-script-service", "set-interval", "30m"},
-			expected: "should set interval",
+			name:      "set-interval with valid time",
+			args:      []string{"run-script-service", "set-interval", "30m"},
+			expectRun: false,
+			expectErr: false,
 		},
 		{
-			name:     "set-interval missing argument",
-			args:     []string{"run-script-service", "set-interval"},
-			expected: "should exit with error",
+			name:       "set-interval missing argument",
+			args:       []string{"run-script-service", "set-interval"},
+			expectRun:  false,
+			expectErr:  true,
+			errMessage: "Usage: ./run-script-service set-interval <interval>",
 		},
 		{
-			name:     "unknown command",
-			args:     []string{"run-script-service", "unknown"},
-			expected: "should exit with error",
+			name:       "set-interval invalid format",
+			args:       []string{"run-script-service", "set-interval", "invalid"},
+			expectRun:  false,
+			expectErr:  true,
+			errMessage: "Invalid interval",
+		},
+		{
+			name:       "unknown command",
+			args:       []string{"run-script-service", "unknown"},
+			expectRun:  false,
+			expectErr:  true,
+			errMessage: "Unknown command: unknown",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Note: This test documents the expected behavior
-			// Full integration testing would require mocking os.Exit and capturing output
-			// which is complex for the main function. The parseInterval function
-			// is thoroughly tested above, and the service package is tested separately.
-			t.Logf("Test case: %s - %s", tt.name, tt.expected)
+			// Create a temporary directory for test files
+			tempDir := t.TempDir()
+			scriptPath := tempDir + "/run.sh"
+			logPath := tempDir + "/run.log"
+			configPath := tempDir + "/service_config.json"
+
+			// Create a dummy script
+			os.WriteFile(scriptPath, []byte("#!/bin/bash\necho 'test'"), 0755)
+
+			result, err := handleCommand(tt.args, scriptPath, logPath, configPath, 100)
+
+			if tt.expectErr {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				} else if tt.errMessage != "" && !contains(err.Error(), tt.errMessage) {
+					t.Errorf("Expected error message to contain %q, got %q", tt.errMessage, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+			}
+
+			if result.shouldRunService != tt.expectRun {
+				t.Errorf("Expected shouldRunService=%v, got %v", tt.expectRun, result.shouldRunService)
+			}
 		})
 	}
+}
+
+func contains(s, substr string) bool {
+	return strings.Contains(s, substr)
 }
