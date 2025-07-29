@@ -70,3 +70,41 @@ func (m *mockFileInfo) Mode() os.FileMode  { return 0644 }
 func (m *mockFileInfo) ModTime() time.Time { return time.Time{} }
 func (m *mockFileInfo) IsDir() bool        { return false }
 func (m *mockFileInfo) Sys() interface{}   { return nil }
+
+// TimeProvider interface abstracts time operations for testing
+type TimeProvider interface {
+	Now() time.Time
+	Sleep(d time.Duration)
+	After(d time.Duration) <-chan time.Time
+}
+
+// MockTime provides a mock implementation for testing
+type MockTime struct {
+	fixedTime *time.Time
+}
+
+func NewMockTime() *MockTime {
+	return &MockTime{}
+}
+
+func (m *MockTime) SetFixedTime(t time.Time) {
+	m.fixedTime = &t
+}
+
+func (m *MockTime) Now() time.Time {
+	if m.fixedTime != nil {
+		return *m.fixedTime
+	}
+	return time.Now()
+}
+
+func (m *MockTime) Sleep(d time.Duration) {
+	// In mock, sleep is instant (don't actually sleep)
+}
+
+func (m *MockTime) After(d time.Duration) <-chan time.Time {
+	// In mock, return a channel that receives immediately
+	ch := make(chan time.Time, 1)
+	ch <- time.Now()
+	return ch
+}
