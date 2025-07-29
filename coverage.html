@@ -1,0 +1,713 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>run-script-service: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">run-script-service/main.go (52.1%)</option>
+				
+				<option value="file1">run-script-service/mocks/filesystem.go (26.7%)</option>
+				
+				<option value="file2">run-script-service/service/config.go (75.0%)</option>
+				
+				<option value="file3">run-script-service/service/executor.go (76.0%)</option>
+				
+				<option value="file4">run-script-service/service/service.go (91.9%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package main
+
+import (
+        "context"
+        "fmt"
+        "os"
+        "os/signal"
+        "path/filepath"
+        "strconv"
+        "syscall"
+
+        "run-script-service/service"
+)
+
+// CommandResult represents the result of command processing
+type CommandResult struct {
+        shouldRunService bool
+}
+
+// handleCommand processes command line arguments and returns appropriate action
+func handleCommand(args []string, scriptPath, logPath, configPath string, maxLines int) (CommandResult, error) <span class="cov8" title="1">{
+        svc := service.NewService(scriptPath, logPath, configPath, maxLines)
+
+        if len(args) &lt; 2 </span><span class="cov8" title="1">{
+                return CommandResult{shouldRunService: true}, nil
+        }</span>
+
+        <span class="cov8" title="1">command := args[1]
+
+        switch command </span>{
+        case "run":<span class="cov8" title="1">
+                return CommandResult{shouldRunService: true}, nil</span>
+        case "set-interval":<span class="cov8" title="1">
+                if len(args) != 3 </span><span class="cov8" title="1">{
+                        return CommandResult{shouldRunService: false},
+                                fmt.Errorf("Usage: ./run-script-service set-interval &lt;interval&gt;\nExamples: 30s, 5m, 1h, 3600")
+                }</span>
+                <span class="cov8" title="1">interval, err := parseInterval(args[2])
+                if err != nil </span><span class="cov8" title="1">{
+                        return CommandResult{shouldRunService: false},
+                                fmt.Errorf("Invalid interval: %v", err)
+                }</span>
+                <span class="cov8" title="1">if err := svc.SetInterval(interval); err != nil </span><span class="cov0" title="0">{
+                        return CommandResult{shouldRunService: false},
+                                fmt.Errorf("Error setting interval: %v", err)
+                }</span>
+                <span class="cov8" title="1">return CommandResult{shouldRunService: false}, nil</span>
+        case "show-config":<span class="cov8" title="1">
+                svc.ShowConfig()
+                return CommandResult{shouldRunService: false}, nil</span>
+        default:<span class="cov8" title="1">
+                return CommandResult{shouldRunService: false},
+                        fmt.Errorf("Unknown command: %s\nAvailable commands: run, set-interval, show-config", command)</span>
+        }
+}
+
+func main() <span class="cov0" title="0">{
+        // Get paths relative to executable
+        dir, err := os.Executable()
+        if err != nil </span><span class="cov0" title="0">{
+                dir, _ = os.Getwd()
+        }</span> else<span class="cov0" title="0"> {
+                dir = filepath.Dir(dir)
+        }</span>
+
+        <span class="cov0" title="0">scriptPath := filepath.Join(dir, "run.sh")
+        logPath := filepath.Join(dir, "run.log")
+        configPath := filepath.Join(dir, "service_config.json")
+        maxLines := 100
+
+        result, err := handleCommand(os.Args, scriptPath, logPath, configPath, maxLines)
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Printf("%v\n", err)
+                os.Exit(1)
+        }</span>
+
+        <span class="cov0" title="0">if result.shouldRunService </span><span class="cov0" title="0">{
+                svc := service.NewService(scriptPath, logPath, configPath, maxLines)
+                runService(svc)
+        }</span>
+}
+
+func runService(svc *service.Service) <span class="cov0" title="0">{
+        // Set up signal handling
+        sigChan := make(chan os.Signal, 1)
+        signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
+
+        ctx, cancel := context.WithCancel(context.Background())
+        defer cancel()
+
+        // Start service in a goroutine
+        done := make(chan bool)
+        go func() </span><span class="cov0" title="0">{
+                svc.Start(ctx)
+                done &lt;- true
+        }</span>()
+
+        // Wait for signal or service completion
+        <span class="cov0" title="0">select </span>{
+        case &lt;-sigChan:<span class="cov0" title="0">
+                fmt.Println("Received shutdown signal")
+                svc.Stop()
+                cancel()
+                &lt;-done</span> // Wait for service to finish
+        case &lt;-done:<span class="cov0" title="0"></span>
+                // Service finished naturally
+        }
+}
+
+func parseInterval(intervalStr string) (int, error) <span class="cov8" title="1">{
+        if len(intervalStr) == 0 </span><span class="cov8" title="1">{
+                return 0, fmt.Errorf("empty interval")
+        }</span>
+
+        <span class="cov8" title="1">suffix := intervalStr[len(intervalStr)-1:]
+        valueStr := intervalStr[:len(intervalStr)-1]
+
+        value, err := strconv.Atoi(valueStr)
+        if err != nil </span><span class="cov8" title="1">{
+                // Try parsing as plain number (seconds)
+                result, parseErr := strconv.Atoi(intervalStr)
+                if parseErr != nil </span><span class="cov8" title="1">{
+                        return 0, parseErr
+                }</span>
+                <span class="cov0" title="0">if result &lt; 0 </span><span class="cov0" title="0">{
+                        return 0, fmt.Errorf("negative interval not allowed")
+                }</span>
+                <span class="cov0" title="0">return result, nil</span>
+        }
+
+        <span class="cov8" title="1">switch suffix </span>{
+        case "s":<span class="cov8" title="1">
+                if value &lt; 0 </span><span class="cov8" title="1">{
+                        return 0, fmt.Errorf("negative interval not allowed")
+                }</span>
+                <span class="cov8" title="1">return value, nil</span>
+        case "m":<span class="cov8" title="1">
+                if value &lt; 0 </span><span class="cov0" title="0">{
+                        return 0, fmt.Errorf("negative interval not allowed")
+                }</span>
+                <span class="cov8" title="1">return value * 60, nil</span>
+        case "h":<span class="cov8" title="1">
+                if value &lt; 0 </span><span class="cov0" title="0">{
+                        return 0, fmt.Errorf("negative interval not allowed")
+                }</span>
+                <span class="cov8" title="1">return value * 3600, nil</span>
+        default:<span class="cov8" title="1">
+                // No suffix, treat as seconds
+                result, err := strconv.Atoi(intervalStr)
+                if err != nil </span><span class="cov8" title="1">{
+                        return 0, err
+                }</span>
+                <span class="cov8" title="1">if result &lt; 0 </span><span class="cov0" title="0">{
+                        return 0, fmt.Errorf("negative interval not allowed")
+                }</span>
+                <span class="cov8" title="1">return result, nil</span>
+        }
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package mocks
+
+import (
+        "os"
+        "time"
+)
+
+// FileSystem interface abstracts file system operations for testing
+type FileSystem interface {
+        WriteFile(filename string, data []byte, perm os.FileMode) error
+        ReadFile(filename string) ([]byte, error)
+        OpenFile(name string, flag int, perm os.FileMode) (*os.File, error)
+        Stat(name string) (os.FileInfo, error)
+}
+
+// MockFileSystem provides a mock implementation for testing
+type MockFileSystem struct {
+        Files         map[string][]byte
+        WriteFileFunc func(filename string, data []byte, perm os.FileMode) error
+        ReadFileFunc  func(filename string) ([]byte, error)
+        StatFunc      func(name string) (os.FileInfo, error)
+}
+
+func NewMockFileSystem() *MockFileSystem <span class="cov0" title="0">{
+        return &amp;MockFileSystem{
+                Files: make(map[string][]byte),
+        }
+}</span>
+
+func (m *MockFileSystem) WriteFile(filename string, data []byte, perm os.FileMode) error <span class="cov0" title="0">{
+        if m.WriteFileFunc != nil </span><span class="cov0" title="0">{
+                return m.WriteFileFunc(filename, data, perm)
+        }</span>
+        <span class="cov0" title="0">m.Files[filename] = data
+        return nil</span>
+}
+
+func (m *MockFileSystem) ReadFile(filename string) ([]byte, error) <span class="cov0" title="0">{
+        if m.ReadFileFunc != nil </span><span class="cov0" title="0">{
+                return m.ReadFileFunc(filename)
+        }</span>
+        <span class="cov0" title="0">if data, exists := m.Files[filename]; exists </span><span class="cov0" title="0">{
+                return data, nil
+        }</span>
+        <span class="cov0" title="0">return nil, os.ErrNotExist</span>
+}
+
+func (m *MockFileSystem) OpenFile(name string, flag int, perm os.FileMode) (*os.File, error) <span class="cov0" title="0">{
+        // For simplicity, this mock doesn't implement OpenFile
+        return nil, os.ErrNotExist
+}</span>
+
+func (m *MockFileSystem) Stat(name string) (os.FileInfo, error) <span class="cov0" title="0">{
+        if m.StatFunc != nil </span><span class="cov0" title="0">{
+                return m.StatFunc(name)
+        }</span>
+        <span class="cov0" title="0">if _, exists := m.Files[name]; exists </span><span class="cov0" title="0">{
+                return &amp;mockFileInfo{name: name}, nil
+        }</span>
+        <span class="cov0" title="0">return nil, os.ErrNotExist</span>
+}
+
+type mockFileInfo struct {
+        name string
+}
+
+func (m *mockFileInfo) Name() string       <span class="cov0" title="0">{ return m.name }</span>
+func (m *mockFileInfo) Size() int64        <span class="cov0" title="0">{ return 0 }</span>
+func (m *mockFileInfo) Mode() os.FileMode  <span class="cov0" title="0">{ return 0644 }</span>
+func (m *mockFileInfo) ModTime() time.Time <span class="cov0" title="0">{ return time.Time{} }</span>
+func (m *mockFileInfo) IsDir() bool        <span class="cov0" title="0">{ return false }</span>
+func (m *mockFileInfo) Sys() interface{}   <span class="cov0" title="0">{ return nil }</span>
+
+// TimeProvider interface abstracts time operations for testing
+type TimeProvider interface {
+        Now() time.Time
+        Sleep(d time.Duration)
+        After(d time.Duration) &lt;-chan time.Time
+}
+
+// MockTime provides a mock implementation for testing
+type MockTime struct {
+        fixedTime *time.Time
+}
+
+func NewMockTime() *MockTime <span class="cov8" title="1">{
+        return &amp;MockTime{}
+}</span>
+
+func (m *MockTime) SetFixedTime(t time.Time) <span class="cov8" title="1">{
+        m.fixedTime = &amp;t
+}</span>
+
+func (m *MockTime) Now() time.Time <span class="cov8" title="1">{
+        if m.fixedTime != nil </span><span class="cov8" title="1">{
+                return *m.fixedTime
+        }</span>
+        <span class="cov8" title="1">return time.Now()</span>
+}
+
+func (m *MockTime) Sleep(d time.Duration) {<span class="cov8" title="1">
+        // In mock, sleep is instant (don't actually sleep)
+}</span>
+
+func (m *MockTime) After(d time.Duration) &lt;-chan time.Time <span class="cov8" title="1">{
+        // In mock, return a channel that receives immediately
+        ch := make(chan time.Time, 1)
+        ch &lt;- time.Now()
+        return ch
+}</span>
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package service
+
+import (
+        "encoding/json"
+        "fmt"
+        "log"
+        "os"
+)
+
+type Config struct {
+        Interval int `json:"interval"`
+}
+
+// LoadConfig loads configuration from the specified file path
+func LoadConfig(configPath string, config *Config) error <span class="cov8" title="1">{
+        if _, err := os.Stat(configPath); os.IsNotExist(err) </span><span class="cov8" title="1">{
+                return nil // Keep default config
+        }</span>
+
+        <span class="cov8" title="1">data, err := os.ReadFile(configPath)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Printf("Error reading config: %v", err)
+                return nil // Keep default config, don't fail
+        }</span>
+
+        <span class="cov8" title="1">if err := json.Unmarshal(data, config); err != nil </span><span class="cov8" title="1">{
+                log.Printf("Error parsing config: %v", err)
+                return nil // Keep default config, don't fail
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// SaveConfig saves configuration to the specified file path
+func SaveConfig(configPath string, config *Config) error <span class="cov8" title="1">{
+        data, err := json.MarshalIndent(config, "", "  ")
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("error marshaling config: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">if err := os.WriteFile(configPath, data, 0644); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("error writing config: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package service
+
+import (
+        "bufio"
+        "fmt"
+        "io"
+        "os"
+        "os/exec"
+        "path/filepath"
+        "strings"
+        "time"
+)
+
+// ExecutionResult contains the results of script execution
+type ExecutionResult struct {
+        ExitCode  int
+        Stdout    string
+        Stderr    string
+        Timestamp time.Time
+}
+
+// Executor handles script execution and logging
+type Executor struct {
+        scriptPath string
+        logPath    string
+        maxLines   int
+}
+
+// NewExecutor creates a new script executor
+func NewExecutor(scriptPath, logPath string, maxLines int) *Executor <span class="cov8" title="1">{
+        return &amp;Executor{
+                scriptPath: scriptPath,
+                logPath:    logPath,
+                maxLines:   maxLines,
+        }
+}</span>
+
+// ExecuteScript executes the configured script and logs the results
+func (e *Executor) ExecuteScript() *ExecutionResult <span class="cov8" title="1">{
+        timestamp := time.Now()
+        result := &amp;ExecutionResult{
+                Timestamp: timestamp,
+        }
+
+        cmd := exec.Command(e.scriptPath)
+        cmd.Dir = filepath.Dir(e.scriptPath)
+
+        stdout, err := cmd.StdoutPipe()
+        if err != nil </span><span class="cov0" title="0">{
+                e.logError(timestamp, fmt.Sprintf("Error creating stdout pipe: %v", err))
+                result.ExitCode = -1
+                return result
+        }</span>
+
+        <span class="cov8" title="1">stderr, err := cmd.StderrPipe()
+        if err != nil </span><span class="cov0" title="0">{
+                e.logError(timestamp, fmt.Sprintf("Error creating stderr pipe: %v", err))
+                result.ExitCode = -1
+                return result
+        }</span>
+
+        <span class="cov8" title="1">if err := cmd.Start(); err != nil </span><span class="cov8" title="1">{
+                e.logError(timestamp, fmt.Sprintf("Error starting command: %v", err))
+                result.ExitCode = -1
+                return result
+        }</span>
+
+        <span class="cov8" title="1">stdoutBytes, _ := io.ReadAll(stdout)
+        stderrBytes, _ := io.ReadAll(stderr)
+
+        err = cmd.Wait()
+        result.ExitCode = 0
+        if err != nil </span><span class="cov8" title="1">{
+                if exitError, ok := err.(*exec.ExitError); ok </span><span class="cov8" title="1">{
+                        result.ExitCode = exitError.ExitCode()
+                }</span> else<span class="cov0" title="0"> {
+                        e.logError(timestamp, fmt.Sprintf("Error waiting for command: %v", err))
+                        result.ExitCode = -1
+                        return result
+                }</span>
+        }
+
+        <span class="cov8" title="1">result.Stdout = strings.TrimSpace(string(stdoutBytes))
+        result.Stderr = strings.TrimSpace(string(stderrBytes))
+
+        // Write to log
+        logEntry := fmt.Sprintf("[%s] Exit code: %d\n", timestamp.Format("2006-01-02 15:04:05"), result.ExitCode)
+        if len(result.Stdout) &gt; 0 </span><span class="cov8" title="1">{
+                logEntry += fmt.Sprintf("STDOUT: %s\n", result.Stdout)
+        }</span>
+        <span class="cov8" title="1">if len(result.Stderr) &gt; 0 </span><span class="cov8" title="1">{
+                logEntry += fmt.Sprintf("STDERR: %s\n", result.Stderr)
+        }</span>
+        <span class="cov8" title="1">logEntry += strings.Repeat("-", 50) + "\n"
+
+        if err := e.WriteLog(logEntry); err != nil </span><span class="cov0" title="0">{
+                fmt.Printf("Error writing to log: %v\n", err)
+        }</span>
+
+        <span class="cov8" title="1">if err := e.TrimLog(); err != nil </span><span class="cov0" title="0">{
+                fmt.Printf("Error trimming log: %v\n", err)
+        }</span>
+
+        <span class="cov8" title="1">return result</span>
+}
+
+// logError logs an error message
+func (e *Executor) logError(timestamp time.Time, message string) <span class="cov8" title="1">{
+        errorMsg := fmt.Sprintf("[%s] ERROR: %s\n%s\n",
+                timestamp.Format("2006-01-02 15:04:05"), message, strings.Repeat("-", 50))
+        if err := e.WriteLog(errorMsg); err != nil </span><span class="cov0" title="0">{
+                fmt.Printf("Error writing error to log: %v\n", err)
+        }</span>
+        <span class="cov8" title="1">fmt.Printf("Error executing script: %s\n", message)</span>
+}
+
+// WriteLog writes content to the log file
+func (e *Executor) WriteLog(content string) error <span class="cov8" title="1">{
+        file, err := os.OpenFile(e.logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov8" title="1">defer file.Close()
+
+        _, err = file.WriteString(content)
+        return err</span>
+}
+
+// TrimLog keeps only the last maxLines lines in the log file
+func (e *Executor) TrimLog() error <span class="cov8" title="1">{
+        file, err := os.Open(e.logPath)
+        if os.IsNotExist(err) </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+        <span class="cov8" title="1">if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov8" title="1">defer file.Close()
+
+        var lines []string
+        scanner := bufio.NewScanner(file)
+        for scanner.Scan() </span><span class="cov8" title="1">{
+                lines = append(lines, scanner.Text())
+        }</span>
+
+        <span class="cov8" title="1">if err := scanner.Err(); err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov8" title="1">if len(lines) &lt;= e.maxLines </span><span class="cov8" title="1">{
+                return nil
+        }</span>
+
+        // Keep only the last maxLines lines
+        <span class="cov8" title="1">linesToKeep := lines[len(lines)-e.maxLines:]
+
+        outFile, err := os.Create(e.logPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov8" title="1">defer outFile.Close()
+
+        for _, line := range linesToKeep </span><span class="cov8" title="1">{
+                if _, err := outFile.WriteString(line + "\n"); err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+        }
+
+        <span class="cov8" title="1">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package service
+
+import (
+        "context"
+        "fmt"
+        "time"
+)
+
+// Service manages the execution of scripts at regular intervals
+type Service struct {
+        config     Config
+        scriptPath string
+        logPath    string
+        configPath string
+        maxLines   int
+        running    bool
+        ctx        context.Context
+        cancel     context.CancelFunc
+        executor   *Executor
+}
+
+// NewService creates a new service instance
+func NewService(scriptPath, logPath, configPath string, maxLines int) *Service <span class="cov8" title="1">{
+        s := &amp;Service{
+                config:     Config{Interval: 3600}, // Default 1 hour
+                scriptPath: scriptPath,
+                logPath:    logPath,
+                configPath: configPath,
+                maxLines:   maxLines,
+                running:    false,
+        }
+
+        s.ctx, s.cancel = context.WithCancel(context.Background())
+        s.executor = NewExecutor(scriptPath, logPath, maxLines)
+
+        // Load existing config if available
+        LoadConfig(configPath, &amp;s.config)
+
+        return s
+}</span>
+
+// SetInterval sets the execution interval and saves the configuration
+func (s *Service) SetInterval(interval int) error <span class="cov8" title="1">{
+        s.config.Interval = interval
+        if err := SaveConfig(s.configPath, &amp;s.config); err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov8" title="1">fmt.Printf("Interval set to %d seconds\n", interval)
+        return nil</span>
+}
+
+// Start begins the service execution loop
+func (s *Service) Start(ctx context.Context) <span class="cov8" title="1">{
+        s.running = true
+        fmt.Printf("Service started with %d second interval\n", s.config.Interval)
+
+        ticker := time.NewTicker(time.Duration(s.config.Interval) * time.Second)
+        defer ticker.Stop()
+
+        // Execute immediately on start
+        s.executeScript()
+
+        for </span><span class="cov8" title="1">{
+                select </span>{
+                case &lt;-ctx.Done():<span class="cov0" title="0">
+                        fmt.Println("Service stopping...")
+                        return</span>
+                case &lt;-s.ctx.Done():<span class="cov8" title="1">
+                        fmt.Println("Service stopping...")
+                        return</span>
+                case &lt;-ticker.C:<span class="cov8" title="1">
+                        if s.running </span><span class="cov8" title="1">{
+                                s.executeScript()
+                        }</span>
+                }
+        }
+}
+
+// Stop stops the service
+func (s *Service) Stop() <span class="cov8" title="1">{
+        s.running = false
+        s.cancel()
+}</span>
+
+// ShowConfig displays the current configuration
+func (s *Service) ShowConfig() <span class="cov8" title="1">{
+        fmt.Printf("Current configuration:\n")
+        fmt.Printf("  Interval: %d seconds (%s)\n", s.config.Interval, formatDuration(s.config.Interval))
+        fmt.Printf("  Script: %s\n", s.scriptPath)
+        fmt.Printf("  Log: %s\n", s.logPath)
+        fmt.Printf("  Config: %s\n", s.configPath)
+}</span>
+
+// executeScript executes the script and logs the result
+func (s *Service) executeScript() <span class="cov8" title="1">{
+        result := s.executor.ExecuteScript()
+        fmt.Printf("Script executed at %s, exit code: %d\n",
+                result.Timestamp.Format("2006-01-02 15:04:05"), result.ExitCode)
+}</span>
+
+// formatDuration formats seconds into a human-readable duration string
+func formatDuration(seconds int) string <span class="cov8" title="1">{
+        if seconds &lt; 60 </span><span class="cov8" title="1">{
+                return fmt.Sprintf("%ds", seconds)
+        }</span> else<span class="cov8" title="1"> if seconds &lt; 3600 </span><span class="cov8" title="1">{
+                return fmt.Sprintf("%dm", seconds/60)
+        }</span> else<span class="cov8" title="1"> {
+                return fmt.Sprintf("%dh", seconds/3600)
+        }</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

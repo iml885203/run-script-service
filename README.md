@@ -163,7 +163,7 @@ The `plans/` directory contains detailed implementation plans for upcoming featu
 
 | Plan | Feature | Status |
 |------|---------|--------|
-| [01-unit-testing.md](plans/01-unit-testing.md) | 單元測試基礎設施 | 📋 Planned |
+| [01-unit-testing.md](plans/01-unit-testing.md) | 單元測試基礎設施 | ✅ Completed |
 | [02-tdd-workflow.md](plans/02-tdd-workflow.md) | TDD 開發流程 | 📋 Planned |
 | [03-multi-script-support.md](plans/03-multi-script-support.md) | 多腳本支援 | 📋 Planned |
 | [04-multi-log-management.md](plans/04-multi-log-management.md) | 多日誌管理 | 📋 Planned |
