@@ -1,0 +1,14 @@
+[Unit]
+Description=Run Script Service
+After=network.target
+
+[Service]
+Type=simple
+User=logan
+WorkingDirectory=/home/logan/run-script-service
+ExecStart=/usr/bin/python3 /home/logan/run-script-service/run_script_service.py run
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,3 @@
+#!/bin/bash
+cd /home/logan/591-crawler && claude --dangerously-skip-permissions -p "checkout or create branch 'migrate/typescript' and migrate the entire codebase to TypeScript. Add type definitions, convert .js files to .ts, and ensure proper typing. When done, commit and push changes to 'migrate/typescript'" --output-format stream-json --verbose
+echo "$(date): TypeScript migration script executed successfully"

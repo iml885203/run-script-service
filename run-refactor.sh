@@ -1,0 +1,3 @@
+#!/bin/bash
+cd /home/logan/591-crawler && claude --dangerously-skip-permissions -p "checkout or create branch 'refactor/code' and refactor lib/. Follow KISS principle and apply refactoring techniques from 'Refactoring: Improving the Design of Existing Code' book. When done, commit and push changes to 'refactor/code'" --output-format stream-json --verbose
+echo "$(date): Script executed successfully"
