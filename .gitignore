@@ -2,16 +2,11 @@
 *.log
 run.log
 
-# Python cache
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+# Compiled Go binary
+run-script-service
 
-# Virtual environment
-venv/
-env/
-.env
+# Runtime configuration (contains user-specific settings)
+service_config.json
 
 # OS generated files
 .DS_Store

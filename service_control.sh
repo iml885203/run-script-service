@@ -2,7 +2,7 @@
 
 SERVICE_NAME="run-script"
 SERVICE_FILE="/home/logan/run-script-service/run-script.service"
-PYTHON_SCRIPT="/home/logan/run-script-service/run_script_service.py"
+GO_BINARY="/home/logan/run-script-service/run-script-service"
 
 show_help() {
     echo "Run Script Service Control"
@@ -103,7 +103,7 @@ case "$1" in
         fi
         
         echo "Setting interval to $seconds seconds..."
-        python3 "$PYTHON_SCRIPT" set-interval "$seconds"
+        "$GO_BINARY" set-interval "$2"
         
         # Restart service if it's running
         if sudo systemctl is-active --quiet "$SERVICE_NAME"; then
@@ -113,12 +113,7 @@ case "$1" in
         ;;
     
     show-config)
-        if [ -f "/home/logan/run-script-service/service_config.json" ]; then
-            echo "Current configuration:"
-            cat "/home/logan/run-script-service/service_config.json"
-        else
-            echo "No configuration file found. Using default interval of 3600 seconds (1 hour)."
-        fi
+        "$GO_BINARY" show-config
         ;;
     
     help|--help|-h)

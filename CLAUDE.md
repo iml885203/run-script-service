@@ -30,17 +30,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./run.sh
 
 # Test the service daemon directly
-python3 run_script_service.py run
+./run-script-service run
+
+# Build the Go binary (if needed)
+go build -o run-script-service main.go
 
 # Make scripts executable if needed
-chmod +x run.sh service_control.sh
+chmod +x run.sh service_control.sh run-script-service
 ```
 
 ## Architecture
 
 This is a **systemd-based service manager** that executes shell scripts at configurable intervals. The architecture consists of:
 
-1. **Service Daemon** (`run_script_service.py`):
+1. **Service Daemon** (`main.go` compiled to `run-script-service`):
    - Runs continuously as a systemd service
    - Executes `run.sh` at configured intervals (default: 1 hour)
    - Implements automatic log rotation (keeps last 100 lines)
@@ -59,10 +62,11 @@ This is a **systemd-based service manager** that executes shell scripts at confi
    - All scripts are executed with captured stdout/stderr logged to `run.log`
 
 4. **Key Design Patterns**:
-   - **No external Python dependencies** - uses only standard library
+   - **No external dependencies** - uses only Go standard library
    - **Signal-based graceful shutdown** - properly handles service termination
    - **JSON configuration persistence** - survives service restarts
    - **Structured logging** with timestamps and exit codes
    - **Systemd integration** for reliability and automatic restart on failure
+   - **Cross-platform compatibility** - single binary deployment
 
 The service runs as user 'logan' and requires sudo for systemd operations. All file paths are absolute to ensure consistent execution regardless of working directory.

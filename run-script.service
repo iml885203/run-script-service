@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=logan
 WorkingDirectory=/home/logan/run-script-service
-ExecStart=/usr/bin/python3 /home/logan/run-script-service/run_script_service.py run
+ExecStart=/home/logan/run-script-service/run-script-service run
 Restart=always
 RestartSec=10
 
