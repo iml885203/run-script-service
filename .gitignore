@@ -31,3 +31,8 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Project-specific scripts
+run-*.sh
+run.sh
+!run.sh.example

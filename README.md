@@ -12,19 +12,26 @@ A configurable systemd service that executes a script at regular intervals with 
 
 ## Quick Start
 
-1. **Install the service:**
+1. **Create your script from the example:**
+   ```bash
+   cp run.sh.example run.sh
+   chmod +x run.sh
+   # Edit run.sh with your custom commands
+   ```
+
+2. **Install the service:**
    ```bash
    ./service_control.sh install
    ```
 
-2. **Set execution interval (optional):**
+3. **Set execution interval (optional):**
    ```bash
    ./service_control.sh set-interval 1h    # Run every hour (default)
    ./service_control.sh set-interval 30m   # Run every 30 minutes
    ./service_control.sh set-interval 120   # Run every 120 seconds
    ```
 
-3. **Start the service:**
+4. **Start the service:**
    ```bash
    ./service_control.sh start
    ```
@@ -61,7 +68,8 @@ A configurable systemd service that executes a script at regular intervals with 
 
 ```
 run-script-service/
-├── run.sh                    # Your script to be executed
+├── run.sh.example            # Example script template
+├── run.sh                    # Your script to be executed (create from example)
 ├── run_script_service.py     # Main service daemon
 ├── run-script.service        # Systemd service file
 ├── service_control.sh        # Control script
