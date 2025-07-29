@@ -1,6 +1,6 @@
 # Run Script Service
 
-A configurable systemd service that executes a script at regular intervals with automatic logging and log rotation.
+A high-performance, configurable systemd service built in Go that executes scripts at regular intervals with automatic logging and log rotation.
 
 ## Features
 
@@ -68,13 +68,16 @@ A configurable systemd service that executes a script at regular intervals with 
 
 ```
 run-script-service/
+├── main.go                   # Main service daemon (Go)
+├── go.mod                    # Go module definition
+├── run-script-service        # Compiled binary (auto-generated)
 ├── run.sh.example            # Example script template
 ├── run.sh                    # Your script to be executed (create from example)
-├── run_script_service.py     # Main service daemon
 ├── run-script.service        # Systemd service file
 ├── service_control.sh        # Control script
 ├── service_config.json       # Configuration file (auto-generated)
 ├── run.log                   # Execution log (auto-generated)
+├── plans/                    # Development plans (see Development section)
 └── README.md                 # This file
 ```
 
@@ -131,8 +134,11 @@ The service automatically creates `service_config.json` to store settings:
 # Test the script manually
 ./run.sh
 
+# Build the binary (if needed)
+go build -o run-script-service main.go
+
 # Test the service daemon manually
-python3 run_script_service.py run
+./run-script-service run
 ```
 
 ### Common Issues
@@ -143,9 +149,53 @@ python3 run_script_service.py run
 
 ## Requirements
 
-- Python 3.6+
+- Go 1.21+ (for building from source)
 - systemd (Linux)
 - sudo access for service installation
+
+## Development
+
+This project follows a structured development approach with detailed plans for each feature enhancement.
+
+### Development Plans
+
+The `plans/` directory contains detailed implementation plans for upcoming features:
+
+| Plan | Feature | Status |
+|------|---------|--------|
+| [01-unit-testing.md](plans/01-unit-testing.md) | 單元測試基礎設施 | 📋 Planned |
+| [02-tdd-workflow.md](plans/02-tdd-workflow.md) | TDD 開發流程 | 📋 Planned |
+| [03-multi-script-support.md](plans/03-multi-script-support.md) | 多腳本支援 | 📋 Planned |
+| [04-multi-log-management.md](plans/04-multi-log-management.md) | 多日誌管理 | 📋 Planned |
+| [05-web-framework.md](plans/05-web-framework.md) | Web 框架設置 | 📋 Planned |
+| [06-web-ui-basic.md](plans/06-web-ui-basic.md) | 基礎 Web UI | 📋 Planned |
+| [07-web-editing.md](plans/07-web-editing.md) | Web 編輯功能 | 📋 Planned |
+
+### Development Workflow
+
+Each plan contains:
+- **目標**: Clear feature objectives
+- **前置需求**: Dependencies on other plans
+- **實施步驟**: Step-by-step implementation guide
+- **驗收標準**: Acceptance criteria for completion
+- **相關檔案**: Files that will be created/modified
+- **測試案例**: Test scenarios to validate
+
+### Getting Started with Development
+
+1. Choose a plan from the table above
+2. Review the prerequisites 
+3. Follow the implementation steps using TDD approach
+4. Ensure all acceptance criteria are met
+5. Update the plan status in this README
+
+### Contributing
+
+When working on features:
+- Follow the TDD workflow established in Plan 02
+- Update documentation as you implement
+- Ensure all tests pass before submitting changes
+- Update the plan status table above
 
 ## License
 
