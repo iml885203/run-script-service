@@ -1,4 +1,4 @@
-.PHONY: test build clean coverage lint format
+.PHONY: test build clean coverage lint format install-precommit setup-precommit tdd ci
 
 # 測試相關
 test:
@@ -38,15 +38,7 @@ format:
 # TDD 循環
 tdd: test-watch
 
-# Git hooks
-install-hooks:
-	@echo "Installing git hooks..."
-	@GIT_DIR=$$(git rev-parse --git-dir) && \
-	mkdir -p "$$GIT_DIR/hooks" && \
-	cp scripts/pre-commit "$$GIT_DIR/hooks/pre-commit" && \
-	chmod +x "$$GIT_DIR/hooks/pre-commit"
-	@echo "Git hooks installed successfully!"
-
+# Pre-commit hooks (using pre-commit framework)
 install-precommit:
 	@echo "Installing pre-commit framework hooks..."
 	@if command -v pre-commit >/dev/null 2>&1; then \
@@ -60,10 +52,6 @@ install-precommit:
 setup-precommit: install-precommit
 	@echo "Running pre-commit on all files..."
 	@pre-commit run --all-files || echo "Some files were fixed. Please review and commit the changes."
-
-# Pre-commit checks
-pre-commit: format lint test
-	@echo "Pre-commit checks passed!"
 
 # CI 管道
 ci: format lint test build

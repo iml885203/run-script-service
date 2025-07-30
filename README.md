@@ -159,34 +159,20 @@ This project follows a structured development approach with detailed plans for e
 
 ### Pre-commit Hooks
 
-We provide two methods to maintain code quality with automatic pre-commit checks:
-
-#### Method 1: Using pre-commit framework (Recommended)
-
-Install the [pre-commit](https://pre-commit.com/) framework:
+To maintain code quality, we use the [pre-commit](https://pre-commit.com/) framework for automatic checks:
 
 ```bash
 # Install pre-commit (requires Python)
 pip install pre-commit
 
 # Install hooks for this repository
-pre-commit install
+make install-precommit
 
 # Optional: run on all files
-pre-commit run --all-files
+make setup-precommit
 ```
 
-#### Method 2: Using Makefile (No dependencies)
-
-```bash
-# Install git pre-commit hook (no external dependencies)
-make install-hooks
-
-# Manual check before committing
-make pre-commit
-```
-
-Both methods will automatically:
+The pre-commit hooks will automatically:
 - Format code with `go fmt`
 - Fix imports with `goimports`
 - Run linting with `golangci-lint`
@@ -200,10 +186,8 @@ Both methods will automatically:
 make format              # Format code with go fmt and goimports
 make lint               # Run golangci-lint
 make test               # Run all tests
-make pre-commit         # Run all pre-commit checks manually
 
-# Git hooks setup
-make install-hooks      # Install Makefile-based git hooks
+# Pre-commit hooks setup
 make install-precommit  # Install pre-commit framework hooks
 make setup-precommit    # Install and run pre-commit on all files
 
