@@ -121,7 +121,7 @@ func TestServiceConfig_LoadMultiScriptConfig(t *testing.T) {
 					},
 					{
 						"name": "backup",
-						"path": "./backup.sh", 
+						"path": "./backup.sh",
 						"interval": 86400,
 						"enabled": true,
 						"max_log_lines": 50,

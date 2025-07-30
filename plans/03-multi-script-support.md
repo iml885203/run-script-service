@@ -77,7 +77,7 @@ type ScriptRunner struct {
   "scripts": [
     {
       "name": "main",
-      "path": "./run.sh", 
+      "path": "./run.sh",
       "interval": 3600,
       "enabled": true,
       "max_log_lines": 100,
@@ -87,7 +87,7 @@ type ScriptRunner struct {
       "name": "backup",
       "path": "./backup.sh",
       "interval": 86400,
-      "enabled": true, 
+      "enabled": true,
       "max_log_lines": 50,
       "timeout": 1800
     }

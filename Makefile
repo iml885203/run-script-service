@@ -47,6 +47,20 @@ install-hooks:
 	chmod +x "$$GIT_DIR/hooks/pre-commit"
 	@echo "Git hooks installed successfully!"
 
+install-precommit:
+	@echo "Installing pre-commit framework hooks..."
+	@if command -v pre-commit >/dev/null 2>&1; then \
+		pre-commit install; \
+		echo "Pre-commit hooks installed successfully!"; \
+	else \
+		echo "❌ pre-commit not found. Install it with: pip install pre-commit"; \
+		exit 1; \
+	fi
+
+setup-precommit: install-precommit
+	@echo "Running pre-commit on all files..."
+	@pre-commit run --all-files || echo "Some files were fixed. Please review and commit the changes."
+
 # Pre-commit checks
 pre-commit: format lint test
 	@echo "Pre-commit checks passed!"

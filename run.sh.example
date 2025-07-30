@@ -7,7 +7,7 @@ echo "$(date): Running scheduled task"
 # Add your custom commands here
 # Examples:
 # - Run backups
-# - Clean temporary files  
+# - Clean temporary files
 # - Check system health
 # - Execute maintenance tasks
 

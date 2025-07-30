@@ -45,7 +45,7 @@ class ScriptEditor {
             matchBrackets: true
         });
     }
-    
+
     async loadScript(scriptPath) { ... }
     async saveScript(scriptPath, content) { ... }
     validateSyntax() { ... }

@@ -159,46 +159,59 @@ This project follows a structured development approach with detailed plans for e
 
 ### Pre-commit Hooks
 
-To maintain code quality, install the pre-commit hook that automatically formats code and runs tests:
+We provide two methods to maintain code quality with automatic pre-commit checks:
+
+#### Method 1: Using pre-commit framework (Recommended)
+
+Install the [pre-commit](https://pre-commit.com/) framework:
 
 ```bash
-# Install git pre-commit hook
+# Install pre-commit (requires Python)
+pip install pre-commit
+
+# Install hooks for this repository
+pre-commit install
+
+# Optional: run on all files
+pre-commit run --all-files
+```
+
+#### Method 2: Using Makefile (No dependencies)
+
+```bash
+# Install git pre-commit hook (no external dependencies)
 make install-hooks
 
-# Manual check before committing (optional)
+# Manual check before committing
 make pre-commit
 ```
 
-The pre-commit hook will automatically:
+Both methods will automatically:
 - Format code with `go fmt`
-- Fix imports with `goimports` (if available)
+- Fix imports with `goimports`
 - Run linting with `golangci-lint`
 - Execute all tests
-- Check for common issues
+- Check for trailing whitespace and other common issues
 
 ### Development Commands
 
 ```bash
-# Format code
-make format
+# Code quality
+make format              # Format code with go fmt and goimports
+make lint               # Run golangci-lint
+make test               # Run all tests
+make pre-commit         # Run all pre-commit checks manually
 
-# Run linter
-make lint  
+# Git hooks setup
+make install-hooks      # Install Makefile-based git hooks
+make install-precommit  # Install pre-commit framework hooks
+make setup-precommit    # Install and run pre-commit on all files
 
-# Run tests
-make test
-
-# Run tests with file watching
-make test-watch
-
-# Build binary
-make build
-
-# Full CI pipeline (format + lint + test + build)
-make ci
-
-# Clean build artifacts
-make clean
+# Development workflow
+make test-watch         # Run tests with file watching (TDD)
+make build             # Build binary
+make ci                # Full CI pipeline (format + lint + test + build)
+make clean             # Clean build artifacts
 ```
 
 ### Development Plans
@@ -228,7 +241,7 @@ Each plan contains:
 ### Getting Started with Development
 
 1. Choose a plan from the table above
-2. Review the prerequisites 
+2. Review the prerequisites
 3. Follow the implementation steps using TDD approach
 4. Ensure all acceptance criteria are met
 5. Update the plan status in this README

@@ -54,29 +54,29 @@
 		<div id="topbar">
 			<div id="nav">
 				<select id="files">
-				
+
 				<option value="file0">run-script-service/main.go (52.1%)</option>
-				
+
 				<option value="file1">run-script-service/mocks/filesystem.go (26.7%)</option>
-				
+
 				<option value="file2">run-script-service/service/config.go (75.0%)</option>
-				
+
 				<option value="file3">run-script-service/service/executor.go (76.0%)</option>
-				
+
 				<option value="file4">run-script-service/service/service.go (91.9%)</option>
-				
+
 				</select>
 			</div>
 			<div id="legend">
 				<span>not tracked</span>
-			
+
 				<span class="cov0">not covered</span>
 				<span class="cov8">covered</span>
-			
+
 			</div>
 		</div>
 		<div id="content">
-		
+
 		<pre class="file" id="file0" style="display: none">package main
 
 import (
@@ -236,7 +236,7 @@ func parseInterval(intervalStr string) (int, error) <span class="cov8" title="1"
         }
 }
 </pre>
-		
+
 		<pre class="file" id="file1" style="display: none">package mocks
 
 import (
@@ -348,7 +348,7 @@ func (m *MockTime) After(d time.Duration) &lt;-chan time.Time <span class="cov8"
         return ch
 }</span>
 </pre>
-		
+
 		<pre class="file" id="file2" style="display: none">package service
 
 import (
@@ -396,7 +396,7 @@ func SaveConfig(configPath string, config *Config) error <span class="cov8" titl
         <span class="cov8" title="1">return nil</span>
 }
 </pre>
-		
+
 		<pre class="file" id="file3" style="display: none">package service
 
 import (
@@ -568,7 +568,7 @@ func (e *Executor) TrimLog() error <span class="cov8" title="1">{
         <span class="cov8" title="1">return nil</span>
 }
 </pre>
-		
+
 		<pre class="file" id="file4" style="display: none">package service
 
 import (
@@ -680,7 +680,7 @@ func formatDuration(seconds int) string <span class="cov8" title="1">{
         }</span>
 }
 </pre>
-		
+
 		</div>
 	</body>
 	<script>

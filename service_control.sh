@@ -29,7 +29,7 @@ convert_to_seconds() {
     local input="$1"
     local number="${input%[mh]}"
     local unit="${input: -1}"
-    
+
     if [[ "$input" =~ ^[0-9]+$ ]]; then
         # Pure number, treat as seconds
         echo "$input"
@@ -53,7 +53,7 @@ case "$1" in
         sudo systemctl enable "$SERVICE_NAME"
         echo "Service installed and enabled"
         ;;
-    
+
     uninstall)
         echo "Uninstalling systemd service..."
         sudo systemctl stop "$SERVICE_NAME" 2>/dev/null
@@ -62,64 +62,64 @@ case "$1" in
         sudo systemctl daemon-reload
         echo "Service uninstalled"
         ;;
-    
+
     start)
         echo "Starting service..."
         sudo systemctl start "$SERVICE_NAME"
         sleep 1
         sudo systemctl status "$SERVICE_NAME" --no-pager -l
         ;;
-    
+
     stop)
         echo "Stopping service..."
         sudo systemctl stop "$SERVICE_NAME"
         echo "Service stopped"
         ;;
-    
+
     restart)
         echo "Restarting service..."
         sudo systemctl restart "$SERVICE_NAME"
         sleep 1
         sudo systemctl status "$SERVICE_NAME" --no-pager -l
         ;;
-    
+
     status)
         sudo systemctl status "$SERVICE_NAME" --no-pager -l
         ;;
-    
+
     logs)
         sudo journalctl -u "$SERVICE_NAME" -f
         ;;
-    
+
     set-interval)
         if [ -z "$2" ]; then
             echo "Please specify interval. Examples: 30, 5m, 2h"
             exit 1
         fi
-        
+
         seconds=$(convert_to_seconds "$2")
         if [ $? -ne 0 ]; then
             exit 1
         fi
-        
+
         echo "Setting interval to $seconds seconds..."
         "$GO_BINARY" set-interval "$2"
-        
+
         # Restart service if it's running
         if sudo systemctl is-active --quiet "$SERVICE_NAME"; then
             echo "Restarting service to apply new interval..."
             sudo systemctl restart "$SERVICE_NAME"
         fi
         ;;
-    
+
     show-config)
         "$GO_BINARY" show-config
         ;;
-    
+
     help|--help|-h)
         show_help
         ;;
-    
+
     *)
         echo "Unknown command: $1"
         echo "Use '$0 help' for usage information"
