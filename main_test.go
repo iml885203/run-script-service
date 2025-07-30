@@ -155,6 +155,18 @@ func TestHandleCommand(t *testing.T) {
 			expectErr:  true,
 			errMessage: "unknown command: unknown",
 		},
+		{
+			name:      "run with web flag",
+			args:      []string{"run-script-service", "run", "--web"},
+			expectRun: true,
+			expectErr: false,
+		},
+		{
+			name:      "set web port command",
+			args:      []string{"run-script-service", "set-web-port", "9090"},
+			expectRun: false,
+			expectErr: false,
+		},
 	}
 
 	for _, tt := range tests {
