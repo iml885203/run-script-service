@@ -8,6 +8,7 @@ A high-performance, configurable systemd service built in Go that executes scrip
 - **Automatic Logging**: All script execution results are logged to `run.log`
 - **Log Rotation**: Automatically keeps only the last 100 lines in the log file
 - **Systemd Integration**: Full systemd service support with start/stop/restart capabilities
+- **Dynamic Service Generation**: Automatically generates systemd service files with correct paths
 - **Easy Management**: Simple control script for all operations
 
 ## Quick Start
@@ -21,7 +22,7 @@ A high-performance, configurable systemd service built in Go that executes scrip
 
 2. **Install the service:**
    ```bash
-   ./service_control.sh install
+   ./service_control.sh install    # Automatically generates service file with correct paths
    ```
 
 3. **Set execution interval (optional):**
@@ -73,7 +74,7 @@ run-script-service/
 ├── run-script-service        # Compiled binary (auto-generated)
 ├── run.sh.example            # Example script template
 ├── run.sh                    # Your script to be executed (create from example)
-├── run-script.service        # Systemd service file
+├── run-script.service        # Systemd service file (auto-generated)
 ├── service_control.sh        # Control script
 ├── service_config.json       # Configuration file (auto-generated)
 ├── run.log                   # Execution log (auto-generated)
@@ -136,6 +137,9 @@ The service automatically creates `service_config.json` to store settings:
 
 # Build the binary (if needed)
 go build -o run-script-service main.go
+
+# Generate systemd service file manually
+./run-script-service generate-service
 
 # Test the service daemon manually
 ./run-script-service run

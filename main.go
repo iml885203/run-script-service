@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"syscall"
@@ -49,9 +50,16 @@ func handleCommand(args []string, scriptPath, logPath, configPath string, maxLin
 	case "show-config":
 		svc.ShowConfig()
 		return CommandResult{shouldRunService: false}, nil
+	case "generate-service":
+		if err := generateServiceFile(); err != nil {
+			return CommandResult{shouldRunService: false},
+				fmt.Errorf("error generating service file: %v", err)
+		}
+		fmt.Println("Service file generated successfully")
+		return CommandResult{shouldRunService: false}, nil
 	default:
 		return CommandResult{shouldRunService: false},
-			fmt.Errorf("unknown command: %s\navailable commands: run, set-interval, show-config", command)
+			fmt.Errorf("unknown command: %s\navailable commands: run, set-interval, show-config, generate-service", command)
 	}
 }
 
@@ -156,4 +164,48 @@ func parseInterval(intervalStr string) (int, error) {
 		}
 		return result, nil
 	}
+}
+
+// generateServiceFile creates a systemd service file with current directory paths
+func generateServiceFile() error {
+	// Get current working directory
+	workDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get working directory: %v", err)
+	}
+
+	// Get current user
+	currentUser, err := user.Current()
+	if err != nil {
+		return fmt.Errorf("failed to get current user: %v", err)
+	}
+
+	// Get absolute path of the binary
+	binaryPath := filepath.Join(workDir, "run-script-service")
+
+	// Service file template
+	serviceContent := fmt.Sprintf(`[Unit]
+Description=Run Script Service
+After=network.target
+
+[Service]
+Type=simple
+User=%s
+WorkingDirectory=%s
+ExecStart=%s run
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+`, currentUser.Username, workDir, binaryPath)
+
+	// Write service file
+	serviceFilePath := filepath.Join(workDir, "run-script.service")
+	err = os.WriteFile(serviceFilePath, []byte(serviceContent), 0600)
+	if err != nil {
+		return fmt.Errorf("failed to write service file: %v", err)
+	}
+
+	return nil
 }

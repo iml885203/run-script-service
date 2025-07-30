@@ -8,6 +8,9 @@ run-script-service
 # Runtime configuration (contains user-specific settings)
 service_config.json
 
+# Auto-generated systemd service file (user and path specific)
+run-script.service
+
 # OS generated files
 .DS_Store
 .DS_Store?

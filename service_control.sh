@@ -47,6 +47,13 @@ convert_to_seconds() {
 
 case "$1" in
     install)
+        echo "Generating service file..."
+        "$GO_BINARY" generate-service
+        if [ $? -ne 0 ]; then
+            echo "Failed to generate service file"
+            exit 1
+        fi
+
         echo "Installing systemd service..."
         sudo cp "$SERVICE_FILE" /etc/systemd/system/
         sudo systemctl daemon-reload
