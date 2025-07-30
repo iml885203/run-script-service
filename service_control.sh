@@ -1,8 +1,8 @@
 #!/bin/bash
 
 SERVICE_NAME="run-script"
-SERVICE_FILE="/home/logan/run-script-service/run-script.service"
-GO_BINARY="/home/logan/run-script-service/run-script-service"
+SERVICE_FILE="./run-script.service"
+GO_BINARY="./run-script-service"
 
 show_help() {
     echo "Run Script Service Control"
