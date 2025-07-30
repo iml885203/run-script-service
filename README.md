@@ -159,17 +159,13 @@ This project follows a structured development approach with detailed plans for e
 
 ### Pre-commit Hooks
 
-To maintain code quality, install pre-commit hooks that automatically format code and run tests:
+To maintain code quality, install the pre-commit hook that automatically formats code and runs tests:
 
 ```bash
-# Method 1: Using make (recommended)
+# Install git pre-commit hook
 make install-hooks
 
-# Method 2: Using pre-commit framework
-pip install pre-commit
-pre-commit install
-
-# Method 3: Manual check before committing
+# Manual check before committing (optional)
 make pre-commit
 ```
 
