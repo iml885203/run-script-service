@@ -8,6 +8,7 @@ A high-performance, configurable systemd service built in Go that executes scrip
 - **Automatic Logging**: All script execution results are logged to `run.log`
 - **Log Rotation**: Automatically keeps only the last 100 lines in the log file
 - **Systemd Integration**: Full systemd service support with start/stop/restart capabilities
+- **Dynamic Service Generation**: Automatically generates systemd service files with correct paths
 - **Easy Management**: Simple control script for all operations
 
 ## Quick Start
@@ -21,7 +22,7 @@ A high-performance, configurable systemd service built in Go that executes scrip
 
 2. **Install the service:**
    ```bash
-   ./service_control.sh install
+   ./service_control.sh install    # Automatically generates service file with correct paths
    ```
 
 3. **Set execution interval (optional):**
@@ -73,7 +74,7 @@ run-script-service/
 ├── run-script-service        # Compiled binary (auto-generated)
 ├── run.sh.example            # Example script template
 ├── run.sh                    # Your script to be executed (create from example)
-├── run-script.service        # Systemd service file
+├── run-script.service        # Systemd service file (auto-generated)
 ├── service_control.sh        # Control script
 ├── service_config.json       # Configuration file (auto-generated)
 ├── run.log                   # Execution log (auto-generated)
@@ -137,6 +138,9 @@ The service automatically creates `service_config.json` to store settings:
 # Build the binary (if needed)
 go build -o run-script-service main.go
 
+# Generate systemd service file manually
+./run-script-service generate-service
+
 # Test the service daemon manually
 ./run-script-service run
 ```
@@ -157,14 +161,55 @@ go build -o run-script-service main.go
 
 This project follows a structured development approach with detailed plans for each feature enhancement.
 
+### Pre-commit Hooks
+
+To maintain code quality, we use the [pre-commit](https://pre-commit.com/) framework for automatic checks:
+
+```bash
+# Install pre-commit (requires Python)
+pip install pre-commit
+
+# Install hooks for this repository
+pre-commit install
+
+# Optional: run on all files
+pre-commit run --all-files
+```
+
+The pre-commit hooks will automatically:
+- Format code with `go fmt`
+- Fix imports with `goimports`
+- Run linting with `golangci-lint`
+- Execute all tests
+- Check for trailing whitespace and other common issues
+
+### Development Commands
+
+```bash
+# Code quality
+make format              # Format code with go fmt and goimports
+make lint               # Run golangci-lint
+make test               # Run all tests
+
+# Pre-commit hooks (requires: pip install pre-commit)
+pre-commit install      # Install hooks for this repository
+pre-commit run --all-files  # Run on all files
+
+# Development workflow
+make test-watch         # Run tests with file watching (TDD)
+make build             # Build binary
+make ci                # Full CI pipeline (format + lint + test + build)
+make clean             # Clean build artifacts
+```
+
 ### Development Plans
 
 The `plans/` directory contains detailed implementation plans for upcoming features:
 
 | Plan | Feature | Status |
 |------|---------|--------|
-| [01-unit-testing.md](plans/01-unit-testing.md) | 單元測試基礎設施 | 📋 Planned |
-| [02-tdd-workflow.md](plans/02-tdd-workflow.md) | TDD 開發流程 | 📋 Planned |
+| [01-unit-testing.md](plans/01-unit-testing.md) | 單元測試基礎設施 | ✅ Completed |
+| [02-tdd-workflow.md](plans/02-tdd-workflow.md) | TDD 開發流程 | ✅ Completed |
 | [03-multi-script-support.md](plans/03-multi-script-support.md) | 多腳本支援 | 📋 Planned |
 | [04-multi-log-management.md](plans/04-multi-log-management.md) | 多日誌管理 | 📋 Planned |
 | [05-web-framework.md](plans/05-web-framework.md) | Web 框架設置 | 📋 Planned |
@@ -184,7 +229,7 @@ Each plan contains:
 ### Getting Started with Development
 
 1. Choose a plan from the table above
-2. Review the prerequisites 
+2. Review the prerequisites
 3. Follow the implementation steps using TDD approach
 4. Ensure all acceptance criteria are met
 5. Update the plan status in this README

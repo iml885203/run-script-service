@@ -26,7 +26,7 @@ type ServiceConfig struct {
 }
 ```
 
-### 2. 實現腳本管理器 (TDD)
+### 2. 實現腳本管理器 (TDD) ✅ COMPLETED
 ```go
 type ScriptManager struct {
     scripts map[string]*ScriptRunner
@@ -40,6 +40,11 @@ type ScriptRunner struct {
     executor *ScriptExecutor
 }
 ```
+**實施狀態**: 已完成 ScriptManager 和 ScriptRunner 的基礎實現，包含：
+- 腳本生命週期管理 (啟動/停止)
+- 線程安全的腳本狀態追踪
+- 並行執行支援
+- 完整的單元測試覆蓋
 
 ### 3. 實現並行執行邏輯
 - 每個腳本獨立的 goroutine
@@ -72,7 +77,7 @@ type ScriptRunner struct {
   "scripts": [
     {
       "name": "main",
-      "path": "./run.sh", 
+      "path": "./run.sh",
       "interval": 3600,
       "enabled": true,
       "max_log_lines": 100,
@@ -82,7 +87,7 @@ type ScriptRunner struct {
       "name": "backup",
       "path": "./backup.sh",
       "interval": 86400,
-      "enabled": true, 
+      "enabled": true,
       "max_log_lines": 50,
       "timeout": 1800
     }

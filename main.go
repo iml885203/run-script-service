@@ -1,38 +1,70 @@
+// Package main provides the run-script-service daemon executable.
 package main
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"log"
 	"os"
-	"os/exec"
 	"os/signal"
+	"os/user"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"syscall"
-	"time"
+
+	"run-script-service/service"
 )
 
-type Config struct {
-	Interval int `json:"interval"`
+// CommandResult represents the result of command processing
+type CommandResult struct {
+	shouldRunService bool
 }
 
-type Service struct {
-	config     Config
-	scriptPath string
-	logPath    string
-	configPath string
-	maxLines   int
-	running    bool
-	ctx        context.Context
-	cancel     context.CancelFunc
+// handleCommand processes command line arguments and returns appropriate action
+func handleCommand(args []string, scriptPath, logPath, configPath string, maxLines int) (CommandResult, error) {
+	svc := service.NewService(scriptPath, logPath, configPath, maxLines)
+
+	if len(args) < 2 {
+		return CommandResult{shouldRunService: true}, nil
+	}
+
+	command := args[1]
+
+	switch command {
+	case "run":
+		return CommandResult{shouldRunService: true}, nil
+	case "set-interval":
+		if len(args) != 3 {
+			return CommandResult{shouldRunService: false},
+				fmt.Errorf("usage: ./run-script-service set-interval <interval>\nexamples: 30s, 5m, 1h, 3600")
+		}
+		interval, err := parseInterval(args[2])
+		if err != nil {
+			return CommandResult{shouldRunService: false},
+				fmt.Errorf("invalid interval: %v", err)
+		}
+		if err := svc.SetInterval(interval); err != nil {
+			return CommandResult{shouldRunService: false},
+				fmt.Errorf("error setting interval: %v", err)
+		}
+		return CommandResult{shouldRunService: false}, nil
+	case "show-config":
+		svc.ShowConfig()
+		return CommandResult{shouldRunService: false}, nil
+	case "generate-service":
+		if err := generateServiceFile(); err != nil {
+			return CommandResult{shouldRunService: false},
+				fmt.Errorf("error generating service file: %v", err)
+		}
+		fmt.Println("Service file generated successfully")
+		return CommandResult{shouldRunService: false}, nil
+	default:
+		return CommandResult{shouldRunService: false},
+			fmt.Errorf("unknown command: %s\navailable commands: run, set-interval, show-config, generate-service", command)
+	}
 }
 
-func NewService() *Service {
+func main() {
+	// Get paths relative to executable
 	dir, err := os.Executable()
 	if err != nil {
 		dir, _ = os.Getwd()
@@ -40,233 +72,52 @@ func NewService() *Service {
 		dir = filepath.Dir(dir)
 	}
 
-	s := &Service{
-		config:     Config{Interval: 3600}, // Default 1 hour
-		scriptPath: filepath.Join(dir, "run.sh"),
-		logPath:    filepath.Join(dir, "run.log"),
-		configPath: filepath.Join(dir, "service_config.json"),
-		maxLines:   100,
-		running:    false,
-	}
+	scriptPath := filepath.Join(dir, "run.sh")
+	logPath := filepath.Join(dir, "run.log")
+	configPath := filepath.Join(dir, "service_config.json")
+	maxLines := 100
 
-	s.ctx, s.cancel = context.WithCancel(context.Background())
-	s.loadConfig()
-	return s
-}
-
-func (s *Service) loadConfig() {
-	if _, err := os.Stat(s.configPath); os.IsNotExist(err) {
-		return
-	}
-
-	data, err := os.ReadFile(s.configPath)
+	result, err := handleCommand(os.Args, scriptPath, logPath, configPath, maxLines)
 	if err != nil {
-		log.Printf("Error reading config: %v", err)
-		return
+		fmt.Printf("%v\n", err)
+		os.Exit(1)
 	}
 
-	if err := json.Unmarshal(data, &s.config); err != nil {
-		log.Printf("Error parsing config: %v", err)
+	if result.shouldRunService {
+		svc := service.NewService(scriptPath, logPath, configPath, maxLines)
+		runService(svc)
 	}
 }
 
-func (s *Service) saveConfig() error {
-	data, err := json.MarshalIndent(s.config, "", "  ")
-	if err != nil {
-		return fmt.Errorf("error marshaling config: %v", err)
-	}
-
-	if err := os.WriteFile(s.configPath, data, 0644); err != nil {
-		return fmt.Errorf("error writing config: %v", err)
-	}
-
-	return nil
-}
-
-func (s *Service) setInterval(interval int) error {
-	s.config.Interval = interval
-	if err := s.saveConfig(); err != nil {
-		return err
-	}
-	fmt.Printf("Interval set to %d seconds\n", interval)
-	return nil
-}
-
-func (s *Service) trimLog() error {
-	file, err := os.Open(s.logPath)
-	if os.IsNotExist(err) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-
-	if err := scanner.Err(); err != nil {
-		return err
-	}
-
-	if len(lines) <= s.maxLines {
-		return nil
-	}
-
-	// Keep only the last maxLines lines
-	linesToKeep := lines[len(lines)-s.maxLines:]
-
-	outFile, err := os.Create(s.logPath)
-	if err != nil {
-		return err
-	}
-	defer outFile.Close()
-
-	for _, line := range linesToKeep {
-		if _, err := outFile.WriteString(line + "\n"); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (s *Service) executeScript() {
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-
-	cmd := exec.Command(s.scriptPath)
-	cmd.Dir = filepath.Dir(s.scriptPath)
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		s.logError(timestamp, fmt.Sprintf("Error creating stdout pipe: %v", err))
-		return
-	}
-
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		s.logError(timestamp, fmt.Sprintf("Error creating stderr pipe: %v", err))
-		return
-	}
-
-	if err := cmd.Start(); err != nil {
-		s.logError(timestamp, fmt.Sprintf("Error starting command: %v", err))
-		return
-	}
-
-	stdoutBytes, _ := io.ReadAll(stdout)
-	stderrBytes, _ := io.ReadAll(stderr)
-
-	err = cmd.Wait()
-	exitCode := 0
-	if err != nil {
-		if exitError, ok := err.(*exec.ExitError); ok {
-			exitCode = exitError.ExitCode()
-		} else {
-			s.logError(timestamp, fmt.Sprintf("Error waiting for command: %v", err))
-			return
-		}
-	}
-
-	// Write to log
-	logEntry := fmt.Sprintf("[%s] Exit code: %d\n", timestamp, exitCode)
-	if len(stdoutBytes) > 0 {
-		logEntry += fmt.Sprintf("STDOUT: %s\n", strings.TrimSpace(string(stdoutBytes)))
-	}
-	if len(stderrBytes) > 0 {
-		logEntry += fmt.Sprintf("STDERR: %s\n", strings.TrimSpace(string(stderrBytes)))
-	}
-	logEntry += strings.Repeat("-", 50) + "\n"
-
-	if err := s.writeLog(logEntry); err != nil {
-		log.Printf("Error writing to log: %v", err)
-	}
-
-	if err := s.trimLog(); err != nil {
-		log.Printf("Error trimming log: %v", err)
-	}
-
-	fmt.Printf("Script executed at %s, exit code: %d\n", timestamp, exitCode)
-}
-
-func (s *Service) logError(timestamp, message string) {
-	errorMsg := fmt.Sprintf("[%s] ERROR: %s\n%s\n", timestamp, message, strings.Repeat("-", 50))
-	if err := s.writeLog(errorMsg); err != nil {
-		log.Printf("Error writing error to log: %v", err)
-	}
-	log.Printf("Error executing script: %s", message)
-}
-
-func (s *Service) writeLog(content string) error {
-	file, err := os.OpenFile(s.logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	_, err = file.WriteString(content)
-	return err
-}
-
-func (s *Service) run() {
-	s.running = true
-	fmt.Printf("Service started with %d second interval\n", s.config.Interval)
-
+func runService(svc *service.Service) {
 	// Set up signal handling
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
 
-	ticker := time.NewTicker(time.Duration(s.config.Interval) * time.Second)
-	defer ticker.Stop()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	// Execute immediately on start
-	s.executeScript()
+	// Start service in a goroutine
+	done := make(chan bool)
+	go func() {
+		svc.Start(ctx)
+		done <- true
+	}()
 
-	for {
-		select {
-		case <-s.ctx.Done():
-			fmt.Println("Service stopping...")
-			return
-		case <-sigChan:
-			fmt.Println("Received shutdown signal")
-			s.stop()
-			return
-		case <-ticker.C:
-			if s.running {
-				s.executeScript()
-			}
-		}
-	}
-}
-
-func (s *Service) stop() {
-	s.running = false
-	s.cancel()
-}
-
-func (s *Service) showConfig() {
-	fmt.Printf("Current configuration:\n")
-	fmt.Printf("  Interval: %d seconds (%s)\n", s.config.Interval, formatDuration(s.config.Interval))
-	fmt.Printf("  Script: %s\n", s.scriptPath)
-	fmt.Printf("  Log: %s\n", s.logPath)
-	fmt.Printf("  Config: %s\n", s.configPath)
-}
-
-func formatDuration(seconds int) string {
-	if seconds < 60 {
-		return fmt.Sprintf("%ds", seconds)
-	} else if seconds < 3600 {
-		return fmt.Sprintf("%dm", seconds/60)
-	} else {
-		return fmt.Sprintf("%dh", seconds/3600)
+	// Wait for signal or service completion
+	select {
+	case <-sigChan:
+		fmt.Println("Received shutdown signal")
+		svc.Stop()
+		cancel()
+		<-done // Wait for service to finish
+	case <-done:
+		// Service finished naturally
 	}
 }
 
 func parseInterval(intervalStr string) (int, error) {
-	if len(intervalStr) == 0 {
+	if intervalStr == "" {
 		return 0, fmt.Errorf("empty interval")
 	}
 
@@ -276,55 +127,85 @@ func parseInterval(intervalStr string) (int, error) {
 	value, err := strconv.Atoi(valueStr)
 	if err != nil {
 		// Try parsing as plain number (seconds)
-		return strconv.Atoi(intervalStr)
+		result, parseErr := strconv.Atoi(intervalStr)
+		if parseErr != nil {
+			return 0, parseErr
+		}
+		if result < 0 {
+			return 0, fmt.Errorf("negative interval not allowed")
+		}
+		return result, nil
 	}
 
 	switch suffix {
 	case "s":
+		if value < 0 {
+			return 0, fmt.Errorf("negative interval not allowed")
+		}
 		return value, nil
 	case "m":
+		if value < 0 {
+			return 0, fmt.Errorf("negative interval not allowed")
+		}
 		return value * 60, nil
 	case "h":
+		if value < 0 {
+			return 0, fmt.Errorf("negative interval not allowed")
+		}
 		return value * 3600, nil
 	default:
 		// No suffix, treat as seconds
-		return strconv.Atoi(intervalStr)
+		result, err := strconv.Atoi(intervalStr)
+		if err != nil {
+			return 0, err
+		}
+		if result < 0 {
+			return 0, fmt.Errorf("negative interval not allowed")
+		}
+		return result, nil
 	}
 }
 
-func main() {
-	service := NewService()
-
-	if len(os.Args) < 2 {
-		service.run()
-		return
+// generateServiceFile creates a systemd service file with current directory paths
+func generateServiceFile() error {
+	// Get current working directory
+	workDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get working directory: %v", err)
 	}
 
-	command := os.Args[1]
-
-	switch command {
-	case "run":
-		service.run()
-	case "set-interval":
-		if len(os.Args) != 3 {
-			fmt.Println("Usage: ./run-script-service set-interval <interval>")
-			fmt.Println("Examples: 30s, 5m, 1h, 3600")
-			os.Exit(1)
-		}
-		interval, err := parseInterval(os.Args[2])
-		if err != nil {
-			fmt.Printf("Invalid interval: %v\n", err)
-			os.Exit(1)
-		}
-		if err := service.setInterval(interval); err != nil {
-			fmt.Printf("Error setting interval: %v\n", err)
-			os.Exit(1)
-		}
-	case "show-config":
-		service.showConfig()
-	default:
-		fmt.Printf("Unknown command: %s\n", command)
-		fmt.Println("Available commands: run, set-interval, show-config")
-		os.Exit(1)
+	// Get current user
+	currentUser, err := user.Current()
+	if err != nil {
+		return fmt.Errorf("failed to get current user: %v", err)
 	}
+
+	// Get absolute path of the binary
+	binaryPath := filepath.Join(workDir, "run-script-service")
+
+	// Service file template
+	serviceContent := fmt.Sprintf(`[Unit]
+Description=Run Script Service
+After=network.target
+
+[Service]
+Type=simple
+User=%s
+WorkingDirectory=%s
+ExecStart=%s run
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+`, currentUser.Username, workDir, binaryPath)
+
+	// Write service file
+	serviceFilePath := filepath.Join(workDir, "run-script.service")
+	err = os.WriteFile(serviceFilePath, []byte(serviceContent), 0600)
+	if err != nil {
+		return fmt.Errorf("failed to write service file: %v", err)
+	}
+
+	return nil
 }

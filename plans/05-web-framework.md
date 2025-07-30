@@ -71,7 +71,7 @@ PUT    /api/config           - 更新系統配置
 func (s *Service) StartWithWeb() error {
     // 啟動背景腳本服務
     go s.runBackground()
-    
+
     // 啟動 Web 服務器
     webServer := NewWebServer(s, s.logManager, s.config.WebPort)
     return webServer.Start()
