@@ -1,3 +1,4 @@
+// Package service provides core functionality for the run-script-service daemon.
 package service
 
 import (
@@ -23,7 +24,7 @@ type ServiceConfig struct {
 	WebPort int            `json:"web_port"`
 }
 
-// Legacy Config struct for backward compatibility
+// Config is a legacy struct for backward compatibility
 type Config struct {
 	Interval int `json:"interval"`
 }
@@ -75,7 +76,7 @@ func SaveConfig(configPath string, config *Config) error {
 		return fmt.Errorf("error marshaling config: %v", err)
 	}
 
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
+	if err := os.WriteFile(configPath, data, 0600); err != nil {
 		return fmt.Errorf("error writing config: %v", err)
 	}
 
@@ -99,7 +100,9 @@ func LoadServiceConfig(configPath string, config *ServiceConfig) error {
 	if err := json.Unmarshal(data, &tempConfig); err == nil {
 		// Check if it looks like new format (has "scripts" field or "web_port" field)
 		var rawConfig map[string]interface{}
-		json.Unmarshal(data, &rawConfig)
+		if err := json.Unmarshal(data, &rawConfig); err != nil {
+			log.Printf("Error parsing config as map: %v", err)
+		}
 
 		if _, hasScripts := rawConfig["scripts"]; hasScripts || rawConfig["web_port"] != nil {
 			// Successfully parsed as new format
@@ -146,7 +149,7 @@ func SaveServiceConfig(configPath string, config *ServiceConfig) error {
 		return fmt.Errorf("error marshaling config: %v", err)
 	}
 
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
+	if err := os.WriteFile(configPath, data, 0600); err != nil {
 		return fmt.Errorf("error writing config: %v", err)
 	}
 

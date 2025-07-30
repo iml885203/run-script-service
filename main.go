@@ -1,3 +1,4 @@
+// Package main provides the run-script-service daemon executable.
 package main
 
 import (
@@ -33,16 +34,16 @@ func handleCommand(args []string, scriptPath, logPath, configPath string, maxLin
 	case "set-interval":
 		if len(args) != 3 {
 			return CommandResult{shouldRunService: false},
-				fmt.Errorf("Usage: ./run-script-service set-interval <interval>\nExamples: 30s, 5m, 1h, 3600")
+				fmt.Errorf("usage: ./run-script-service set-interval <interval>\nexamples: 30s, 5m, 1h, 3600")
 		}
 		interval, err := parseInterval(args[2])
 		if err != nil {
 			return CommandResult{shouldRunService: false},
-				fmt.Errorf("Invalid interval: %v", err)
+				fmt.Errorf("invalid interval: %v", err)
 		}
 		if err := svc.SetInterval(interval); err != nil {
 			return CommandResult{shouldRunService: false},
-				fmt.Errorf("Error setting interval: %v", err)
+				fmt.Errorf("error setting interval: %v", err)
 		}
 		return CommandResult{shouldRunService: false}, nil
 	case "show-config":
@@ -50,7 +51,7 @@ func handleCommand(args []string, scriptPath, logPath, configPath string, maxLin
 		return CommandResult{shouldRunService: false}, nil
 	default:
 		return CommandResult{shouldRunService: false},
-			fmt.Errorf("Unknown command: %s\nAvailable commands: run, set-interval, show-config", command)
+			fmt.Errorf("unknown command: %s\navailable commands: run, set-interval, show-config", command)
 	}
 }
 
@@ -108,7 +109,7 @@ func runService(svc *service.Service) {
 }
 
 func parseInterval(intervalStr string) (int, error) {
-	if len(intervalStr) == 0 {
+	if intervalStr == "" {
 		return 0, fmt.Errorf("empty interval")
 	}
 

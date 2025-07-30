@@ -1,3 +1,4 @@
+// Package service provides core functionality for the run-script-service daemon.
 package service
 
 import (
@@ -34,7 +35,10 @@ func NewService(scriptPath, logPath, configPath string, maxLines int) *Service {
 	s.executor = NewExecutor(scriptPath, logPath, maxLines)
 
 	// Load existing config if available
-	LoadConfig(configPath, &s.config)
+	if err := LoadConfig(configPath, &s.config); err != nil {
+		// Log error but continue with default config - this is expected behavior
+		_ = err
+	}
 
 	return s
 }

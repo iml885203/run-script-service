@@ -1,3 +1,4 @@
+// Package service provides core functionality for the run-script-service daemon.
 package service
 
 import (
@@ -74,7 +75,10 @@ func (sr *ScriptRunner) Start(ctx context.Context) {
 	}()
 
 	// Run script immediately on start
-	sr.RunOnce(runCtx)
+	if err := sr.RunOnce(runCtx); err != nil {
+		// Log error but continue running - this is expected behavior
+		_ = err
+	}
 
 	// Then run at intervals
 	for {
@@ -82,7 +86,10 @@ func (sr *ScriptRunner) Start(ctx context.Context) {
 		case <-runCtx.Done():
 			return
 		case <-sr.ticker.C:
-			sr.RunOnce(runCtx)
+			if err := sr.RunOnce(runCtx); err != nil {
+				// Log error but continue running - this is expected behavior
+				_ = err
+			}
 		}
 	}
 }

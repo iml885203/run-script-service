@@ -46,9 +46,8 @@ func TestConfig_LoadConfig(t *testing.T) {
 
 			// Create config file if content provided
 			if tt.configContent != "" {
-				err := os.WriteFile(configPath, []byte(tt.configContent), 0644)
-				if err != nil {
-					t.Fatal(err)
+				if writeErr := os.WriteFile(configPath, []byte(tt.configContent), 0644); writeErr != nil {
+					t.Fatal(writeErr)
 				}
 			}
 

@@ -5,11 +5,13 @@ import (
 	"testing"
 )
 
+const testScriptName = "test1"
+
 func TestScriptManager_New(t *testing.T) {
 	config := &ServiceConfig{
 		Scripts: []ScriptConfig{
 			{
-				Name:        "test1",
+				Name:        testScriptName,
 				Path:        "./test1.sh",
 				Interval:    60,
 				Enabled:     true,
@@ -66,8 +68,8 @@ func TestScriptManager_StartScript(t *testing.T) {
 		t.Error("Expected script runner to exist for test1")
 	}
 
-	if runner.config.Name != "test1" {
-		t.Errorf("Expected script name to be test1, got %s", runner.config.Name)
+	if runner.config.Name != testScriptName {
+		t.Errorf("Expected script name to be %s, got %s", testScriptName, runner.config.Name)
 	}
 }
 

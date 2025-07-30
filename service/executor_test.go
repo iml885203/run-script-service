@@ -62,17 +62,17 @@ func TestExecutor_ExecuteScript(t *testing.T) {
 				t.Errorf("expected exit code %d, got %d", tt.expectedExit, result.ExitCode)
 			}
 
-			if tt.expectStdout && len(result.Stdout) == 0 {
+			if tt.expectStdout && result.Stdout == "" {
 				t.Error("expected stdout but got none")
 			}
-			if !tt.expectStdout && len(result.Stdout) > 0 {
+			if !tt.expectStdout && result.Stdout != "" {
 				t.Errorf("expected no stdout but got: %s", result.Stdout)
 			}
 
-			if tt.expectStderr && len(result.Stderr) == 0 {
+			if tt.expectStderr && result.Stderr == "" {
 				t.Error("expected stderr but got none")
 			}
-			if !tt.expectStderr && len(result.Stderr) > 0 {
+			if !tt.expectStderr && result.Stderr != "" {
 				t.Errorf("expected no stderr but got: %s", result.Stderr)
 			}
 

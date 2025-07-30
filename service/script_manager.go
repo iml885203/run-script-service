@@ -1,3 +1,4 @@
+// Package service provides core functionality for the run-script-service daemon.
 package service
 
 import (
@@ -33,9 +34,9 @@ func (sm *ScriptManager) StartScript(ctx context.Context, name string) error {
 
 	// Find the script config
 	var scriptConfig *ScriptConfig
-	for _, sc := range sm.config.Scripts {
+	for i, sc := range sm.config.Scripts {
 		if sc.Name == name {
-			scriptConfig = &sc
+			scriptConfig = &sm.config.Scripts[i]
 			break
 		}
 	}

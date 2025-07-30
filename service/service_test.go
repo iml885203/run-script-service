@@ -121,7 +121,7 @@ func TestService_Start_Stop(t *testing.T) {
 	}
 
 	// Check that log file was created and has content
-	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+	if _, statErr := os.Stat(logPath); os.IsNotExist(statErr) {
 		t.Error("log file was not created")
 	}
 

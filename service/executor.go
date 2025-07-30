@@ -1,3 +1,4 @@
+// Package service provides core functionality for the run-script-service daemon.
 package service
 
 import (
@@ -59,8 +60,8 @@ func (e *Executor) ExecuteScript() *ExecutionResult {
 		return result
 	}
 
-	if err := cmd.Start(); err != nil {
-		e.logError(timestamp, fmt.Sprintf("Error starting command: %v", err))
+	if startErr := cmd.Start(); startErr != nil {
+		e.logError(timestamp, fmt.Sprintf("Error starting command: %v", startErr))
 		result.ExitCode = -1
 		return result
 	}
@@ -85,10 +86,10 @@ func (e *Executor) ExecuteScript() *ExecutionResult {
 
 	// Write to log
 	logEntry := fmt.Sprintf("[%s] Exit code: %d\n", timestamp.Format("2006-01-02 15:04:05"), result.ExitCode)
-	if len(result.Stdout) > 0 {
+	if result.Stdout != "" {
 		logEntry += fmt.Sprintf("STDOUT: %s\n", result.Stdout)
 	}
-	if len(result.Stderr) > 0 {
+	if result.Stderr != "" {
 		logEntry += fmt.Sprintf("STDERR: %s\n", result.Stderr)
 	}
 	logEntry += strings.Repeat("-", 50) + "\n"
@@ -116,7 +117,7 @@ func (e *Executor) logError(timestamp time.Time, message string) {
 
 // WriteLog writes content to the log file
 func (e *Executor) WriteLog(content string) error {
-	file, err := os.OpenFile(e.logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(e.logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
@@ -143,8 +144,8 @@ func (e *Executor) TrimLog() error {
 		lines = append(lines, scanner.Text())
 	}
 
-	if err := scanner.Err(); err != nil {
-		return err
+	if scanErr := scanner.Err(); scanErr != nil {
+		return scanErr
 	}
 
 	if len(lines) <= e.maxLines {

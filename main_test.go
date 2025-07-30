@@ -138,21 +138,21 @@ func TestHandleCommand(t *testing.T) {
 			args:       []string{"run-script-service", "set-interval"},
 			expectRun:  false,
 			expectErr:  true,
-			errMessage: "Usage: ./run-script-service set-interval <interval>",
+			errMessage: "usage: ./run-script-service set-interval <interval>",
 		},
 		{
 			name:       "set-interval invalid format",
 			args:       []string{"run-script-service", "set-interval", "invalid"},
 			expectRun:  false,
 			expectErr:  true,
-			errMessage: "Invalid interval",
+			errMessage: "invalid interval",
 		},
 		{
 			name:       "unknown command",
 			args:       []string{"run-script-service", "unknown"},
 			expectRun:  false,
 			expectErr:  true,
-			errMessage: "Unknown command: unknown",
+			errMessage: "unknown command: unknown",
 		},
 	}
 
