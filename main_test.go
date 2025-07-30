@@ -82,6 +82,7 @@ func TestParseInterval(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := parseInterval(tt.input)
 
@@ -157,6 +158,7 @@ func TestHandleCommand(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a temporary directory for test files
 			tempDir := t.TempDir()

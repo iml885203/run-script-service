@@ -34,6 +34,7 @@ func TestConfig_LoadConfig(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Create temporary directory
 			tempDir, err := os.MkdirTemp("", "config_test")
@@ -155,6 +156,7 @@ func TestServiceConfig_LoadMultiScriptConfig(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tempDir, err := os.MkdirTemp("", "config_test")
 			if err != nil {
@@ -246,6 +248,7 @@ func TestScriptConfig_Validation(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.script.Validate()
 			isValid := err == nil

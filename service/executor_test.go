@@ -39,6 +39,7 @@ func TestExecutor_ExecuteScript(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Create temporary directory and script
 			tempDir, err := os.MkdirTemp("", "executor_test")
