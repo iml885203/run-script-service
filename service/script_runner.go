@@ -20,33 +20,80 @@ func NewScriptExecutor(scriptPath, logPath string, maxLines int) *ScriptExecutor
 	}
 }
 
+// NewScriptExecutorWithoutLogging creates a script executor that doesn't log to files
+func NewScriptExecutorWithoutLogging(scriptPath string) *ScriptExecutor {
+	return &ScriptExecutor{
+		executor: NewExecutor(scriptPath, "", 0), // No logging
+	}
+}
+
 // Execute executes the script with context support and optional arguments
 func (se *ScriptExecutor) Execute(ctx context.Context, args ...string) error {
-	// For now, we'll execute synchronously and ignore context cancellation
-	// This is a simplified implementation that can be enhanced later
-	result := se.executor.ExecuteScript()
+	result, err := se.ExecuteWithResult(ctx, args...)
+	if err != nil {
+		return err
+	}
 	if result.ExitCode != 0 {
 		return fmt.Errorf("script exited with code %d", result.ExitCode)
 	}
 	return nil
 }
 
+// ExecuteWithResult executes the script and returns detailed execution result
+func (se *ScriptExecutor) ExecuteWithResult(ctx context.Context, args ...string) (*ExecutionResult, error) {
+	// Check if context is already canceled
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	// Create a channel to signal completion
+	resultChan := make(chan *ExecutionResult, 1)
+
+	// Execute in a goroutine to allow for cancellation
+	go func() {
+		result := se.executor.ExecuteScript(args...)
+		resultChan <- result
+	}()
+
+	// Wait for either completion or cancellation
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case result := <-resultChan:
+		return result, nil
+	}
+}
+
 // ScriptRunner manages the execution of a single script
 type ScriptRunner struct {
-	config   ScriptConfig
-	ticker   *time.Ticker
-	cancel   context.CancelFunc
-	executor *ScriptExecutor
-	running  bool
-	mutex    sync.RWMutex
+	config     ScriptConfig
+	ticker     *time.Ticker
+	cancel     context.CancelFunc
+	executor   *ScriptExecutor
+	logManager *LogManager
+	running    bool
+	mutex      sync.RWMutex
 }
 
 // NewScriptRunner creates a new script runner with the given configuration
 func NewScriptRunner(config ScriptConfig, logPath string) *ScriptRunner {
 	return &ScriptRunner{
-		config:   config,
-		executor: NewScriptExecutor(config.Path, logPath, config.MaxLogLines),
-		running:  false,
+		config:     config,
+		executor:   NewScriptExecutor(config.Path, logPath, config.MaxLogLines),
+		logManager: nil,
+		running:    false,
+	}
+}
+
+// NewScriptRunnerWithLogManager creates a new script runner with LogManager integration
+func NewScriptRunnerWithLogManager(config ScriptConfig, logManager *LogManager) *ScriptRunner {
+	return &ScriptRunner{
+		config:     config,
+		executor:   NewScriptExecutorWithoutLogging(config.Path), // No file logging since we use LogManager
+		logManager: logManager,
+		running:    false,
 	}
 }
 
@@ -113,6 +160,38 @@ func (sr *ScriptRunner) RunOnce(ctx context.Context, args ...string) error {
 		ctx = timeoutCtx
 	}
 
+	// If LogManager is available, use it for structured logging
+	if sr.logManager != nil {
+		startTime := time.Now()
+		result, err := sr.executor.ExecuteWithResult(ctx, args...)
+		if err != nil {
+			return err
+		}
+
+		// Create log entry
+		logEntry := &LogEntry{
+			Timestamp:  result.Timestamp,
+			ScriptName: sr.config.Name,
+			ExitCode:   result.ExitCode,
+			Stdout:     result.Stdout,
+			Stderr:     result.Stderr,
+			Duration:   time.Since(startTime).Milliseconds(),
+		}
+
+		// Add to log manager
+		logger := sr.logManager.GetLogger(sr.config.Name)
+		if addErr := logger.AddEntry(logEntry); addErr != nil {
+			// Log error but don't fail the execution
+			fmt.Printf("Failed to add log entry: %v\n", addErr)
+		}
+
+		if result.ExitCode != 0 {
+			return fmt.Errorf("script exited with code %d", result.ExitCode)
+		}
+		return nil
+	}
+
+	// Fallback to old executor method
 	return sr.executor.Execute(ctx, args...)
 }
 

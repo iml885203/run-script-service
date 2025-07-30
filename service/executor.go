@@ -37,13 +37,13 @@ func NewExecutor(scriptPath, logPath string, maxLines int) *Executor {
 }
 
 // ExecuteScript executes the configured script and logs the results
-func (e *Executor) ExecuteScript() *ExecutionResult {
+func (e *Executor) ExecuteScript(args ...string) *ExecutionResult {
 	timestamp := time.Now()
 	result := &ExecutionResult{
 		Timestamp: timestamp,
 	}
 
-	cmd := exec.Command(e.scriptPath)
+	cmd := exec.Command(e.scriptPath, args...)
 	cmd.Dir = filepath.Dir(e.scriptPath)
 
 	stdout, err := cmd.StdoutPipe()
@@ -84,22 +84,24 @@ func (e *Executor) ExecuteScript() *ExecutionResult {
 	result.Stdout = strings.TrimSpace(string(stdoutBytes))
 	result.Stderr = strings.TrimSpace(string(stderrBytes))
 
-	// Write to log
-	logEntry := fmt.Sprintf("[%s] Exit code: %d\n", timestamp.Format("2006-01-02 15:04:05"), result.ExitCode)
-	if result.Stdout != "" {
-		logEntry += fmt.Sprintf("STDOUT: %s\n", result.Stdout)
-	}
-	if result.Stderr != "" {
-		logEntry += fmt.Sprintf("STDERR: %s\n", result.Stderr)
-	}
-	logEntry += strings.Repeat("-", 50) + "\n"
+	// Write to log only if logPath is specified
+	if e.logPath != "" {
+		logEntry := fmt.Sprintf("[%s] Exit code: %d\n", timestamp.Format("2006-01-02 15:04:05"), result.ExitCode)
+		if result.Stdout != "" {
+			logEntry += fmt.Sprintf("STDOUT: %s\n", result.Stdout)
+		}
+		if result.Stderr != "" {
+			logEntry += fmt.Sprintf("STDERR: %s\n", result.Stderr)
+		}
+		logEntry += strings.Repeat("-", 50) + "\n"
 
-	if err := e.WriteLog(logEntry); err != nil {
-		fmt.Printf("Error writing to log: %v\n", err)
-	}
+		if err := e.WriteLog(logEntry); err != nil {
+			fmt.Printf("Error writing to log: %v\n", err)
+		}
 
-	if err := e.TrimLog(); err != nil {
-		fmt.Printf("Error trimming log: %v\n", err)
+		if err := e.TrimLog(); err != nil {
+			fmt.Printf("Error trimming log: %v\n", err)
+		}
 	}
 
 	return result
@@ -107,10 +109,12 @@ func (e *Executor) ExecuteScript() *ExecutionResult {
 
 // logError logs an error message
 func (e *Executor) logError(timestamp time.Time, message string) {
-	errorMsg := fmt.Sprintf("[%s] ERROR: %s\n%s\n",
-		timestamp.Format("2006-01-02 15:04:05"), message, strings.Repeat("-", 50))
-	if err := e.WriteLog(errorMsg); err != nil {
-		fmt.Printf("Error writing error to log: %v\n", err)
+	if e.logPath != "" {
+		errorMsg := fmt.Sprintf("[%s] ERROR: %s\n%s\n",
+			timestamp.Format("2006-01-02 15:04:05"), message, strings.Repeat("-", 50))
+		if err := e.WriteLog(errorMsg); err != nil {
+			fmt.Printf("Error writing error to log: %v\n", err)
+		}
 	}
 	fmt.Printf("Error executing script: %s\n", message)
 }

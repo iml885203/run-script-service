@@ -157,3 +157,51 @@ func TestScriptRunner_IsRunning(t *testing.T) {
 		t.Error("Expected runner to not be running after stop")
 	}
 }
+
+func TestScriptRunner_WithLogManager(t *testing.T) {
+	tempDir := t.TempDir()
+	logsDir := filepath.Join(tempDir, "logs")
+
+	config := ScriptConfig{
+		Name:        "test1",
+		Path:        "echo",
+		Interval:    60,
+		Enabled:     true,
+		MaxLogLines: 100,
+		Timeout:     5,
+	}
+
+	// Create LogManager
+	logManager := NewLogManager(logsDir)
+
+	// Create script runner with LogManager integration
+	runner := NewScriptRunnerWithLogManager(config, logManager)
+
+	ctx := context.Background()
+	err := runner.RunOnce(ctx, "test output")
+
+	if err != nil {
+		t.Errorf("Expected no error running script once, got: %v", err)
+	}
+
+	// Verify log entry was created
+	logger := logManager.GetLogger("test1")
+	entries := logger.GetEntries()
+
+	if len(entries) != 1 {
+		t.Errorf("Expected 1 log entry, got %d", len(entries))
+	}
+
+	if len(entries) > 0 {
+		entry := entries[0]
+		if entry.ScriptName != "test1" {
+			t.Errorf("Expected script name 'test1', got %s", entry.ScriptName)
+		}
+		if entry.ExitCode != 0 {
+			t.Errorf("Expected exit code 0, got %d", entry.ExitCode)
+		}
+		if entry.Stdout != "test output" {
+			t.Errorf("Expected stdout 'test output', got '%s'", entry.Stdout)
+		}
+	}
+}
