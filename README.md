@@ -157,6 +157,54 @@ go build -o run-script-service main.go
 
 This project follows a structured development approach with detailed plans for each feature enhancement.
 
+### Pre-commit Hooks
+
+To maintain code quality, install pre-commit hooks that automatically format code and run tests:
+
+```bash
+# Method 1: Using make (recommended)
+make install-hooks
+
+# Method 2: Using pre-commit framework
+pip install pre-commit
+pre-commit install
+
+# Method 3: Manual check before committing
+make pre-commit
+```
+
+The pre-commit hook will automatically:
+- Format code with `go fmt`
+- Fix imports with `goimports` (if available)
+- Run linting with `golangci-lint`
+- Execute all tests
+- Check for common issues
+
+### Development Commands
+
+```bash
+# Format code
+make format
+
+# Run linter
+make lint  
+
+# Run tests
+make test
+
+# Run tests with file watching
+make test-watch
+
+# Build binary
+make build
+
+# Full CI pipeline (format + lint + test + build)
+make ci
+
+# Clean build artifacts
+make clean
+```
+
 ### Development Plans
 
 The `plans/` directory contains detailed implementation plans for upcoming features:
