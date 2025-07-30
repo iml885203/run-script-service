@@ -752,9 +752,6 @@ func runMultiScriptServiceWithWeb(configPath string) {
 		config.WebPort = 8080
 	}
 
-	// Create script manager
-	manager := service.NewScriptManager(&config)
-
 	// Create log manager
 	dir, err := os.Executable()
 	if err != nil {
@@ -765,8 +762,12 @@ func runMultiScriptServiceWithWeb(configPath string) {
 	logsDir := filepath.Join(dir, "logs")
 	logManager := service.NewLogManager(logsDir)
 
+	// Create script manager
+	scriptManager := service.NewScriptManager(&config)
+
 	// Create web server
 	webServer := web.NewWebServer(nil, logManager, config.WebPort)
+	webServer.SetScriptManager(scriptManager)
 
 	// Set up signal handling
 	sigChan := make(chan os.Signal, 1)
@@ -776,7 +777,7 @@ func runMultiScriptServiceWithWeb(configPath string) {
 	defer cancel()
 
 	// Start all enabled scripts
-	err = manager.StartAllEnabled(ctx)
+	err = scriptManager.StartAllEnabled(ctx)
 	if err != nil {
 		fmt.Printf("Failed to start scripts: %v\n", err)
 		cancel()
@@ -784,7 +785,7 @@ func runMultiScriptServiceWithWeb(configPath string) {
 	}
 
 	fmt.Println("Multi-script service with web interface started")
-	fmt.Printf("Running scripts: %v\n", manager.GetRunningScripts())
+	fmt.Printf("Running scripts: %v\n", scriptManager.GetRunningScripts())
 	fmt.Printf("Web interface available at http://localhost:%d\n", config.WebPort)
 
 	// Start web server in goroutine
@@ -800,7 +801,7 @@ func runMultiScriptServiceWithWeb(configPath string) {
 	fmt.Println("Received shutdown signal")
 
 	// Stop all scripts and web server
-	manager.StopAll()
+	scriptManager.StopAll()
 	cancel()
 
 	fmt.Println("Service stopped")

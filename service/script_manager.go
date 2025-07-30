@@ -120,3 +120,50 @@ func (sm *ScriptManager) IsScriptRunning(name string) bool {
 	_, exists := sm.scripts[name]
 	return exists
 }
+
+// GetConfig returns the script manager's configuration
+func (sm *ScriptManager) GetConfig() *ServiceConfig {
+	return sm.config
+}
+
+// AddScript adds a new script configuration
+func (sm *ScriptManager) AddScript(scriptConfig ScriptConfig) error {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	// Check if script with same name already exists
+	for _, existing := range sm.config.Scripts {
+		if existing.Name == scriptConfig.Name {
+			return fmt.Errorf("script with name %s already exists", scriptConfig.Name)
+		}
+	}
+
+	// Add the script to configuration
+	sm.config.Scripts = append(sm.config.Scripts, scriptConfig)
+	return nil
+}
+
+// RunScriptOnce executes a script once by name
+func (sm *ScriptManager) RunScriptOnce(ctx context.Context, name string) error {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	// Find the script config
+	var scriptConfig *ScriptConfig
+	for i, sc := range sm.config.Scripts {
+		if sc.Name == name {
+			scriptConfig = &sm.config.Scripts[i]
+			break
+		}
+	}
+
+	if scriptConfig == nil {
+		return fmt.Errorf("script %s not found in configuration", name)
+	}
+
+	// Create a temporary script runner for one-time execution
+	logPath := fmt.Sprintf("%s.log", name)
+	runner := NewScriptRunner(*scriptConfig, logPath)
+
+	return runner.RunOnce(ctx)
+}

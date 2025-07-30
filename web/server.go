@@ -2,8 +2,10 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -12,10 +14,11 @@ import (
 
 // WebServer represents the HTTP API server
 type WebServer struct {
-	router     *gin.Engine
-	service    *service.Service
-	logManager *service.LogManager
-	port       int
+	router        *gin.Engine
+	service       *service.Service
+	logManager    *service.LogManager
+	scriptManager *service.ScriptManager
+	port          int
 }
 
 // APIResponse represents the standard API response format
@@ -50,6 +53,11 @@ func NewWebServer(svc *service.Service, logManager *service.LogManager, port int
 	return server
 }
 
+// SetScriptManager sets the script manager for the web server
+func (ws *WebServer) SetScriptManager(sm *service.ScriptManager) {
+	ws.scriptManager = sm
+}
+
 // setupRoutes configures all API routes
 func (ws *WebServer) setupRoutes() {
 	api := ws.router.Group("/api")
@@ -59,6 +67,8 @@ func (ws *WebServer) setupRoutes() {
 
 	// Script management endpoints
 	api.GET("/scripts", ws.handleGetScripts)
+	api.POST("/scripts", ws.handlePostScript)
+	api.POST("/scripts/:name/run", ws.handleRunScript)
 	api.GET("/logs", ws.handleGetLogs)
 }
 
@@ -77,20 +87,139 @@ func (ws *WebServer) handleStatus(c *gin.Context) {
 
 // handleGetScripts returns all scripts
 func (ws *WebServer) handleGetScripts(c *gin.Context) {
-	// For now, return a placeholder response
-	// In a full implementation, this would use the script manager
-	scripts := []map[string]interface{}{
-		{
-			"name":     "example",
-			"path":     "./example.sh",
-			"interval": 60,
-			"enabled":  true,
-		},
+	if ws.scriptManager == nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   "Script manager not initialized",
+		})
+		return
+	}
+
+	// Get script configs from the manager
+	var scripts []map[string]interface{}
+	for _, scriptConfig := range ws.scriptManager.GetConfig().Scripts {
+		running := ws.scriptManager.IsScriptRunning(scriptConfig.Name)
+
+		scripts = append(scripts, map[string]interface{}{
+			"name":          scriptConfig.Name,
+			"path":          scriptConfig.Path,
+			"interval":      scriptConfig.Interval,
+			"enabled":       scriptConfig.Enabled,
+			"max_log_lines": scriptConfig.MaxLogLines,
+			"timeout":       scriptConfig.Timeout,
+			"running":       running,
+		})
 	}
 
 	c.JSON(http.StatusOK, APIResponse{
 		Success: true,
 		Data:    scripts,
+	})
+}
+
+// handlePostScript creates a new script
+func (ws *WebServer) handlePostScript(c *gin.Context) {
+	if ws.scriptManager == nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   "Script manager not initialized",
+		})
+		return
+	}
+
+	var scriptConfig service.ScriptConfig
+	if err := c.ShouldBindJSON(&scriptConfig); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Invalid request body: %v", err),
+		})
+		return
+	}
+
+	// Validate required fields
+	if scriptConfig.Name == "" {
+		c.JSON(http.StatusBadRequest, APIResponse{
+			Success: false,
+			Error:   "Script name is required",
+		})
+		return
+	}
+
+	if scriptConfig.Path == "" {
+		c.JSON(http.StatusBadRequest, APIResponse{
+			Success: false,
+			Error:   "Script path is required",
+		})
+		return
+	}
+
+	// Set defaults for optional fields
+	if scriptConfig.Interval <= 0 {
+		scriptConfig.Interval = 60 // Default to 1 minute
+	}
+	if scriptConfig.MaxLogLines <= 0 {
+		scriptConfig.MaxLogLines = 100 // Default to 100 lines
+	}
+
+	// Add the script
+	if err := ws.scriptManager.AddScript(scriptConfig); err != nil {
+		c.JSON(http.StatusConflict, APIResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, APIResponse{
+		Success: true,
+		Data: map[string]interface{}{
+			"name":          scriptConfig.Name,
+			"path":          scriptConfig.Path,
+			"interval":      scriptConfig.Interval,
+			"enabled":       scriptConfig.Enabled,
+			"max_log_lines": scriptConfig.MaxLogLines,
+			"timeout":       scriptConfig.Timeout,
+		},
+	})
+}
+
+// handleRunScript executes a script once
+func (ws *WebServer) handleRunScript(c *gin.Context) {
+	if ws.scriptManager == nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   "Script manager not initialized",
+		})
+		return
+	}
+
+	scriptName := c.Param("name")
+	if scriptName == "" {
+		c.JSON(http.StatusBadRequest, APIResponse{
+			Success: false,
+			Error:   "Script name is required",
+		})
+		return
+	}
+
+	// Run the script with a timeout context
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+
+	if err := ws.scriptManager.RunScriptOnce(ctx, scriptName); err != nil {
+		c.JSON(http.StatusNotFound, APIResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Success: true,
+		Data: map[string]interface{}{
+			"message": fmt.Sprintf("Script %s executed successfully", scriptName),
+			"script":  scriptName,
+		},
 	})
 }
 
