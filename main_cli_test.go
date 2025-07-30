@@ -194,6 +194,67 @@ func TestCLICommands(t *testing.T) {
 			t.Error("Expected shouldRunService to be false for run-script command")
 		}
 	})
+
+	t.Run("logs command - all scripts", func(t *testing.T) {
+		args := []string{"run-script-service", "logs", "--all"}
+		result, err := handleCommand(args, scriptPath, logPath, configPath, 100)
+
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+
+		if result.shouldRunService {
+			t.Error("Expected shouldRunService to be false for logs command")
+		}
+	})
+
+	t.Run("logs command - specific script", func(t *testing.T) {
+		args := []string{"run-script-service", "logs", "--script=test1"}
+		result, err := handleCommand(args, scriptPath, logPath, configPath, 100)
+
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+
+		if result.shouldRunService {
+			t.Error("Expected shouldRunService to be false for logs command")
+		}
+	})
+
+	t.Run("logs command - with filters", func(t *testing.T) {
+		args := []string{"run-script-service", "logs", "--script=test1", "--exit-code=0", "--limit=10"}
+		result, err := handleCommand(args, scriptPath, logPath, configPath, 100)
+
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+
+		if result.shouldRunService {
+			t.Error("Expected shouldRunService to be false for logs command")
+		}
+	})
+
+	t.Run("clear-logs command - specific script", func(t *testing.T) {
+		args := []string{"run-script-service", "clear-logs", "--script=test1"}
+		result, err := handleCommand(args, scriptPath, logPath, configPath, 100)
+
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+
+		if result.shouldRunService {
+			t.Error("Expected shouldRunService to be false for clear-logs command")
+		}
+	})
+
+	t.Run("clear-logs command - missing script", func(t *testing.T) {
+		args := []string{"run-script-service", "clear-logs"}
+		_, err := handleCommand(args, scriptPath, logPath, configPath, 100)
+
+		if err == nil {
+			t.Error("Expected error for clear-logs command without --script flag")
+		}
+	})
 }
 
 func TestParseScriptFlags(t *testing.T) {

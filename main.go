@@ -86,8 +86,13 @@ func handleCommand(args []string, scriptPath, logPath, configPath string, maxLin
 				fmt.Errorf("usage: ./run-script-service run-script <script-name>")
 		}
 		return handleRunScript(args[2], configPath)
+	case "logs":
+		return handleLogs(args[2:], configPath)
+	case "clear-logs":
+		return handleClearLogs(args[2:], configPath)
 	default:
-		availableCommands := "run, set-interval, show-config, generate-service, add-script, list-scripts, enable-script, disable-script, remove-script, run-script"
+		availableCommands := "run, set-interval, show-config, generate-service, add-script, " +
+			"list-scripts, enable-script, disable-script, remove-script, run-script, logs, clear-logs"
 		return CommandResult{shouldRunService: false},
 			fmt.Errorf("unknown command: %s\navailable commands: %s", command, availableCommands)
 	}
@@ -541,4 +546,140 @@ func handleRunScript(scriptName, configPath string) (CommandResult, error) {
 	}
 
 	return CommandResult{shouldRunService: false}, nil
+}
+
+// handleLogs displays logs for scripts
+func handleLogs(args []string, _ string) (CommandResult, error) {
+	flags, err := parseLogFlags(args)
+	if err != nil {
+		return CommandResult{shouldRunService: false}, err
+	}
+
+	// Determine logs directory path
+	dir, err := os.Executable()
+	if err != nil {
+		dir, _ = os.Getwd()
+	} else {
+		dir = filepath.Dir(dir)
+	}
+	logsDir := filepath.Join(dir, "logs")
+
+	// Create log manager
+	logManager := service.NewLogManager(logsDir)
+
+	// Build query
+	query := &service.LogQuery{}
+
+	if scriptName, ok := flags["script"]; ok {
+		query.ScriptName = scriptName
+	}
+
+	if exitCode, ok := flags["exit-code"]; ok {
+		code, parseErr := strconv.Atoi(exitCode)
+		if parseErr != nil {
+			return CommandResult{shouldRunService: false}, fmt.Errorf("invalid exit-code: %v", parseErr)
+		}
+		query.ExitCode = &code
+	}
+
+	if limit, ok := flags["limit"]; ok {
+		limitNum, parseErr := strconv.Atoi(limit)
+		if parseErr != nil {
+			return CommandResult{shouldRunService: false}, fmt.Errorf("invalid limit: %v", parseErr)
+		}
+		query.Limit = limitNum
+	}
+
+	// Query logs
+	entries, err := logManager.QueryLogs(query)
+	if err != nil {
+		return CommandResult{shouldRunService: false}, fmt.Errorf("failed to query logs: %v", err)
+	}
+
+	// Display logs
+	if len(entries) == 0 {
+		fmt.Println("No log entries found")
+	} else {
+		fmt.Printf("Found %d log entries:\n\n", len(entries))
+		for _, entry := range entries {
+			fmt.Printf("[%s] %s (exit: %d, duration: %dms)\n",
+				entry.Timestamp.Format("2006-01-02 15:04:05"),
+				entry.ScriptName,
+				entry.ExitCode,
+				entry.Duration)
+			if entry.Stdout != "" {
+				fmt.Printf("  STDOUT: %s\n", entry.Stdout)
+			}
+			if entry.Stderr != "" {
+				fmt.Printf("  STDERR: %s\n", entry.Stderr)
+			}
+			fmt.Println()
+		}
+	}
+
+	return CommandResult{shouldRunService: false}, nil
+}
+
+// handleClearLogs clears logs for a specific script
+func handleClearLogs(args []string, _ string) (CommandResult, error) {
+	flags, err := parseLogFlags(args)
+	if err != nil {
+		return CommandResult{shouldRunService: false}, err
+	}
+
+	scriptName, ok := flags["script"]
+	if !ok {
+		return CommandResult{shouldRunService: false},
+			fmt.Errorf("usage: ./run-script-service clear-logs --script=<script-name>")
+	}
+
+	// Determine logs directory path
+	dir, err := os.Executable()
+	if err != nil {
+		dir, _ = os.Getwd()
+	} else {
+		dir = filepath.Dir(dir)
+	}
+	logsDir := filepath.Join(dir, "logs")
+
+	// Clear the specific log file
+	logFile := filepath.Join(logsDir, fmt.Sprintf("%s.log", scriptName))
+
+	if _, statErr := os.Stat(logFile); os.IsNotExist(statErr) {
+		fmt.Printf("No log file found for script '%s'\n", scriptName)
+		return CommandResult{shouldRunService: false}, nil
+	}
+
+	err = os.Remove(logFile)
+	if err != nil {
+		return CommandResult{shouldRunService: false}, fmt.Errorf("failed to clear logs: %v", err)
+	}
+
+	fmt.Printf("Logs cleared for script '%s'\n", scriptName)
+	return CommandResult{shouldRunService: false}, nil
+}
+
+// parseLogFlags parses log command flags
+func parseLogFlags(args []string) (map[string]string, error) {
+	flags := make(map[string]string)
+
+	for _, arg := range args {
+		if arg == "--all" {
+			// --all is equivalent to no script filter
+			continue
+		}
+
+		if strings.HasPrefix(arg, "--") {
+			parts := strings.SplitN(arg[2:], "=", 2)
+			if len(parts) == 2 {
+				flags[parts[0]] = parts[1]
+			} else {
+				return nil, fmt.Errorf("invalid flag format: %s (expected --key=value)", arg)
+			}
+		} else {
+			return nil, fmt.Errorf("invalid argument: %s", arg)
+		}
+	}
+
+	return flags, nil
 }
