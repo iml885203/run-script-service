@@ -166,10 +166,10 @@ To maintain code quality, we use the [pre-commit](https://pre-commit.com/) frame
 pip install pre-commit
 
 # Install hooks for this repository
-make install-precommit
+pre-commit install
 
 # Optional: run on all files
-make setup-precommit
+pre-commit run --all-files
 ```
 
 The pre-commit hooks will automatically:
@@ -187,9 +187,9 @@ make format              # Format code with go fmt and goimports
 make lint               # Run golangci-lint
 make test               # Run all tests
 
-# Pre-commit hooks setup
-make install-precommit  # Install pre-commit framework hooks
-make setup-precommit    # Install and run pre-commit on all files
+# Pre-commit hooks (requires: pip install pre-commit)
+pre-commit install      # Install hooks for this repository
+pre-commit run --all-files  # Run on all files
 
 # Development workflow
 make test-watch         # Run tests with file watching (TDD)
