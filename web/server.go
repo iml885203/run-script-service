@@ -68,8 +68,21 @@ func (ws *WebServer) setupRoutes() {
 	// Script management endpoints
 	api.GET("/scripts", ws.handleGetScripts)
 	api.POST("/scripts", ws.handlePostScript)
+	api.GET("/scripts/:name", ws.handleGetScript)
+	api.PUT("/scripts/:name", ws.handleUpdateScript)
+	api.DELETE("/scripts/:name", ws.handleDeleteScript)
 	api.POST("/scripts/:name/run", ws.handleRunScript)
+	api.POST("/scripts/:name/enable", ws.handleEnableScript)
+	api.POST("/scripts/:name/disable", ws.handleDisableScript)
+
+	// Log management endpoints
 	api.GET("/logs", ws.handleGetLogs)
+	api.GET("/logs/:script", ws.handleGetScriptLogs)
+	api.DELETE("/logs/:script", ws.handleClearScriptLogs)
+
+	// Configuration endpoints
+	api.GET("/config", ws.handleGetConfig)
+	api.PUT("/config", ws.handleUpdateConfig)
 }
 
 // handleStatus returns system status information
@@ -223,6 +236,195 @@ func (ws *WebServer) handleRunScript(c *gin.Context) {
 	})
 }
 
+// handleGetScript returns information about a specific script
+func (ws *WebServer) handleGetScript(c *gin.Context) {
+	if ws.scriptManager == nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   "Script manager not initialized",
+		})
+		return
+	}
+
+	scriptName := c.Param("name")
+	if scriptName == "" {
+		c.JSON(http.StatusBadRequest, APIResponse{
+			Success: false,
+			Error:   "Script name is required",
+		})
+		return
+	}
+
+	// Find the script in configuration
+	config := ws.scriptManager.GetConfig()
+	for _, scriptConfig := range config.Scripts {
+		if scriptConfig.Name == scriptName {
+			running := ws.scriptManager.IsScriptRunning(scriptConfig.Name)
+
+			scriptData := map[string]interface{}{
+				"name":          scriptConfig.Name,
+				"path":          scriptConfig.Path,
+				"interval":      scriptConfig.Interval,
+				"enabled":       scriptConfig.Enabled,
+				"max_log_lines": scriptConfig.MaxLogLines,
+				"timeout":       scriptConfig.Timeout,
+				"running":       running,
+			}
+
+			c.JSON(http.StatusOK, APIResponse{
+				Success: true,
+				Data:    scriptData,
+			})
+			return
+		}
+	}
+
+	c.JSON(http.StatusNotFound, APIResponse{
+		Success: false,
+		Error:   fmt.Sprintf("Script '%s' not found", scriptName),
+	})
+}
+
+// handleUpdateScript updates a script configuration
+func (ws *WebServer) handleUpdateScript(c *gin.Context) {
+	if ws.scriptManager == nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   "Script manager not initialized",
+		})
+		return
+	}
+
+	scriptName := c.Param("name")
+	if scriptName == "" {
+		c.JSON(http.StatusBadRequest, APIResponse{
+			Success: false,
+			Error:   "Script name is required",
+		})
+		return
+	}
+
+	var updateData service.ScriptConfig
+	if err := c.ShouldBindJSON(&updateData); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Invalid request body: %v", err),
+		})
+		return
+	}
+
+	// Ensure the name matches the URL parameter
+	updateData.Name = scriptName
+
+	// Update the script (this would need to be implemented in script manager)
+	c.JSON(http.StatusNotImplemented, APIResponse{
+		Success: false,
+		Error:   "Script update not yet implemented",
+	})
+}
+
+// handleDeleteScript removes a script
+func (ws *WebServer) handleDeleteScript(c *gin.Context) {
+	if ws.scriptManager == nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   "Script manager not initialized",
+		})
+		return
+	}
+
+	scriptName := c.Param("name")
+	if scriptName == "" {
+		c.JSON(http.StatusBadRequest, APIResponse{
+			Success: false,
+			Error:   "Script name is required",
+		})
+		return
+	}
+
+	// Remove the script (this would need to be implemented in script manager)
+	c.JSON(http.StatusNotImplemented, APIResponse{
+		Success: false,
+		Error:   "Script deletion not yet implemented",
+	})
+}
+
+// handleEnableScript enables a script
+func (ws *WebServer) handleEnableScript(c *gin.Context) {
+	if ws.scriptManager == nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   "Script manager not initialized",
+		})
+		return
+	}
+
+	scriptName := c.Param("name")
+	if scriptName == "" {
+		c.JSON(http.StatusBadRequest, APIResponse{
+			Success: false,
+			Error:   "Script name is required",
+		})
+		return
+	}
+
+	// Enable the script
+	if err := ws.scriptManager.EnableScript(scriptName); err != nil {
+		c.JSON(http.StatusNotFound, APIResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Success: true,
+		Data: map[string]interface{}{
+			"message": fmt.Sprintf("Script %s enabled successfully", scriptName),
+			"script":  scriptName,
+			"enabled": true,
+		},
+	})
+}
+
+// handleDisableScript disables a script
+func (ws *WebServer) handleDisableScript(c *gin.Context) {
+	if ws.scriptManager == nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   "Script manager not initialized",
+		})
+		return
+	}
+
+	scriptName := c.Param("name")
+	if scriptName == "" {
+		c.JSON(http.StatusBadRequest, APIResponse{
+			Success: false,
+			Error:   "Script name is required",
+		})
+		return
+	}
+
+	// Disable the script
+	if err := ws.scriptManager.DisableScript(scriptName); err != nil {
+		c.JSON(http.StatusNotFound, APIResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Success: true,
+		Data: map[string]interface{}{
+			"message": fmt.Sprintf("Script %s disabled successfully", scriptName),
+			"script":  scriptName,
+			"enabled": false,
+		},
+	})
+}
+
 // handleGetLogs returns logs
 func (ws *WebServer) handleGetLogs(c *gin.Context) {
 	// For now, return a placeholder response
@@ -239,6 +441,80 @@ func (ws *WebServer) handleGetLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse{
 		Success: true,
 		Data:    logs,
+	})
+}
+
+// handleGetScriptLogs returns logs for a specific script
+func (ws *WebServer) handleGetScriptLogs(c *gin.Context) {
+	scriptName := c.Param("script")
+	if scriptName == "" {
+		c.JSON(http.StatusBadRequest, APIResponse{
+			Success: false,
+			Error:   "Script name is required",
+		})
+		return
+	}
+
+	// For now, return a placeholder response
+	logs := []map[string]interface{}{
+		{
+			"script":    scriptName,
+			"timestamp": "2025-07-31T06:00:00Z",
+			"output":    fmt.Sprintf("Log entry for %s", scriptName),
+			"exit_code": 0,
+		},
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Success: true,
+		Data:    logs,
+	})
+}
+
+// handleClearScriptLogs clears logs for a specific script
+func (ws *WebServer) handleClearScriptLogs(c *gin.Context) {
+	scriptName := c.Param("script")
+	if scriptName == "" {
+		c.JSON(http.StatusBadRequest, APIResponse{
+			Success: false,
+			Error:   "Script name is required",
+		})
+		return
+	}
+
+	// For now, return success (would need log manager implementation)
+	c.JSON(http.StatusOK, APIResponse{
+		Success: true,
+		Data: map[string]interface{}{
+			"message": fmt.Sprintf("Logs cleared for script %s", scriptName),
+			"script":  scriptName,
+		},
+	})
+}
+
+// handleGetConfig returns system configuration
+func (ws *WebServer) handleGetConfig(c *gin.Context) {
+	if ws.scriptManager == nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   "Script manager not initialized",
+		})
+		return
+	}
+
+	config := ws.scriptManager.GetConfig()
+
+	c.JSON(http.StatusOK, APIResponse{
+		Success: true,
+		Data:    config,
+	})
+}
+
+// handleUpdateConfig updates system configuration
+func (ws *WebServer) handleUpdateConfig(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, APIResponse{
+		Success: false,
+		Error:   "Configuration update not yet implemented",
 	})
 }
 

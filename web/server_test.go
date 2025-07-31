@@ -313,3 +313,174 @@ func TestWebServer_LogsEndpoint(t *testing.T) {
 		t.Error("Expected successful response")
 	}
 }
+
+func TestWebServer_GetSpecificScript(t *testing.T) {
+	// Create test dependencies with a script
+	config := &service.ServiceConfig{
+		Scripts: []service.ScriptConfig{
+			{
+				Name:        "test-script",
+				Path:        "./test.sh",
+				Interval:    60,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     30,
+			},
+		},
+	}
+
+	scriptManager := service.NewScriptManager(config)
+	svc := &service.Service{}
+	logManager := &service.LogManager{}
+
+	server := NewWebServer(svc, logManager, 8080)
+	server.SetScriptManager(scriptManager)
+
+	// Create test request
+	req := httptest.NewRequest("GET", "/api/scripts/test-script", nil)
+	w := httptest.NewRecorder()
+
+	// Call the handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Error("Expected successful response")
+	}
+}
+
+func TestWebServer_GetSpecificScript_NotFound(t *testing.T) {
+	// Create test dependencies with no scripts
+	config := &service.ServiceConfig{
+		Scripts: []service.ScriptConfig{},
+	}
+
+	scriptManager := service.NewScriptManager(config)
+	svc := &service.Service{}
+	logManager := &service.LogManager{}
+
+	server := NewWebServer(svc, logManager, 8080)
+	server.SetScriptManager(scriptManager)
+
+	// Create test request for non-existent script
+	req := httptest.NewRequest("GET", "/api/scripts/non-existent", nil)
+	w := httptest.NewRecorder()
+
+	// Call the handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusNotFound {
+		t.Errorf("Expected status 404, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if response.Success {
+		t.Error("Expected failed response for non-existent script")
+	}
+}
+
+func TestWebServer_EnableScript(t *testing.T) {
+	// Create test dependencies with a disabled script
+	config := &service.ServiceConfig{
+		Scripts: []service.ScriptConfig{
+			{
+				Name:        "test-script",
+				Path:        "./test.sh",
+				Interval:    60,
+				Enabled:     false,
+				MaxLogLines: 100,
+				Timeout:     30,
+			},
+		},
+	}
+
+	scriptManager := service.NewScriptManager(config)
+	svc := &service.Service{}
+	logManager := &service.LogManager{}
+
+	server := NewWebServer(svc, logManager, 8080)
+	server.SetScriptManager(scriptManager)
+
+	// Create test request
+	req := httptest.NewRequest("POST", "/api/scripts/test-script/enable", nil)
+	w := httptest.NewRecorder()
+
+	// Call the handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Error("Expected successful response")
+	}
+}
+
+func TestWebServer_DisableScript(t *testing.T) {
+	// Create test dependencies with an enabled script
+	config := &service.ServiceConfig{
+		Scripts: []service.ScriptConfig{
+			{
+				Name:        "test-script",
+				Path:        "./test.sh",
+				Interval:    60,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     30,
+			},
+		},
+	}
+
+	scriptManager := service.NewScriptManager(config)
+	svc := &service.Service{}
+	logManager := &service.LogManager{}
+
+	server := NewWebServer(svc, logManager, 8080)
+	server.SetScriptManager(scriptManager)
+
+	// Create test request
+	req := httptest.NewRequest("POST", "/api/scripts/test-script/disable", nil)
+	w := httptest.NewRecorder()
+
+	// Call the handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Error("Expected successful response")
+	}
+}

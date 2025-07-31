@@ -167,3 +167,35 @@ func (sm *ScriptManager) RunScriptOnce(ctx context.Context, name string) error {
 
 	return runner.RunOnce(ctx)
 }
+
+// EnableScript enables a script by name
+func (sm *ScriptManager) EnableScript(name string) error {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	// Find the script config
+	for i, sc := range sm.config.Scripts {
+		if sc.Name == name {
+			sm.config.Scripts[i].Enabled = true
+			return nil
+		}
+	}
+
+	return fmt.Errorf("script %s not found in configuration", name)
+}
+
+// DisableScript disables a script by name
+func (sm *ScriptManager) DisableScript(name string) error {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	// Find the script config
+	for i, sc := range sm.config.Scripts {
+		if sc.Name == name {
+			sm.config.Scripts[i].Enabled = false
+			return nil
+		}
+	}
+
+	return fmt.Errorf("script %s not found in configuration", name)
+}
