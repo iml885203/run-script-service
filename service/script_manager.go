@@ -9,9 +9,10 @@ import (
 
 // ScriptManager manages multiple script runners
 type ScriptManager struct {
-	scripts map[string]*ScriptRunner
-	config  *ServiceConfig
-	mutex   sync.RWMutex
+	scripts    map[string]*ScriptRunner
+	config     *ServiceConfig
+	configPath string
+	mutex      sync.RWMutex
 }
 
 // NewScriptManager creates a new script manager with the given configuration
@@ -19,6 +20,15 @@ func NewScriptManager(config *ServiceConfig) *ScriptManager {
 	return &ScriptManager{
 		scripts: make(map[string]*ScriptRunner),
 		config:  config,
+	}
+}
+
+// NewScriptManagerWithPath creates a new script manager with configuration and config path
+func NewScriptManagerWithPath(config *ServiceConfig, configPath string) *ScriptManager {
+	return &ScriptManager{
+		scripts:    make(map[string]*ScriptRunner),
+		config:     config,
+		configPath: configPath,
 	}
 }
 
@@ -124,6 +134,14 @@ func (sm *ScriptManager) IsScriptRunning(name string) bool {
 // GetConfig returns the script manager's configuration
 func (sm *ScriptManager) GetConfig() *ServiceConfig {
 	return sm.config
+}
+
+// SaveConfig saves the current configuration to file
+func (sm *ScriptManager) SaveConfig() error {
+	if sm.configPath == "" {
+		return fmt.Errorf("config path not set - cannot save configuration")
+	}
+	return SaveServiceConfig(sm.configPath, sm.config)
 }
 
 // AddScript adds a new script configuration

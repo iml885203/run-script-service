@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -605,6 +606,108 @@ func TestWebServer_StaticFileRouting(t *testing.T) {
 		t.Log("Static CSS file served successfully")
 	} else {
 		t.Logf("Unexpected status code: %d", w.Code)
+	}
+}
+
+func TestWebServer_UpdateConfig(t *testing.T) {
+	// Create test dependencies with config
+	config := &service.ServiceConfig{
+		WebPort: 8080,
+		Scripts: []service.ScriptConfig{
+			{
+				Name:        "test-script",
+				Path:        "./test.sh",
+				Interval:    60,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     30,
+			},
+		},
+	}
+
+	// Create temporary config file for testing
+	configPath := "/tmp/test_config.json"
+	if err := service.SaveServiceConfig(configPath, config); err != nil {
+		t.Fatalf("Failed to save test config: %v", err)
+	}
+	defer func() {
+		_ = os.Remove(configPath)
+	}()
+
+	scriptManager := service.NewScriptManagerWithPath(config, configPath)
+	svc := &service.Service{}
+	logManager := &service.LogManager{}
+
+	server := NewWebServer(svc, logManager, 8080)
+	server.SetScriptManager(scriptManager)
+
+	// Create test request with updated config data
+	configData := `{
+		"web_port": 9090
+	}`
+
+	req := httptest.NewRequest("PUT", "/api/config", strings.NewReader(configData))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	// Call the update config handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Error("Expected successful response")
+	}
+}
+
+func TestWebServer_UpdateConfig_InvalidJSON(t *testing.T) {
+	// Create test dependencies
+	config := &service.ServiceConfig{WebPort: 8080}
+	configPath := "/tmp/test_config_invalid.json"
+	if err := service.SaveServiceConfig(configPath, config); err != nil {
+		t.Fatalf("Failed to save test config: %v", err)
+	}
+	defer func() {
+		_ = os.Remove(configPath)
+	}()
+
+	scriptManager := service.NewScriptManagerWithPath(config, configPath)
+	svc := &service.Service{}
+	logManager := &service.LogManager{}
+
+	server := NewWebServer(svc, logManager, 8080)
+	server.SetScriptManager(scriptManager)
+
+	// Create test request with invalid JSON
+	req := httptest.NewRequest("PUT", "/api/config", strings.NewReader("invalid json"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	// Call the update config handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if response.Success {
+		t.Error("Expected failed response for invalid JSON")
 	}
 }
 

@@ -619,9 +619,62 @@ func (ws *WebServer) handleGetConfig(c *gin.Context) {
 
 // handleUpdateConfig updates system configuration
 func (ws *WebServer) handleUpdateConfig(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, APIResponse{
-		Success: false,
-		Error:   "Configuration update not yet implemented",
+	if ws.scriptManager == nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   "Script manager not initialized",
+		})
+		return
+	}
+
+	var updateData map[string]interface{}
+	if err := c.ShouldBindJSON(&updateData); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Invalid request body: %v", err),
+		})
+		return
+	}
+
+	// Get current configuration
+	config := ws.scriptManager.GetConfig()
+
+	// Update web port if provided
+	if webPort, ok := updateData["web_port"]; ok {
+		if port, isFloat := webPort.(float64); isFloat {
+			if port >= 1 && port <= 65535 {
+				config.WebPort = int(port)
+			} else {
+				c.JSON(http.StatusBadRequest, APIResponse{
+					Success: false,
+					Error:   "Web port must be between 1 and 65535",
+				})
+				return
+			}
+		} else {
+			c.JSON(http.StatusBadRequest, APIResponse{
+				Success: false,
+				Error:   "Web port must be a number",
+			})
+			return
+		}
+	}
+
+	// Save updated configuration
+	if err := ws.scriptManager.SaveConfig(); err != nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Failed to save configuration: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Success: true,
+		Data: map[string]interface{}{
+			"message": "Configuration updated successfully",
+			"config":  config,
+		},
 	})
 }
 

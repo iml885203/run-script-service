@@ -763,7 +763,7 @@ func runMultiScriptServiceWithWeb(configPath string) {
 	logManager := service.NewLogManager(logsDir)
 
 	// Create script manager
-	scriptManager := service.NewScriptManager(&config)
+	scriptManager := service.NewScriptManagerWithPath(&config, configPath)
 
 	// Create web server
 	webServer := web.NewWebServer(nil, logManager, config.WebPort)
