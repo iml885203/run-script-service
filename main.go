@@ -762,12 +762,16 @@ func runMultiScriptServiceWithWeb(configPath string) {
 	logsDir := filepath.Join(dir, "logs")
 	logManager := service.NewLogManager(logsDir)
 
+	// Create file manager for secure file operations
+	fileManager := service.NewFileManager(dir)
+
 	// Create script manager
 	scriptManager := service.NewScriptManagerWithPath(&config, configPath)
 
 	// Create web server
 	webServer := web.NewWebServer(nil, logManager, config.WebPort)
 	webServer.SetScriptManager(scriptManager)
+	webServer.SetFileManager(fileManager)
 
 	// Set up signal handling
 	sigChan := make(chan os.Signal, 1)
