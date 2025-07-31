@@ -205,3 +205,132 @@ func TestScriptRunner_WithLogManager(t *testing.T) {
 		}
 	}
 }
+
+func TestScriptRunner_WithEventBroadcaster(t *testing.T) {
+	config := ScriptConfig{
+		Name:        "test1",
+		Path:        "echo",
+		Interval:    60,
+		Enabled:     true,
+		MaxLogLines: 100,
+		Timeout:     5,
+	}
+
+	logPath := filepath.Join(t.TempDir(), "test.log")
+
+	// Create event broadcaster
+	broadcaster := NewEventBroadcaster()
+	events := make(chan *ScriptStatusEvent, 10)
+	unsubscribe := broadcaster.Subscribe(events)
+	defer unsubscribe()
+
+	// Create script runner with event broadcaster
+	runner := NewScriptRunnerWithEventBroadcaster(config, logPath, broadcaster)
+
+	ctx := context.Background()
+	err := runner.RunOnce(ctx, "test output")
+
+	if err != nil {
+		t.Errorf("Expected no error running script once, got: %v", err)
+	}
+
+	// Should receive two events: starting and completed
+	receivedEvents := make([]*ScriptStatusEvent, 0, 2)
+
+	// Collect events with timeout
+	for i := 0; i < 2; i++ {
+		select {
+		case event := <-events:
+			receivedEvents = append(receivedEvents, event)
+		case <-time.After(1 * time.Second):
+			t.Fatalf("Expected to receive event %d", i+1)
+		}
+	}
+
+	if len(receivedEvents) != 2 {
+		t.Errorf("Expected 2 events, got %d", len(receivedEvents))
+	}
+
+	// First event should be "starting"
+	startEvent := receivedEvents[0]
+	if startEvent.ScriptName != "test1" {
+		t.Errorf("Expected script name 'test1', got %s", startEvent.ScriptName)
+	}
+	if startEvent.Status != "starting" {
+		t.Errorf("Expected status 'starting', got %s", startEvent.Status)
+	}
+
+	// Second event should be "completed"
+	completeEvent := receivedEvents[1]
+	if completeEvent.ScriptName != "test1" {
+		t.Errorf("Expected script name 'test1', got %s", completeEvent.ScriptName)
+	}
+	if completeEvent.Status != "completed" {
+		t.Errorf("Expected status 'completed', got %s", completeEvent.Status)
+	}
+	if completeEvent.ExitCode != 0 {
+		t.Errorf("Expected exit code 0, got %d", completeEvent.ExitCode)
+	}
+}
+
+func TestScriptRunner_WithEventBroadcaster_FailedScript(t *testing.T) {
+	config := ScriptConfig{
+		Name:        "test1",
+		Path:        "false", // Command that always fails with exit code 1
+		Interval:    60,
+		Enabled:     true,
+		MaxLogLines: 100,
+		Timeout:     5,
+	}
+
+	logPath := filepath.Join(t.TempDir(), "test.log")
+
+	// Create event broadcaster
+	broadcaster := NewEventBroadcaster()
+	events := make(chan *ScriptStatusEvent, 10)
+	unsubscribe := broadcaster.Subscribe(events)
+	defer unsubscribe()
+
+	// Create script runner with event broadcaster
+	runner := NewScriptRunnerWithEventBroadcaster(config, logPath, broadcaster)
+
+	ctx := context.Background()
+	err := runner.RunOnce(ctx)
+
+	// Should get an error since the script fails
+	if err == nil {
+		t.Error("Expected error when script fails")
+	}
+
+	// Should receive two events: starting and failed
+	receivedEvents := make([]*ScriptStatusEvent, 0, 2)
+
+	// Collect events with timeout
+	for i := 0; i < 2; i++ {
+		select {
+		case event := <-events:
+			receivedEvents = append(receivedEvents, event)
+		case <-time.After(1 * time.Second):
+			t.Fatalf("Expected to receive event %d", i+1)
+		}
+	}
+
+	if len(receivedEvents) != 2 {
+		t.Errorf("Expected 2 events, got %d", len(receivedEvents))
+	}
+
+	// First event should be "starting"
+	startEvent := receivedEvents[0]
+	if startEvent.Status != "starting" {
+		t.Errorf("Expected status 'starting', got %s", startEvent.Status)
+	}
+
+	// Second event should be "failed"
+	failedEvent := receivedEvents[1]
+	if failedEvent.Status != "failed" {
+		t.Errorf("Expected status 'failed', got %s", failedEvent.Status)
+	}
+	if failedEvent.ExitCode != 1 {
+		t.Errorf("Expected exit code 1, got %d", failedEvent.ExitCode)
+	}
+}

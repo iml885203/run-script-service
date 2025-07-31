@@ -68,32 +68,46 @@ func (se *ScriptExecutor) ExecuteWithResult(ctx context.Context, args ...string)
 
 // ScriptRunner manages the execution of a single script
 type ScriptRunner struct {
-	config     ScriptConfig
-	ticker     *time.Ticker
-	cancel     context.CancelFunc
-	executor   *ScriptExecutor
-	logManager *LogManager
-	running    bool
-	mutex      sync.RWMutex
+	config           ScriptConfig
+	ticker           *time.Ticker
+	cancel           context.CancelFunc
+	executor         *ScriptExecutor
+	logManager       *LogManager
+	eventBroadcaster *EventBroadcaster
+	running          bool
+	mutex            sync.RWMutex
 }
 
 // NewScriptRunner creates a new script runner with the given configuration
 func NewScriptRunner(config ScriptConfig, logPath string) *ScriptRunner {
 	return &ScriptRunner{
-		config:     config,
-		executor:   NewScriptExecutor(config.Path, logPath, config.MaxLogLines),
-		logManager: nil,
-		running:    false,
+		config:           config,
+		executor:         NewScriptExecutor(config.Path, logPath, config.MaxLogLines),
+		logManager:       nil,
+		eventBroadcaster: nil,
+		running:          false,
 	}
 }
 
 // NewScriptRunnerWithLogManager creates a new script runner with LogManager integration
 func NewScriptRunnerWithLogManager(config ScriptConfig, logManager *LogManager) *ScriptRunner {
 	return &ScriptRunner{
-		config:     config,
-		executor:   NewScriptExecutorWithoutLogging(config.Path), // No file logging since we use LogManager
-		logManager: logManager,
-		running:    false,
+		config:           config,
+		executor:         NewScriptExecutorWithoutLogging(config.Path), // No file logging since we use LogManager
+		logManager:       logManager,
+		eventBroadcaster: nil,
+		running:          false,
+	}
+}
+
+// NewScriptRunnerWithEventBroadcaster creates a new script runner with event broadcasting
+func NewScriptRunnerWithEventBroadcaster(config ScriptConfig, logPath string, broadcaster *EventBroadcaster) *ScriptRunner {
+	return &ScriptRunner{
+		config:           config,
+		executor:         NewScriptExecutor(config.Path, logPath, config.MaxLogLines),
+		logManager:       nil,
+		eventBroadcaster: broadcaster,
+		running:          false,
 	}
 }
 
@@ -153,6 +167,14 @@ func (sr *ScriptRunner) Stop() {
 
 // RunOnce executes the script once with optional arguments
 func (sr *ScriptRunner) RunOnce(ctx context.Context, args ...string) error {
+	startTime := time.Now()
+
+	// Broadcast starting event
+	if sr.eventBroadcaster != nil {
+		startEvent := NewScriptStatusEvent(sr.config.Name, "starting", 0, 0)
+		sr.eventBroadcaster.Broadcast(startEvent)
+	}
+
 	// Create timeout context if timeout is specified
 	if sr.config.Timeout > 0 {
 		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(sr.config.Timeout)*time.Second)
@@ -160,11 +182,18 @@ func (sr *ScriptRunner) RunOnce(ctx context.Context, args ...string) error {
 		ctx = timeoutCtx
 	}
 
+	// Execute the script
+	result, err := sr.executor.ExecuteWithResult(ctx, args...)
+	duration := time.Since(startTime).Milliseconds()
+
 	// If LogManager is available, use it for structured logging
 	if sr.logManager != nil {
-		startTime := time.Now()
-		result, err := sr.executor.ExecuteWithResult(ctx, args...)
 		if err != nil {
+			// Broadcast failed event if there was an execution error
+			if sr.eventBroadcaster != nil {
+				failedEvent := NewScriptStatusEvent(sr.config.Name, "failed", -1, duration)
+				sr.eventBroadcaster.Broadcast(failedEvent)
+			}
 			return err
 		}
 
@@ -175,7 +204,7 @@ func (sr *ScriptRunner) RunOnce(ctx context.Context, args ...string) error {
 			ExitCode:   result.ExitCode,
 			Stdout:     result.Stdout,
 			Stderr:     result.Stderr,
-			Duration:   time.Since(startTime).Milliseconds(),
+			Duration:   duration,
 		}
 
 		// Add to log manager
@@ -185,14 +214,49 @@ func (sr *ScriptRunner) RunOnce(ctx context.Context, args ...string) error {
 			fmt.Printf("Failed to add log entry: %v\n", addErr)
 		}
 
+		// Broadcast completion or failure event
+		if sr.eventBroadcaster != nil {
+			if result.ExitCode == 0 {
+				completedEvent := NewScriptStatusEvent(sr.config.Name, "completed", result.ExitCode, duration)
+				sr.eventBroadcaster.Broadcast(completedEvent)
+			} else {
+				failedEvent := NewScriptStatusEvent(sr.config.Name, "failed", result.ExitCode, duration)
+				sr.eventBroadcaster.Broadcast(failedEvent)
+			}
+		}
+
 		if result.ExitCode != 0 {
 			return fmt.Errorf("script exited with code %d", result.ExitCode)
 		}
 		return nil
 	}
 
-	// Fallback to old executor method
-	return sr.executor.Execute(ctx, args...)
+	// Handle case with event broadcaster but no log manager
+	if err != nil {
+		// Broadcast failed event if there was an execution error
+		if sr.eventBroadcaster != nil {
+			failedEvent := NewScriptStatusEvent(sr.config.Name, "failed", -1, duration)
+			sr.eventBroadcaster.Broadcast(failedEvent)
+		}
+		return err
+	}
+
+	// Broadcast completion or failure event
+	if sr.eventBroadcaster != nil {
+		if result.ExitCode == 0 {
+			completedEvent := NewScriptStatusEvent(sr.config.Name, "completed", result.ExitCode, duration)
+			sr.eventBroadcaster.Broadcast(completedEvent)
+		} else {
+			failedEvent := NewScriptStatusEvent(sr.config.Name, "failed", result.ExitCode, duration)
+			sr.eventBroadcaster.Broadcast(failedEvent)
+		}
+	}
+
+	// Fallback to old executor method behavior
+	if result.ExitCode != 0 {
+		return fmt.Errorf("script exited with code %d", result.ExitCode)
+	}
+	return nil
 }
 
 // IsRunning returns whether the script runner is currently running

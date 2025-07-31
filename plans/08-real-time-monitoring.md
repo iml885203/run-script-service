@@ -25,10 +25,10 @@ Implement real-time system monitoring features providing live updates of script 
 - [x] **實作**: Add WebSocket client connection management
 
 ### Step 2: Real-time Script Status Updates (TDD)
-- [ ] **測試**: Create tests for script status change events
-- [ ] **實作**: Implement script status event system
-- [ ] **測試**: Test WebSocket broadcasting of script events
-- [ ] **實作**: Add script start/stop/error event broadcasting
+- [x] **測試**: Create tests for script status change events
+- [x] **實作**: Implement script status event system
+- [x] **測試**: Test WebSocket broadcasting of script events
+- [x] **實作**: Add script start/stop/error event broadcasting
 
 ### Step 3: System Resource Monitoring (TDD)
 - [ ] **測試**: Create tests for system metrics collection

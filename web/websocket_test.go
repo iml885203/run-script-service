@@ -131,3 +131,85 @@ func TestWebSocketHub_BroadcastMessage(t *testing.T) {
 		t.Fatal("Expected message to be sent to broadcast channel")
 	}
 }
+
+func TestWebSocketHub_BroadcastScriptEvents(t *testing.T) {
+	hub := NewWebSocketHub()
+
+	// Test broadcasting different types of script events
+	testCases := []struct {
+		name     string
+		msgType  string
+		data     map[string]interface{}
+		expected map[string]interface{}
+	}{
+		{
+			name:    "script starting event",
+			msgType: "script_status",
+			data: map[string]interface{}{
+				"script_name": "backup.sh",
+				"status":      "starting",
+				"exit_code":   0,
+				"duration":    int64(0),
+			},
+			expected: map[string]interface{}{
+				"script_name": "backup.sh",
+				"status":      "starting",
+				"exit_code":   float64(0), // JSON unmarshaling converts to float64
+				"duration":    float64(0),
+			},
+		},
+		{
+			name:    "script completed event",
+			msgType: "script_status",
+			data: map[string]interface{}{
+				"script_name": "backup.sh",
+				"status":      "completed",
+				"exit_code":   0,
+				"duration":    int64(1234),
+			},
+			expected: map[string]interface{}{
+				"script_name": "backup.sh",
+				"status":      "completed",
+				"exit_code":   float64(0),
+				"duration":    float64(1234),
+			},
+		},
+		{
+			name:    "script failed event",
+			msgType: "script_status",
+			data: map[string]interface{}{
+				"script_name": "deploy.sh",
+				"status":      "failed",
+				"exit_code":   1,
+				"duration":    int64(500),
+			},
+			expected: map[string]interface{}{
+				"script_name": "deploy.sh",
+				"status":      "failed",
+				"exit_code":   float64(1),
+				"duration":    float64(500),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := hub.BroadcastMessage(tc.msgType, tc.data)
+			assert.NoError(t, err)
+
+			// Verify message was sent to broadcast channel
+			select {
+			case message := <-hub.broadcast:
+				var wsMessage WebSocketMessage
+				err := json.Unmarshal(message, &wsMessage)
+				require.NoError(t, err)
+
+				assert.Equal(t, tc.msgType, wsMessage.Type)
+				assert.Equal(t, tc.expected, wsMessage.Data)
+				assert.False(t, wsMessage.Timestamp.IsZero())
+			case <-time.After(100 * time.Millisecond):
+				t.Fatal("Expected message to be sent to broadcast channel")
+			}
+		})
+	}
+}
