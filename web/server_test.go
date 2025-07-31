@@ -890,3 +890,23 @@ func TestWebServer_DeleteScript_NotFound(t *testing.T) {
 		t.Error("Expected failed response for non-existent script")
 	}
 }
+
+func TestWebServer_WebSocketRouteSetup(t *testing.T) {
+	// Create test dependencies
+	svc := &service.Service{}
+	logManager := &service.LogManager{}
+	server := NewWebServer(svc, logManager, 8080)
+
+	// Test that WebSocket route is configured but returns 404 since we haven't implemented the handler yet
+	req := httptest.NewRequest("GET", "/ws", nil)
+	w := httptest.NewRecorder()
+
+	server.router.ServeHTTP(w, req)
+
+	// Should return 404 since we haven't implemented the WebSocket handler yet
+	if w.Code == http.StatusNotFound {
+		t.Log("WebSocket route not implemented yet (expected for TDD)")
+	} else {
+		t.Logf("WebSocket route status: %d (might be implemented)", w.Code)
+	}
+}

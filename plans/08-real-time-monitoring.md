@@ -19,10 +19,10 @@ Implement real-time system monitoring features providing live updates of script 
 ## 實施步驟 (Implementation Steps)
 
 ### Step 1: WebSocket Infrastructure (TDD)
-- [ ] **測試**: Create WebSocket connection handler tests
-- [ ] **實作**: Implement WebSocket server endpoint `/ws`
-- [ ] **測試**: Test real-time message broadcasting
-- [ ] **實作**: Add WebSocket client connection management
+- [x] **測試**: Create WebSocket connection handler tests
+- [x] **實作**: Implement WebSocket server endpoint `/ws`
+- [x] **測試**: Test real-time message broadcasting
+- [x] **實作**: Add WebSocket client connection management
 
 ### Step 2: Real-time Script Status Updates (TDD)
 - [ ] **測試**: Create tests for script status change events

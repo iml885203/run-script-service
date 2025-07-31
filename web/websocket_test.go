@@ -104,3 +104,30 @@ func TestWebSocketMessage_JSONSerialization(t *testing.T) {
 		})
 	}
 }
+
+func TestWebSocketHub_BroadcastMessage(t *testing.T) {
+	hub := NewWebSocketHub()
+
+	// Test that BroadcastMessage creates proper JSON and sends to broadcast channel
+	testData := map[string]interface{}{
+		"script_name": "test.sh",
+		"status":      "running",
+	}
+
+	err := hub.BroadcastMessage("script_status", testData)
+	assert.NoError(t, err)
+
+	// Verify message was sent to broadcast channel
+	select {
+	case message := <-hub.broadcast:
+		var wsMessage WebSocketMessage
+		err := json.Unmarshal(message, &wsMessage)
+		require.NoError(t, err)
+
+		assert.Equal(t, "script_status", wsMessage.Type)
+		assert.Equal(t, testData, wsMessage.Data)
+		assert.False(t, wsMessage.Timestamp.IsZero())
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Expected message to be sent to broadcast channel")
+	}
+}

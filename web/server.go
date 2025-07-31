@@ -20,6 +20,7 @@ type WebServer struct {
 	logManager    *service.LogManager
 	scriptManager *service.ScriptManager
 	fileManager   *service.FileManager
+	wsHub         *WebSocketHub
 	port          int
 }
 
@@ -42,10 +43,15 @@ func NewWebServer(svc *service.Service, logManager *service.LogManager, port int
 	router.Use(gin.Recovery())
 	router.Use(cors.Default())
 
+	// Create WebSocket hub
+	wsHub := NewWebSocketHub()
+	go wsHub.Run()
+
 	server := &WebServer{
 		router:     router,
 		service:    svc,
 		logManager: logManager,
+		wsHub:      wsHub,
 		port:       port,
 	}
 
@@ -60,12 +66,22 @@ func (ws *WebServer) SetScriptManager(sm *service.ScriptManager) {
 	ws.scriptManager = sm
 }
 
+// GetWebSocketHub returns the WebSocket hub for broadcasting messages
+func (ws *WebServer) GetWebSocketHub() *WebSocketHub {
+	return ws.wsHub
+}
+
 // setupRoutes configures all API routes
 func (ws *WebServer) setupRoutes() {
 	// Static file routes
 	ws.router.Static("/static", "./web/static")
 	ws.router.GET("/", func(c *gin.Context) {
 		c.File("./web/static/index.html")
+	})
+
+	// WebSocket endpoint
+	ws.router.GET("/ws", func(c *gin.Context) {
+		HandleWebSocket(ws.wsHub, c)
 	})
 
 	api := ws.router.Group("/api")
