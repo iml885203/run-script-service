@@ -19,6 +19,7 @@ type WebServer struct {
 	service       *service.Service
 	logManager    *service.LogManager
 	scriptManager *service.ScriptManager
+	fileManager   *service.FileManager
 	port          int
 }
 
