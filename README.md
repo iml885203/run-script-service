@@ -213,8 +213,8 @@ The `plans/` directory contains detailed implementation plans for upcoming featu
 | [03-multi-script-support.md](plans/03-multi-script-support.md) | 多腳本支援 | ✅ Completed |
 | [04-multi-log-management.md](plans/04-multi-log-management.md) | 多日誌管理 | ✅ Completed |
 | [05-web-framework.md](plans/05-web-framework.md) | Web 框架設置 | ✅ Completed |
-| [06-web-ui-basic.md](plans/06-web-ui-basic.md) | 基礎 Web UI | 📋 Planned |
-| [07-web-editing.md](plans/07-web-editing.md) | Web 編輯功能 | 📋 Planned |
+| [06-web-ui-basic.md](plans/06-web-ui-basic.md) | 基礎 Web UI | ✅ Completed |
+| [07-web-editing.md](plans/07-web-editing.md) | Web 編輯功能 | ✅ Completed |
 
 ### Development Workflow
 
