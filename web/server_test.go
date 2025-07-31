@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"run-script-service/service"
 )
@@ -285,9 +286,23 @@ func TestWebServer_RunScript_NotFound(t *testing.T) {
 }
 
 func TestWebServer_LogsEndpoint(t *testing.T) {
-	// Create test dependencies
+	// Create test dependencies with real log manager
+	logManager := service.NewLogManager("./testdata")
 	svc := &service.Service{}
-	logManager := &service.LogManager{}
+
+	// Add some test log entries
+	logger := logManager.GetLogger("test-script")
+	err := logger.AddEntry(&service.LogEntry{
+		Timestamp:  time.Now(),
+		ScriptName: "test-script",
+		ExitCode:   0,
+		Stdout:     "Test output",
+		Stderr:     "",
+		Duration:   1000,
+	})
+	if err != nil {
+		t.Fatalf("Failed to add test log entry: %v", err)
+	}
 
 	server := NewWebServer(svc, logManager, 8080)
 
@@ -304,13 +319,77 @@ func TestWebServer_LogsEndpoint(t *testing.T) {
 	}
 
 	var response APIResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	err = json.Unmarshal(w.Body.Bytes(), &response)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
 
 	if !response.Success {
 		t.Error("Expected successful response")
+	}
+
+	// Check that data contains log entries
+	data, ok := response.Data.([]interface{})
+	if !ok {
+		t.Fatal("Expected data to be an array")
+	}
+
+	if len(data) == 0 {
+		t.Error("Expected at least one log entry")
+	}
+}
+
+func TestWebServer_GetScriptLogs(t *testing.T) {
+	// Create test dependencies with real log manager
+	logManager := service.NewLogManager("./testdata")
+	svc := &service.Service{}
+
+	// Add test log entries for specific script
+	logger := logManager.GetLogger("test-script")
+	err := logger.AddEntry(&service.LogEntry{
+		Timestamp:  time.Now(),
+		ScriptName: "test-script",
+		ExitCode:   0,
+		Stdout:     "Script specific output",
+		Stderr:     "",
+		Duration:   2000,
+	})
+	if err != nil {
+		t.Fatalf("Failed to add test log entry: %v", err)
+	}
+
+	server := NewWebServer(svc, logManager, 8080)
+
+	// Create test request for specific script
+	req := httptest.NewRequest("GET", "/api/logs/test-script", nil)
+	w := httptest.NewRecorder()
+
+	// Call the script logs handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Error("Expected successful response")
+	}
+
+	// Check that data contains log entries for the specific script
+	data, ok := response.Data.([]interface{})
+	if !ok {
+		t.Fatal("Expected data to be an array")
+	}
+
+	if len(data) == 0 {
+		t.Error("Expected at least one log entry for the script")
 	}
 }
 

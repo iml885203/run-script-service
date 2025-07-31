@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -425,17 +426,51 @@ func (ws *WebServer) handleDisableScript(c *gin.Context) {
 	})
 }
 
-// handleGetLogs returns logs
+// handleGetLogs returns logs with optional query parameters
 func (ws *WebServer) handleGetLogs(c *gin.Context) {
-	// For now, return a placeholder response
-	// In a full implementation, this would use the log manager
-	logs := []map[string]interface{}{
-		{
-			"script":    "example",
-			"timestamp": "2025-07-31T06:00:00Z",
-			"output":    "Script executed successfully",
-			"exit_code": 0,
-		},
+	if ws.logManager == nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   "Log manager not initialized",
+		})
+		return
+	}
+
+	// Build query from request parameters
+	query := &service.LogQuery{}
+
+	// Parse optional query parameters
+	if scriptName := c.Query("script"); scriptName != "" {
+		query.ScriptName = scriptName
+	}
+
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if limit, err := strconv.Atoi(limitStr); err == nil && limit > 0 {
+			query.Limit = limit
+		}
+	}
+
+	// Query logs
+	entries, err := ws.logManager.QueryLogs(query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Failed to query logs: %v", err),
+		})
+		return
+	}
+
+	// Convert entries to response format
+	logs := make([]map[string]interface{}, len(entries))
+	for i, entry := range entries {
+		logs[i] = map[string]interface{}{
+			"script":    entry.ScriptName,
+			"timestamp": entry.Timestamp.Format(time.RFC3339),
+			"exit_code": entry.ExitCode,
+			"stdout":    entry.Stdout,
+			"stderr":    entry.Stderr,
+			"duration":  entry.Duration,
+		}
 	}
 
 	c.JSON(http.StatusOK, APIResponse{
@@ -446,6 +481,14 @@ func (ws *WebServer) handleGetLogs(c *gin.Context) {
 
 // handleGetScriptLogs returns logs for a specific script
 func (ws *WebServer) handleGetScriptLogs(c *gin.Context) {
+	if ws.logManager == nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   "Log manager not initialized",
+		})
+		return
+	}
+
 	scriptName := c.Param("script")
 	if scriptName == "" {
 		c.JSON(http.StatusBadRequest, APIResponse{
@@ -455,14 +498,39 @@ func (ws *WebServer) handleGetScriptLogs(c *gin.Context) {
 		return
 	}
 
-	// For now, return a placeholder response
-	logs := []map[string]interface{}{
-		{
-			"script":    scriptName,
-			"timestamp": "2025-07-31T06:00:00Z",
-			"output":    fmt.Sprintf("Log entry for %s", scriptName),
-			"exit_code": 0,
-		},
+	// Build query for specific script
+	query := &service.LogQuery{
+		ScriptName: scriptName,
+	}
+
+	// Parse optional limit parameter
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if limit, err := strconv.Atoi(limitStr); err == nil && limit > 0 {
+			query.Limit = limit
+		}
+	}
+
+	// Query logs for the specific script
+	entries, err := ws.logManager.QueryLogs(query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Failed to query logs for script %s: %v", scriptName, err),
+		})
+		return
+	}
+
+	// Convert entries to response format
+	logs := make([]map[string]interface{}, len(entries))
+	for i, entry := range entries {
+		logs[i] = map[string]interface{}{
+			"script":    entry.ScriptName,
+			"timestamp": entry.Timestamp.Format(time.RFC3339),
+			"exit_code": entry.ExitCode,
+			"stdout":    entry.Stdout,
+			"stderr":    entry.Stderr,
+			"duration":  entry.Duration,
+		}
 	}
 
 	c.JSON(http.StatusOK, APIResponse{
