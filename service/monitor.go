@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"runtime"
 	"sync"
@@ -99,4 +100,37 @@ func (sm *SystemMonitor) getCPUUsage() float64 {
 	// involve reading /proc/stat and calculating CPU usage over time
 	// For testing purposes, return a reasonable value
 	return 25.0
+}
+
+// EventPublisher is a function type for publishing events
+type EventPublisher func(msgType string, data map[string]interface{}) error
+
+// StartPeriodicBroadcasting starts periodic system metrics broadcasting
+func (sm *SystemMonitor) StartPeriodicBroadcasting(ctx context.Context, interval time.Duration, publisher EventPublisher) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			metrics, err := sm.GetSystemMetrics()
+			if err != nil {
+				continue
+			}
+
+			// Convert metrics to map for publishing
+			data := map[string]interface{}{
+				"cpu_percent":      metrics.CPUPercent,
+				"memory_percent":   metrics.MemoryPercent,
+				"disk_percent":     metrics.DiskPercent,
+				"active_scripts":   metrics.ActiveScripts,
+				"total_executions": metrics.TotalExecutions,
+				"timestamp":        metrics.Timestamp,
+			}
+
+			publisher("system_metrics", data)
+		}
+	}
 }

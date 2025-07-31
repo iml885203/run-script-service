@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -128,5 +129,54 @@ func TestSystemMonitor_PeriodicUpdates(t *testing.T) {
 	// Timestamps should be different (metrics should be fresh)
 	if !metrics2.Timestamp.After(metrics1.Timestamp) {
 		t.Error("Expected second metrics to have later timestamp")
+	}
+}
+
+func TestSystemMonitor_PeriodicBroadcasting(t *testing.T) {
+	monitor := NewSystemMonitor()
+
+	// Mock event publisher
+	var broadcastedMessages []map[string]interface{}
+	mockPublisher := func(msgType string, data map[string]interface{}) error {
+		if msgType == "system_metrics" {
+			broadcastedMessages = append(broadcastedMessages, data)
+		}
+		return nil
+	}
+
+	// Start periodic broadcasting with short interval for testing
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go monitor.StartPeriodicBroadcasting(ctx, 50*time.Millisecond, mockPublisher)
+
+	// Wait for at least 2 broadcasts
+	time.Sleep(150 * time.Millisecond)
+	cancel()
+
+	// Give some time for the goroutine to finish
+	time.Sleep(10 * time.Millisecond)
+
+	if len(broadcastedMessages) < 2 {
+		t.Errorf("Expected at least 2 broadcasted messages, got: %d", len(broadcastedMessages))
+	}
+
+	// Verify message structure
+	for i, msg := range broadcastedMessages {
+		if _, ok := msg["cpu_percent"]; !ok {
+			t.Errorf("Message %d missing cpu_percent field", i)
+		}
+		if _, ok := msg["memory_percent"]; !ok {
+			t.Errorf("Message %d missing memory_percent field", i)
+		}
+		if _, ok := msg["disk_percent"]; !ok {
+			t.Errorf("Message %d missing disk_percent field", i)
+		}
+		if _, ok := msg["active_scripts"]; !ok {
+			t.Errorf("Message %d missing active_scripts field", i)
+		}
+		if _, ok := msg["total_executions"]; !ok {
+			t.Errorf("Message %d missing total_executions field", i)
+		}
 	}
 }
