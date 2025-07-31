@@ -61,6 +61,12 @@ func (ws *WebServer) SetScriptManager(sm *service.ScriptManager) {
 
 // setupRoutes configures all API routes
 func (ws *WebServer) setupRoutes() {
+	// Static file routes
+	ws.router.Static("/static", "./web/static")
+	ws.router.GET("/", func(c *gin.Context) {
+		c.File("./web/static/index.html")
+	})
+
 	api := ws.router.Group("/api")
 
 	// System status endpoint

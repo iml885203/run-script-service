@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Run Script Service</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    <link rel="stylesheet" href="/static/css/components.css">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1>Run Script Service</h1>
+            <div class="header-actions">
+                <button id="settings-btn" class="btn btn-secondary">Settings</button>
+            </div>
+        </div>
+    </header>
+
+    <nav class="nav">
+        <div class="container">
+            <ul class="nav-list">
+                <li><a href="#dashboard" class="nav-link active" data-tab="dashboard">Dashboard</a></li>
+                <li><a href="#scripts" class="nav-link" data-tab="scripts">Scripts</a></li>
+                <li><a href="#logs" class="nav-link" data-tab="logs">Logs</a></li>
+                <li><a href="#settings" class="nav-link" data-tab="settings">Settings</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main class="main">
+        <div class="container">
+            <!-- Dashboard Tab -->
+            <section id="dashboard-tab" class="tab-content active">
+                <h2>Dashboard</h2>
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <h3>System Status</h3>
+                        <div id="system-status" class="status-indicator">
+                            <span class="status-dot status-loading"></span>
+                            <span>Loading...</span>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h3>Active Scripts</h3>
+                        <div id="active-scripts-count" class="metric">
+                            <span class="metric-value">-</span>
+                            <span class="metric-label">running</span>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h3>Recent Executions</h3>
+                        <div id="recent-executions">
+                            <p class="loading">Loading recent executions...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Scripts Tab -->
+            <section id="scripts-tab" class="tab-content">
+                <div class="section-header">
+                    <h2>Script Management</h2>
+                    <button id="add-script-btn" class="btn btn-primary">+ Add Script</button>
+                </div>
+                <div class="scripts-container">
+                    <div id="scripts-table-container">
+                        <table id="scripts-table" class="table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Status</th>
+                                    <th>Last Run</th>
+                                    <th>Interval</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scripts-tbody">
+                                <tr>
+                                    <td colspan="5" class="loading">Loading scripts...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Logs Tab -->
+            <section id="logs-tab" class="tab-content">
+                <div class="section-header">
+                    <h2>Logs</h2>
+                    <div class="logs-controls">
+                        <select id="script-filter" class="select">
+                            <option value="">All Scripts</option>
+                        </select>
+                        <button id="refresh-logs-btn" class="btn btn-secondary">Refresh</button>
+                        <button id="clear-logs-btn" class="btn btn-danger">Clear Logs</button>
+                    </div>
+                </div>
+                <div class="logs-container">
+                    <div id="logs-list" class="logs-list">
+                        <p class="loading">Loading logs...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings Tab -->
+            <section id="settings-tab" class="tab-content">
+                <h2>Settings</h2>
+                <div class="settings-grid">
+                    <div class="card">
+                        <h3>System Configuration</h3>
+                        <div id="system-config">
+                            <p class="loading">Loading configuration...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Add Script Modal -->
+    <div id="add-script-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Script</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="add-script-form" class="form">
+                <div class="form-group">
+                    <label for="script-name">Script Name</label>
+                    <input type="text" id="script-name" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="script-path">Script Path</label>
+                    <input type="text" id="script-path" name="path" required placeholder="./scripts/example.sh">
+                </div>
+                <div class="form-group">
+                    <label for="script-interval">Interval (seconds)</label>
+                    <input type="number" id="script-interval" name="interval" value="60" min="1">
+                </div>
+                <div class="form-group">
+                    <label for="script-timeout">Timeout (seconds)</label>
+                    <input type="number" id="script-timeout" name="timeout" value="30" min="1">
+                </div>
+                <div class="form-group">
+                    <label for="script-max-log-lines">Max Log Lines</label>
+                    <input type="number" id="script-max-log-lines" name="max_log_lines" value="100" min="1">
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="script-enabled" name="enabled" checked>
+                        <span class="checkbox-custom"></span>
+                        Enabled
+                    </label>
+                </div>
+                <div class="form-actions">
+                    <button type="button" id="cancel-add-script" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Script</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notification-container" class="notification-container"></div>
+
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/components.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

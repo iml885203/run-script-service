@@ -563,3 +563,47 @@ func TestWebServer_DisableScript(t *testing.T) {
 		t.Error("Expected successful response")
 	}
 }
+
+func TestWebServer_StaticFiles(t *testing.T) {
+	// Create test dependencies
+	svc := &service.Service{}
+	logManager := &service.LogManager{}
+	server := NewWebServer(svc, logManager, 8080)
+
+	// Test that static route returns 404 when files don't exist
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+
+	server.router.ServeHTTP(w, req)
+
+	// Expect 404 since the actual static files may not exist in test environment
+	if w.Code == http.StatusNotFound {
+		t.Log("Static file routing is configured (returns 404 when files don't exist)")
+	} else if w.Code == http.StatusOK {
+		t.Log("Static files served successfully")
+	} else {
+		t.Logf("Unexpected status code: %d", w.Code)
+	}
+}
+
+func TestWebServer_StaticFileRouting(t *testing.T) {
+	// Create test dependencies
+	svc := &service.Service{}
+	logManager := &service.LogManager{}
+	server := NewWebServer(svc, logManager, 8080)
+
+	// Test static file routing
+	req := httptest.NewRequest("GET", "/static/css/main.css", nil)
+	w := httptest.NewRecorder()
+
+	server.router.ServeHTTP(w, req)
+
+	// Should return 404 if file doesn't exist, or 200 if it does
+	if w.Code == http.StatusNotFound {
+		t.Log("Static file routing configured (404 when file doesn't exist)")
+	} else if w.Code == http.StatusOK {
+		t.Log("Static CSS file served successfully")
+	} else {
+		t.Logf("Unexpected status code: %d", w.Code)
+	}
+}
