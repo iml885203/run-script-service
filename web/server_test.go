@@ -607,3 +607,183 @@ func TestWebServer_StaticFileRouting(t *testing.T) {
 		t.Logf("Unexpected status code: %d", w.Code)
 	}
 }
+
+func TestWebServer_UpdateScript(t *testing.T) {
+	// Create test dependencies with a script
+	config := &service.ServiceConfig{
+		Scripts: []service.ScriptConfig{
+			{
+				Name:        "test-script",
+				Path:        "./test.sh",
+				Interval:    60,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     30,
+			},
+		},
+	}
+
+	scriptManager := service.NewScriptManager(config)
+	svc := &service.Service{}
+	logManager := &service.LogManager{}
+
+	server := NewWebServer(svc, logManager, 8080)
+	server.SetScriptManager(scriptManager)
+
+	// Create test request with updated script data
+	updateData := `{
+		"path": "./updated-test.sh",
+		"interval": 120,
+		"enabled": false,
+		"max_log_lines": 200,
+		"timeout": 60
+	}`
+
+	req := httptest.NewRequest("PUT", "/api/scripts/test-script", strings.NewReader(updateData))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	// Call the update script handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Error("Expected successful response")
+	}
+}
+
+func TestWebServer_UpdateScript_NotFound(t *testing.T) {
+	// Create test dependencies with no scripts
+	config := &service.ServiceConfig{
+		Scripts: []service.ScriptConfig{},
+	}
+
+	scriptManager := service.NewScriptManager(config)
+	svc := &service.Service{}
+	logManager := &service.LogManager{}
+
+	server := NewWebServer(svc, logManager, 8080)
+	server.SetScriptManager(scriptManager)
+
+	// Create test request for non-existent script
+	updateData := `{
+		"path": "./test.sh",
+		"interval": 60,
+		"enabled": true,
+		"max_log_lines": 100,
+		"timeout": 30
+	}`
+
+	req := httptest.NewRequest("PUT", "/api/scripts/nonexistent", strings.NewReader(updateData))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	// Call the update script handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusNotFound {
+		t.Errorf("Expected status 404, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if response.Success {
+		t.Error("Expected failed response for non-existent script")
+	}
+}
+
+func TestWebServer_DeleteScript(t *testing.T) {
+	// Create test dependencies with a script
+	config := &service.ServiceConfig{
+		Scripts: []service.ScriptConfig{
+			{
+				Name:        "test-script",
+				Path:        "./test.sh",
+				Interval:    60,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     30,
+			},
+		},
+	}
+
+	scriptManager := service.NewScriptManager(config)
+	svc := &service.Service{}
+	logManager := &service.LogManager{}
+
+	server := NewWebServer(svc, logManager, 8080)
+	server.SetScriptManager(scriptManager)
+
+	// Create test request
+	req := httptest.NewRequest("DELETE", "/api/scripts/test-script", nil)
+	w := httptest.NewRecorder()
+
+	// Call the delete script handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Error("Expected successful response")
+	}
+}
+
+func TestWebServer_DeleteScript_NotFound(t *testing.T) {
+	// Create test dependencies with no scripts
+	config := &service.ServiceConfig{
+		Scripts: []service.ScriptConfig{},
+	}
+
+	scriptManager := service.NewScriptManager(config)
+	svc := &service.Service{}
+	logManager := &service.LogManager{}
+
+	server := NewWebServer(svc, logManager, 8080)
+	server.SetScriptManager(scriptManager)
+
+	// Create test request for non-existent script
+	req := httptest.NewRequest("DELETE", "/api/scripts/nonexistent", nil)
+	w := httptest.NewRecorder()
+
+	// Call the delete script handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusNotFound {
+		t.Errorf("Expected status 404, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if response.Success {
+		t.Error("Expected failed response for non-existent script")
+	}
+}

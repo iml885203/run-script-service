@@ -199,3 +199,51 @@ func (sm *ScriptManager) DisableScript(name string) error {
 
 	return fmt.Errorf("script %s not found in configuration", name)
 }
+
+// UpdateScript updates an existing script configuration
+func (sm *ScriptManager) UpdateScript(name string, updatedConfig ScriptConfig) error {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	// Find the script config and update it
+	for i, sc := range sm.config.Scripts {
+		if sc.Name == name {
+			// Ensure the name matches the parameter
+			updatedConfig.Name = name
+			sm.config.Scripts[i] = updatedConfig
+			return nil
+		}
+	}
+
+	return fmt.Errorf("script %s not found in configuration", name)
+}
+
+// RemoveScript removes a script from configuration and stops it if running
+func (sm *ScriptManager) RemoveScript(name string) error {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	// Stop the script if it's running
+	if runner, exists := sm.scripts[name]; exists {
+		runner.Stop()
+		delete(sm.scripts, name)
+	}
+
+	// Find and remove the script from configuration
+	found := false
+	newScripts := make([]ScriptConfig, 0, len(sm.config.Scripts))
+	for _, sc := range sm.config.Scripts {
+		if sc.Name != name {
+			newScripts = append(newScripts, sc)
+		} else {
+			found = true
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("script %s not found in configuration", name)
+	}
+
+	sm.config.Scripts = newScripts
+	return nil
+}

@@ -235,3 +235,182 @@ func TestScriptManager_StopAll(t *testing.T) {
 		t.Errorf("Expected 0 running scripts after StopAll, got %d", len(manager.scripts))
 	}
 }
+
+func TestScriptManager_UpdateScript(t *testing.T) {
+	config := &ServiceConfig{
+		Scripts: []ScriptConfig{
+			{
+				Name:        "test1",
+				Path:        "./test1.sh",
+				Interval:    60,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     30,
+			},
+		},
+		WebPort: 8080,
+	}
+
+	manager := NewScriptManager(config)
+
+	// Update the script
+	updatedScript := ScriptConfig{
+		Name:        "test1",
+		Path:        "./updated-test1.sh",
+		Interval:    120,
+		Enabled:     false,
+		MaxLogLines: 200,
+		Timeout:     60,
+	}
+
+	err := manager.UpdateScript("test1", updatedScript)
+	if err != nil {
+		t.Fatalf("Expected no error updating script, got: %v", err)
+	}
+
+	// Check the script was updated in config
+	for _, script := range manager.config.Scripts {
+		if script.Name == "test1" {
+			if script.Path != "./updated-test1.sh" {
+				t.Errorf("Expected path to be updated to './updated-test1.sh', got %s", script.Path)
+			}
+			if script.Interval != 120 {
+				t.Errorf("Expected interval to be updated to 120, got %d", script.Interval)
+			}
+			if script.Enabled != false {
+				t.Errorf("Expected enabled to be updated to false, got %t", script.Enabled)
+			}
+			if script.MaxLogLines != 200 {
+				t.Errorf("Expected max log lines to be updated to 200, got %d", script.MaxLogLines)
+			}
+			if script.Timeout != 60 {
+				t.Errorf("Expected timeout to be updated to 60, got %d", script.Timeout)
+			}
+			return
+		}
+	}
+	t.Error("Script test1 not found in configuration after update")
+}
+
+func TestScriptManager_UpdateScript_NotFound(t *testing.T) {
+	config := &ServiceConfig{
+		Scripts: []ScriptConfig{},
+		WebPort: 8080,
+	}
+
+	manager := NewScriptManager(config)
+
+	updatedScript := ScriptConfig{
+		Name:        "nonexistent",
+		Path:        "./nonexistent.sh",
+		Interval:    60,
+		Enabled:     true,
+		MaxLogLines: 100,
+		Timeout:     30,
+	}
+
+	err := manager.UpdateScript("nonexistent", updatedScript)
+	if err == nil {
+		t.Error("Expected error when updating non-existent script")
+	}
+}
+
+func TestScriptManager_RemoveScript(t *testing.T) {
+	config := &ServiceConfig{
+		Scripts: []ScriptConfig{
+			{
+				Name:        "test1",
+				Path:        "./test1.sh",
+				Interval:    60,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     30,
+			},
+			{
+				Name:        "test2",
+				Path:        "./test2.sh",
+				Interval:    60,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     30,
+			},
+		},
+		WebPort: 8080,
+	}
+
+	manager := NewScriptManager(config)
+
+	// Remove test1
+	err := manager.RemoveScript("test1")
+	if err != nil {
+		t.Fatalf("Expected no error removing script, got: %v", err)
+	}
+
+	// Check that test1 is gone and test2 remains
+	if len(manager.config.Scripts) != 1 {
+		t.Errorf("Expected 1 script remaining after removal, got %d", len(manager.config.Scripts))
+	}
+
+	if manager.config.Scripts[0].Name != "test2" {
+		t.Errorf("Expected remaining script to be test2, got %s", manager.config.Scripts[0].Name)
+	}
+}
+
+func TestScriptManager_RemoveScript_NotFound(t *testing.T) {
+	config := &ServiceConfig{
+		Scripts: []ScriptConfig{},
+		WebPort: 8080,
+	}
+
+	manager := NewScriptManager(config)
+
+	err := manager.RemoveScript("nonexistent")
+	if err == nil {
+		t.Error("Expected error when removing non-existent script")
+	}
+}
+
+func TestScriptManager_RemoveScript_StopsRunningScript(t *testing.T) {
+	config := &ServiceConfig{
+		Scripts: []ScriptConfig{
+			{
+				Name:        "test1",
+				Path:        "./test1.sh",
+				Interval:    60,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     30,
+			},
+		},
+		WebPort: 8080,
+	}
+
+	manager := NewScriptManager(config)
+	ctx := context.Background()
+
+	// Start the script
+	err := manager.StartScript(ctx, "test1")
+	if err != nil {
+		t.Fatalf("Error starting script: %v", err)
+	}
+
+	if !manager.IsScriptRunning("test1") {
+		t.Error("Expected script to be running before removal")
+	}
+
+	// Remove the script
+	err = manager.RemoveScript("test1")
+	if err != nil {
+		t.Fatalf("Expected no error removing script, got: %v", err)
+	}
+
+	// Check that script is no longer running
+	if manager.IsScriptRunning("test1") {
+		t.Error("Expected script to be stopped after removal")
+	}
+
+	// Check that script is removed from config
+	if len(manager.config.Scripts) != 0 {
+		t.Errorf("Expected 0 scripts in config after removal, got %d", len(manager.config.Scripts))
+	}
+}

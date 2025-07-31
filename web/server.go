@@ -320,13 +320,35 @@ func (ws *WebServer) handleUpdateScript(c *gin.Context) {
 		return
 	}
 
-	// Ensure the name matches the URL parameter
-	updateData.Name = scriptName
+	// Set defaults for optional fields
+	if updateData.Interval <= 0 {
+		updateData.Interval = 60 // Default to 1 minute
+	}
+	if updateData.MaxLogLines <= 0 {
+		updateData.MaxLogLines = 100 // Default to 100 lines
+	}
 
-	// Update the script (this would need to be implemented in script manager)
-	c.JSON(http.StatusNotImplemented, APIResponse{
-		Success: false,
-		Error:   "Script update not yet implemented",
+	// Update the script
+	if err := ws.scriptManager.UpdateScript(scriptName, updateData); err != nil {
+		c.JSON(http.StatusNotFound, APIResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Success: true,
+		Data: map[string]interface{}{
+			"message":       fmt.Sprintf("Script %s updated successfully", scriptName),
+			"script":        scriptName,
+			"name":          updateData.Name,
+			"path":          updateData.Path,
+			"interval":      updateData.Interval,
+			"enabled":       updateData.Enabled,
+			"max_log_lines": updateData.MaxLogLines,
+			"timeout":       updateData.Timeout,
+		},
 	})
 }
 
@@ -349,10 +371,21 @@ func (ws *WebServer) handleDeleteScript(c *gin.Context) {
 		return
 	}
 
-	// Remove the script (this would need to be implemented in script manager)
-	c.JSON(http.StatusNotImplemented, APIResponse{
-		Success: false,
-		Error:   "Script deletion not yet implemented",
+	// Remove the script
+	if err := ws.scriptManager.RemoveScript(scriptName); err != nil {
+		c.JSON(http.StatusNotFound, APIResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Success: true,
+		Data: map[string]interface{}{
+			"message": fmt.Sprintf("Script %s deleted successfully", scriptName),
+			"script":  scriptName,
+		},
 	})
 }
 
