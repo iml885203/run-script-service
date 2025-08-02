@@ -250,7 +250,8 @@ func TestScriptConfig_Validation(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.script.Validate()
+			// Use ValidateWithOptions(false) to skip file existence check in tests
+			err := tt.script.ValidateWithOptions(false)
 			isValid := err == nil
 
 			if isValid != tt.expectValid {

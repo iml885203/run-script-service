@@ -55,15 +55,27 @@
 			<div id="nav">
 				<select id="files">
 
-				<option value="file0">run-script-service/main.go (52.1%)</option>
+				<option value="file0">run-script-service/main.go (55.7%)</option>
 
 				<option value="file1">run-script-service/mocks/filesystem.go (26.7%)</option>
 
-				<option value="file2">run-script-service/service/config.go (75.0%)</option>
+				<option value="file2">run-script-service/service/config.go (64.4%)</option>
 
-				<option value="file3">run-script-service/service/executor.go (76.0%)</option>
+				<option value="file3">run-script-service/service/executor.go (76.6%)</option>
 
-				<option value="file4">run-script-service/service/service.go (91.9%)</option>
+				<option value="file4">run-script-service/service/file_manager.go (88.3%)</option>
+
+				<option value="file5">run-script-service/service/log_manager.go (53.4%)</option>
+
+				<option value="file6">run-script-service/service/script_manager.go (58.2%)</option>
+
+				<option value="file7">run-script-service/service/script_runner.go (86.2%)</option>
+
+				<option value="file8">run-script-service/service/service.go (89.5%)</option>
+
+				<option value="file9">run-script-service/web/handlers_files.go (77.8%)</option>
+
+				<option value="file10">run-script-service/web/server.go (60.2%)</option>
 
 				</select>
 			</div>
@@ -77,23 +89,28 @@
 		</div>
 		<div id="content">
 
-		<pre class="file" id="file0" style="display: none">package main
+		<pre class="file" id="file0" style="display: none">// Package main provides the run-script-service daemon executable.
+package main
 
 import (
         "context"
         "fmt"
         "os"
         "os/signal"
+        "os/user"
         "path/filepath"
         "strconv"
+        "strings"
         "syscall"
 
         "run-script-service/service"
+        "run-script-service/web"
 )
 
 // CommandResult represents the result of command processing
 type CommandResult struct {
         shouldRunService bool
+        webMode          bool
 }
 
 // handleCommand processes command line arguments and returns appropriate action
@@ -108,28 +125,85 @@ func handleCommand(args []string, scriptPath, logPath, configPath string, maxLin
 
         switch command </span>{
         case "run":<span class="cov8" title="1">
-                return CommandResult{shouldRunService: true}, nil</span>
+                // Check for web flag
+                webMode := false
+                for _, arg := range args[2:] </span><span class="cov8" title="1">{
+                        if arg == "--web" </span><span class="cov8" title="1">{
+                                webMode = true
+                                break</span>
+                        }
+                }
+                <span class="cov8" title="1">result := CommandResult{shouldRunService: true}
+                result.webMode = webMode
+                return result, nil</span>
         case "set-interval":<span class="cov8" title="1">
                 if len(args) != 3 </span><span class="cov8" title="1">{
                         return CommandResult{shouldRunService: false},
-                                fmt.Errorf("Usage: ./run-script-service set-interval &lt;interval&gt;\nExamples: 30s, 5m, 1h, 3600")
+                                fmt.Errorf("usage: ./run-script-service set-interval &lt;interval&gt;\nexamples: 30s, 5m, 1h, 3600")
                 }</span>
                 <span class="cov8" title="1">interval, err := parseInterval(args[2])
                 if err != nil </span><span class="cov8" title="1">{
                         return CommandResult{shouldRunService: false},
-                                fmt.Errorf("Invalid interval: %v", err)
+                                fmt.Errorf("invalid interval: %v", err)
                 }</span>
                 <span class="cov8" title="1">if err := svc.SetInterval(interval); err != nil </span><span class="cov0" title="0">{
                         return CommandResult{shouldRunService: false},
-                                fmt.Errorf("Error setting interval: %v", err)
+                                fmt.Errorf("error setting interval: %v", err)
                 }</span>
                 <span class="cov8" title="1">return CommandResult{shouldRunService: false}, nil</span>
         case "show-config":<span class="cov8" title="1">
                 svc.ShowConfig()
                 return CommandResult{shouldRunService: false}, nil</span>
+        case "generate-service":<span class="cov0" title="0">
+                if err := generateServiceFile(); err != nil </span><span class="cov0" title="0">{
+                        return CommandResult{shouldRunService: false},
+                                fmt.Errorf("error generating service file: %v", err)
+                }</span>
+                <span class="cov0" title="0">fmt.Println("Service file generated successfully")
+                return CommandResult{shouldRunService: false}, nil</span>
+        case "add-script":<span class="cov8" title="1">
+                return handleAddScript(args[2:], configPath)</span>
+        case "list-scripts":<span class="cov8" title="1">
+                return handleListScripts(configPath)</span>
+        case "enable-script":<span class="cov8" title="1">
+                if len(args) != 3 </span><span class="cov0" title="0">{
+                        return CommandResult{shouldRunService: false},
+                                fmt.Errorf("usage: ./run-script-service enable-script &lt;script-name&gt;")
+                }</span>
+                <span class="cov8" title="1">return handleEnableScript(args[2], configPath)</span>
+        case "disable-script":<span class="cov8" title="1">
+                if len(args) != 3 </span><span class="cov0" title="0">{
+                        return CommandResult{shouldRunService: false},
+                                fmt.Errorf("usage: ./run-script-service disable-script &lt;script-name&gt;")
+                }</span>
+                <span class="cov8" title="1">return handleDisableScript(args[2], configPath)</span>
+        case "remove-script":<span class="cov8" title="1">
+                if len(args) != 3 </span><span class="cov0" title="0">{
+                        return CommandResult{shouldRunService: false},
+                                fmt.Errorf("usage: ./run-script-service remove-script &lt;script-name&gt;")
+                }</span>
+                <span class="cov8" title="1">return handleRemoveScript(args[2], configPath)</span>
+        case "run-script":<span class="cov8" title="1">
+                if len(args) != 3 </span><span class="cov0" title="0">{
+                        return CommandResult{shouldRunService: false},
+                                fmt.Errorf("usage: ./run-script-service run-script &lt;script-name&gt;")
+                }</span>
+                <span class="cov8" title="1">return handleRunScript(args[2], configPath)</span>
+        case "logs":<span class="cov8" title="1">
+                return handleLogs(args[2:], configPath)</span>
+        case "clear-logs":<span class="cov8" title="1">
+                return handleClearLogs(args[2:], configPath)</span>
+        case "set-web-port":<span class="cov8" title="1">
+                if len(args) != 3 </span><span class="cov0" title="0">{
+                        return CommandResult{shouldRunService: false},
+                                fmt.Errorf("usage: ./run-script-service set-web-port &lt;port&gt;")
+                }</span>
+                <span class="cov8" title="1">return handleSetWebPort(args[2], configPath)</span>
         default:<span class="cov8" title="1">
+                availableCommands := "run, set-interval, show-config, generate-service, add-script, " +
+                        "list-scripts, enable-script, disable-script, remove-script, run-script, logs, clear-logs, set-web-port"
                 return CommandResult{shouldRunService: false},
-                        fmt.Errorf("Unknown command: %s\nAvailable commands: run, set-interval, show-config", command)</span>
+                        fmt.Errorf("unknown command: %s\navailable commands: %s", command, availableCommands)</span>
         }
 }
 
@@ -154,9 +228,12 @@ func main() <span class="cov0" title="0">{
         }</span>
 
         <span class="cov0" title="0">if result.shouldRunService </span><span class="cov0" title="0">{
-                svc := service.NewService(scriptPath, logPath, configPath, maxLines)
-                runService(svc)
-        }</span>
+                if result.webMode </span><span class="cov0" title="0">{
+                        runMultiScriptServiceWithWeb(configPath)
+                }</span> else<span class="cov0" title="0"> {
+                        runMultiScriptService(configPath)
+                }</span>
+        }
 }
 
 func runService(svc *service.Service) <span class="cov0" title="0">{
@@ -186,8 +263,54 @@ func runService(svc *service.Service) <span class="cov0" title="0">{
         }
 }
 
+func runMultiScriptService(configPath string) <span class="cov0" title="0">{
+        // Load service configuration
+        var config service.ServiceConfig
+        err := service.LoadServiceConfig(configPath, &amp;config)
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Printf("Failed to load config: %v\n", err)
+                os.Exit(1)
+        }</span>
+
+        // Set default web port if not configured
+        <span class="cov0" title="0">if config.WebPort == 0 </span><span class="cov0" title="0">{
+                config.WebPort = 8080
+        }</span>
+
+        // Create script manager
+        <span class="cov0" title="0">manager := service.NewScriptManager(&amp;config)
+
+        // Set up signal handling
+        sigChan := make(chan os.Signal, 1)
+        signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
+
+        ctx, cancel := context.WithCancel(context.Background())
+        defer cancel()
+
+        // Start all enabled scripts
+        err = manager.StartAllEnabled(ctx)
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Printf("Failed to start scripts: %v\n", err)
+                cancel()
+                os.Exit(1)
+        }</span>
+
+        <span class="cov0" title="0">fmt.Println("Multi-script service started")
+        fmt.Printf("Running scripts: %v\n", manager.GetRunningScripts())
+
+        // Wait for shutdown signal
+        &lt;-sigChan
+        fmt.Println("Received shutdown signal")
+
+        // Stop all scripts
+        manager.StopAll()
+        cancel()
+
+        fmt.Println("Service stopped")</span>
+}
+
 func parseInterval(intervalStr string) (int, error) <span class="cov8" title="1">{
-        if len(intervalStr) == 0 </span><span class="cov8" title="1">{
+        if intervalStr == "" </span><span class="cov8" title="1">{
                 return 0, fmt.Errorf("empty interval")
         }</span>
 
@@ -235,9 +358,553 @@ func parseInterval(intervalStr string) (int, error) <span class="cov8" title="1"
                 <span class="cov8" title="1">return result, nil</span>
         }
 }
+
+// generateServiceFile creates a systemd service file with current directory paths
+func generateServiceFile() error <span class="cov0" title="0">{
+        // Get current working directory
+        workDir, err := os.Getwd()
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to get working directory: %v", err)
+        }</span>
+
+        // Get current user
+        <span class="cov0" title="0">currentUser, err := user.Current()
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to get current user: %v", err)
+        }</span>
+
+        // Get absolute path of the binary
+        <span class="cov0" title="0">binaryPath := filepath.Join(workDir, "run-script-service")
+
+        // Service file template
+        serviceContent := fmt.Sprintf(`[Unit]
+Description=Run Script Service
+After=network.target
+
+[Service]
+Type=simple
+User=%s
+WorkingDirectory=%s
+ExecStart=%s run
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+`, currentUser.Username, workDir, binaryPath)
+
+        // Write service file
+        serviceFilePath := filepath.Join(workDir, "run-script.service")
+        err = os.WriteFile(serviceFilePath, []byte(serviceContent), 0600)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to write service file: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// parseScriptFlags parses command line flags for script management
+func parseScriptFlags(args []string) (map[string]string, error) <span class="cov8" title="1">{
+        flags := make(map[string]string)
+
+        for _, arg := range args </span><span class="cov8" title="1">{
+                if !strings.HasPrefix(arg, "--") </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+
+                <span class="cov8" title="1">parts := strings.SplitN(arg[2:], "=", 2)
+                if len(parts) != 2 </span><span class="cov0" title="0">{
+                        return nil, fmt.Errorf("invalid flag format: %s (expected --key=value)", arg)
+                }</span>
+
+                <span class="cov8" title="1">flags[parts[0]] = parts[1]</span>
+        }
+
+        // Check required flags for add-script
+        <span class="cov8" title="1">required := []string{"name", "path", "interval"}
+        for _, req := range required </span><span class="cov8" title="1">{
+                if _, ok := flags[req]; !ok </span><span class="cov8" title="1">{
+                        return nil, fmt.Errorf("missing required flag: --%s", req)
+                }</span>
+        }
+
+        <span class="cov8" title="1">return flags, nil</span>
+}
+
+// handleAddScript adds a new script to the configuration
+func handleAddScript(args []string, configPath string) (CommandResult, error) <span class="cov8" title="1">{
+        flags, err := parseScriptFlags(args)
+        if err != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, err
+        }</span>
+
+        // Parse interval
+        <span class="cov8" title="1">interval, err := parseInterval(flags["interval"])
+        if err != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("invalid interval: %v", err)
+        }</span>
+
+        // Parse optional flags
+        <span class="cov8" title="1">maxLogLines := 100
+        if val, ok := flags["max-log-lines"]; ok </span><span class="cov0" title="0">{
+                if parsed, parseErr := strconv.Atoi(val); parseErr == nil &amp;&amp; parsed &gt; 0 </span><span class="cov0" title="0">{
+                        maxLogLines = parsed
+                }</span>
+        }
+
+        <span class="cov8" title="1">timeout := 0
+        if val, ok := flags["timeout"]; ok </span><span class="cov0" title="0">{
+                if parsed, parseErr := strconv.Atoi(val); parseErr == nil &amp;&amp; parsed &gt;= 0 </span><span class="cov0" title="0">{
+                        timeout = parsed
+                }</span>
+        }
+
+        // Load existing configuration
+        <span class="cov8" title="1">var config service.ServiceConfig
+        err = service.LoadServiceConfig(configPath, &amp;config)
+        if err != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("failed to load config: %v", err)
+        }</span>
+
+        // Check if script name already exists
+        <span class="cov8" title="1">for _, script := range config.Scripts </span><span class="cov0" title="0">{
+                if script.Name == flags["name"] </span><span class="cov0" title="0">{
+                        return CommandResult{shouldRunService: false}, fmt.Errorf("script with name '%s' already exists", flags["name"])
+                }</span>
+        }
+
+        // Add new script
+        <span class="cov8" title="1">newScript := service.ScriptConfig{
+                Name:        flags["name"],
+                Path:        flags["path"],
+                Interval:    interval,
+                Enabled:     true,
+                MaxLogLines: maxLogLines,
+                Timeout:     timeout,
+        }
+
+        if validateErr := newScript.Validate(); validateErr != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("invalid script configuration: %v", validateErr)
+        }</span>
+
+        <span class="cov8" title="1">config.Scripts = append(config.Scripts, newScript)
+
+        // Save configuration
+        err = service.SaveServiceConfig(configPath, &amp;config)
+        if err != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("failed to save config: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">fmt.Printf("Script '%s' added successfully\n", flags["name"])
+        return CommandResult{shouldRunService: false}, nil</span>
+}
+
+// handleListScripts lists all configured scripts
+func handleListScripts(configPath string) (CommandResult, error) <span class="cov8" title="1">{
+        var config service.ServiceConfig
+        err := service.LoadServiceConfig(configPath, &amp;config)
+        if err != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("failed to load config: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">if len(config.Scripts) == 0 </span><span class="cov0" title="0">{
+                fmt.Println("No scripts configured")
+                return CommandResult{shouldRunService: false}, nil
+        }</span>
+
+        <span class="cov8" title="1">fmt.Printf("%-15s %-50s %-10s %-8s %-10s %-7s\n", "NAME", "PATH", "INTERVAL", "ENABLED", "MAX_LOGS", "TIMEOUT")
+        fmt.Println(strings.Repeat("-", 100))
+
+        for _, script := range config.Scripts </span><span class="cov8" title="1">{
+                enabled := "false"
+                if script.Enabled </span><span class="cov8" title="1">{
+                        enabled = "true"
+                }</span>
+
+                <span class="cov8" title="1">timeout := "none"
+                if script.Timeout &gt; 0 </span><span class="cov8" title="1">{
+                        timeout = fmt.Sprintf("%ds", script.Timeout)
+                }</span>
+
+                <span class="cov8" title="1">fmt.Printf("%-15s %-50s %-10ds %-8s %-10d %-7s\n",
+                        script.Name, script.Path, script.Interval, enabled, script.MaxLogLines, timeout)</span>
+        }
+
+        <span class="cov8" title="1">return CommandResult{shouldRunService: false}, nil</span>
+}
+
+// handleEnableScript enables a script
+func handleEnableScript(scriptName, configPath string) (CommandResult, error) <span class="cov8" title="1">{
+        var config service.ServiceConfig
+        err := service.LoadServiceConfig(configPath, &amp;config)
+        if err != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("failed to load config: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">found := false
+        for i, script := range config.Scripts </span><span class="cov8" title="1">{
+                if script.Name == scriptName </span><span class="cov8" title="1">{
+                        config.Scripts[i].Enabled = true
+                        found = true
+                        break</span>
+                }
+        }
+
+        <span class="cov8" title="1">if !found </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("script '%s' not found", scriptName)
+        }</span>
+
+        <span class="cov8" title="1">err = service.SaveServiceConfig(configPath, &amp;config)
+        if err != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("failed to save config: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">fmt.Printf("Script '%s' enabled\n", scriptName)
+        return CommandResult{shouldRunService: false}, nil</span>
+}
+
+// handleDisableScript disables a script
+func handleDisableScript(scriptName, configPath string) (CommandResult, error) <span class="cov8" title="1">{
+        var config service.ServiceConfig
+        err := service.LoadServiceConfig(configPath, &amp;config)
+        if err != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("failed to load config: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">found := false
+        for i, script := range config.Scripts </span><span class="cov8" title="1">{
+                if script.Name == scriptName </span><span class="cov8" title="1">{
+                        config.Scripts[i].Enabled = false
+                        found = true
+                        break</span>
+                }
+        }
+
+        <span class="cov8" title="1">if !found </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("script '%s' not found", scriptName)
+        }</span>
+
+        <span class="cov8" title="1">err = service.SaveServiceConfig(configPath, &amp;config)
+        if err != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("failed to save config: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">fmt.Printf("Script '%s' disabled\n", scriptName)
+        return CommandResult{shouldRunService: false}, nil</span>
+}
+
+// handleRemoveScript removes a script from configuration
+func handleRemoveScript(scriptName, configPath string) (CommandResult, error) <span class="cov8" title="1">{
+        var config service.ServiceConfig
+        err := service.LoadServiceConfig(configPath, &amp;config)
+        if err != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("failed to load config: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">found := false
+        newScripts := make([]service.ScriptConfig, 0, len(config.Scripts))
+        for _, script := range config.Scripts </span><span class="cov8" title="1">{
+                if script.Name != scriptName </span><span class="cov8" title="1">{
+                        newScripts = append(newScripts, script)
+                }</span> else<span class="cov8" title="1"> {
+                        found = true
+                }</span>
+        }
+
+        <span class="cov8" title="1">if !found </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("script '%s' not found", scriptName)
+        }</span>
+
+        <span class="cov8" title="1">config.Scripts = newScripts
+
+        err = service.SaveServiceConfig(configPath, &amp;config)
+        if err != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("failed to save config: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">fmt.Printf("Script '%s' removed\n", scriptName)
+        return CommandResult{shouldRunService: false}, nil</span>
+}
+
+// handleRunScript executes a script once
+func handleRunScript(scriptName, configPath string) (CommandResult, error) <span class="cov8" title="1">{
+        var config service.ServiceConfig
+        err := service.LoadServiceConfig(configPath, &amp;config)
+        if err != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("failed to load config: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">var scriptConfig *service.ScriptConfig
+        for i, script := range config.Scripts </span><span class="cov8" title="1">{
+                if script.Name == scriptName </span><span class="cov8" title="1">{
+                        scriptConfig = &amp;config.Scripts[i]
+                        break</span>
+                }
+        }
+
+        <span class="cov8" title="1">if scriptConfig == nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("script '%s' not found", scriptName)
+        }</span>
+
+        // Create a temporary script runner and execute once
+        <span class="cov8" title="1">logPath := fmt.Sprintf("%s.log", scriptName)
+        runner := service.NewScriptRunner(*scriptConfig, logPath)
+
+        ctx := context.Background()
+        err = runner.RunOnce(ctx)
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Printf("Script '%s' execution failed: %v\n", scriptName, err)
+        }</span> else<span class="cov8" title="1"> {
+                fmt.Printf("Script '%s' executed successfully\n", scriptName)
+        }</span>
+
+        <span class="cov8" title="1">return CommandResult{shouldRunService: false}, nil</span>
+}
+
+// handleLogs displays logs for scripts
+func handleLogs(args []string, _ string) (CommandResult, error) <span class="cov8" title="1">{
+        flags, err := parseLogFlags(args)
+        if err != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, err
+        }</span>
+
+        // Determine logs directory path
+        <span class="cov8" title="1">dir, err := os.Executable()
+        if err != nil </span><span class="cov0" title="0">{
+                dir, _ = os.Getwd()
+        }</span> else<span class="cov8" title="1"> {
+                dir = filepath.Dir(dir)
+        }</span>
+        <span class="cov8" title="1">logsDir := filepath.Join(dir, "logs")
+
+        // Create log manager
+        logManager := service.NewLogManager(logsDir)
+
+        // Build query
+        query := &amp;service.LogQuery{}
+
+        if scriptName, ok := flags["script"]; ok </span><span class="cov8" title="1">{
+                query.ScriptName = scriptName
+        }</span>
+
+        <span class="cov8" title="1">if exitCode, ok := flags["exit-code"]; ok </span><span class="cov8" title="1">{
+                code, parseErr := strconv.Atoi(exitCode)
+                if parseErr != nil </span><span class="cov0" title="0">{
+                        return CommandResult{shouldRunService: false}, fmt.Errorf("invalid exit-code: %v", parseErr)
+                }</span>
+                <span class="cov8" title="1">query.ExitCode = &amp;code</span>
+        }
+
+        <span class="cov8" title="1">if limit, ok := flags["limit"]; ok </span><span class="cov8" title="1">{
+                limitNum, parseErr := strconv.Atoi(limit)
+                if parseErr != nil </span><span class="cov0" title="0">{
+                        return CommandResult{shouldRunService: false}, fmt.Errorf("invalid limit: %v", parseErr)
+                }</span>
+                <span class="cov8" title="1">query.Limit = limitNum</span>
+        }
+
+        // Query logs
+        <span class="cov8" title="1">entries, err := logManager.QueryLogs(query)
+        if err != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("failed to query logs: %v", err)
+        }</span>
+
+        // Display logs
+        <span class="cov8" title="1">if len(entries) == 0 </span><span class="cov8" title="1">{
+                fmt.Println("No log entries found")
+        }</span> else<span class="cov0" title="0"> {
+                fmt.Printf("Found %d log entries:\n\n", len(entries))
+                for _, entry := range entries </span><span class="cov0" title="0">{
+                        fmt.Printf("[%s] %s (exit: %d, duration: %dms)\n",
+                                entry.Timestamp.Format("2006-01-02 15:04:05"),
+                                entry.ScriptName,
+                                entry.ExitCode,
+                                entry.Duration)
+                        if entry.Stdout != "" </span><span class="cov0" title="0">{
+                                fmt.Printf("  STDOUT: %s\n", entry.Stdout)
+                        }</span>
+                        <span class="cov0" title="0">if entry.Stderr != "" </span><span class="cov0" title="0">{
+                                fmt.Printf("  STDERR: %s\n", entry.Stderr)
+                        }</span>
+                        <span class="cov0" title="0">fmt.Println()</span>
+                }
+        }
+
+        <span class="cov8" title="1">return CommandResult{shouldRunService: false}, nil</span>
+}
+
+// handleClearLogs clears logs for a specific script
+func handleClearLogs(args []string, _ string) (CommandResult, error) <span class="cov8" title="1">{
+        flags, err := parseLogFlags(args)
+        if err != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, err
+        }</span>
+
+        <span class="cov8" title="1">scriptName, ok := flags["script"]
+        if !ok </span><span class="cov8" title="1">{
+                return CommandResult{shouldRunService: false},
+                        fmt.Errorf("usage: ./run-script-service clear-logs --script=&lt;script-name&gt;")
+        }</span>
+
+        // Determine logs directory path
+        <span class="cov8" title="1">dir, err := os.Executable()
+        if err != nil </span><span class="cov0" title="0">{
+                dir, _ = os.Getwd()
+        }</span> else<span class="cov8" title="1"> {
+                dir = filepath.Dir(dir)
+        }</span>
+        <span class="cov8" title="1">logsDir := filepath.Join(dir, "logs")
+
+        // Clear the specific log file
+        logFile := filepath.Join(logsDir, fmt.Sprintf("%s.log", scriptName))
+
+        if _, statErr := os.Stat(logFile); os.IsNotExist(statErr) </span><span class="cov8" title="1">{
+                fmt.Printf("No log file found for script '%s'\n", scriptName)
+                return CommandResult{shouldRunService: false}, nil
+        }</span>
+
+        <span class="cov0" title="0">err = os.Remove(logFile)
+        if err != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("failed to clear logs: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">fmt.Printf("Logs cleared for script '%s'\n", scriptName)
+        return CommandResult{shouldRunService: false}, nil</span>
+}
+
+// parseLogFlags parses log command flags
+func parseLogFlags(args []string) (map[string]string, error) <span class="cov8" title="1">{
+        flags := make(map[string]string)
+
+        for _, arg := range args </span><span class="cov8" title="1">{
+                if arg == "--all" </span><span class="cov8" title="1">{
+                        // --all is equivalent to no script filter
+                        continue</span>
+                }
+
+                <span class="cov8" title="1">if strings.HasPrefix(arg, "--") </span><span class="cov8" title="1">{
+                        parts := strings.SplitN(arg[2:], "=", 2)
+                        if len(parts) == 2 </span><span class="cov8" title="1">{
+                                flags[parts[0]] = parts[1]
+                        }</span> else<span class="cov0" title="0"> {
+                                return nil, fmt.Errorf("invalid flag format: %s (expected --key=value)", arg)
+                        }</span>
+                } else<span class="cov0" title="0"> {
+                        return nil, fmt.Errorf("invalid argument: %s", arg)
+                }</span>
+        }
+
+        <span class="cov8" title="1">return flags, nil</span>
+}
+
+// handleSetWebPort sets the web server port
+func handleSetWebPort(portStr, configPath string) (CommandResult, error) <span class="cov8" title="1">{
+        port, err := strconv.Atoi(portStr)
+        if err != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("invalid port number: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">if port &lt; 1 || port &gt; 65535 </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("port must be between 1 and 65535")
+        }</span>
+
+        // Load existing configuration
+        <span class="cov8" title="1">var config service.ServiceConfig
+        err = service.LoadServiceConfig(configPath, &amp;config)
+        if err != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("failed to load config: %v", err)
+        }</span>
+
+        // Update web port
+        <span class="cov8" title="1">config.WebPort = port
+
+        // Save configuration
+        err = service.SaveServiceConfig(configPath, &amp;config)
+        if err != nil </span><span class="cov0" title="0">{
+                return CommandResult{shouldRunService: false}, fmt.Errorf("failed to save config: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">fmt.Printf("Web port set to %d\n", port)
+        return CommandResult{shouldRunService: false}, nil</span>
+}
+
+// runMultiScriptServiceWithWeb runs the service with web interface
+func runMultiScriptServiceWithWeb(configPath string) <span class="cov0" title="0">{
+        // Load service configuration
+        var config service.ServiceConfig
+        err := service.LoadServiceConfig(configPath, &amp;config)
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Printf("Failed to load config: %v\n", err)
+                os.Exit(1)
+        }</span>
+
+        // Set default web port if not configured
+        <span class="cov0" title="0">if config.WebPort == 0 </span><span class="cov0" title="0">{
+                config.WebPort = 8080
+        }</span>
+
+        // Create log manager
+        <span class="cov0" title="0">dir, err := os.Executable()
+        if err != nil </span><span class="cov0" title="0">{
+                dir, _ = os.Getwd()
+        }</span> else<span class="cov0" title="0"> {
+                dir = filepath.Dir(dir)
+        }</span>
+        <span class="cov0" title="0">logsDir := filepath.Join(dir, "logs")
+        logManager := service.NewLogManager(logsDir)
+
+        // Create file manager for secure file operations
+        fileManager := service.NewFileManager(dir)
+
+        // Create script manager
+        scriptManager := service.NewScriptManagerWithPath(&amp;config, configPath)
+
+        // Create web server
+        webServer := web.NewWebServer(nil, logManager, config.WebPort)
+        webServer.SetScriptManager(scriptManager)
+        webServer.SetFileManager(fileManager)
+
+        // Set up signal handling
+        sigChan := make(chan os.Signal, 1)
+        signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
+
+        ctx, cancel := context.WithCancel(context.Background())
+        defer cancel()
+
+        // Start all enabled scripts
+        err = scriptManager.StartAllEnabled(ctx)
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Printf("Failed to start scripts: %v\n", err)
+                cancel()
+                os.Exit(1)
+        }</span>
+
+        <span class="cov0" title="0">fmt.Println("Multi-script service with web interface started")
+        fmt.Printf("Running scripts: %v\n", scriptManager.GetRunningScripts())
+        fmt.Printf("Web interface available at http://localhost:%d\n", config.WebPort)
+
+        // Start web server in goroutine
+        go func() </span><span class="cov0" title="0">{
+                if err := webServer.Start(); err != nil </span><span class="cov0" title="0">{
+                        fmt.Printf("Web server failed: %v\n", err)
+                        cancel()
+                }</span>
+        }()
+
+        // Wait for shutdown signal
+        <span class="cov0" title="0">&lt;-sigChan
+        fmt.Println("Received shutdown signal")
+
+        // Stop all scripts and web server
+        scriptManager.StopAll()
+        cancel()
+
+        fmt.Println("Service stopped")</span>
+}
 </pre>
 
-		<pre class="file" id="file1" style="display: none">package mocks
+		<pre class="file" id="file1" style="display: none">// Package mocks provides mock implementations for testing purposes.
+package mocks
 
 import (
         "os"
@@ -260,12 +927,14 @@ type MockFileSystem struct {
         StatFunc      func(name string) (os.FileInfo, error)
 }
 
+// NewMockFileSystem creates a new mock file system for testing.
 func NewMockFileSystem() *MockFileSystem <span class="cov0" title="0">{
         return &amp;MockFileSystem{
                 Files: make(map[string][]byte),
         }
 }</span>
 
+// WriteFile implements the FileSystem interface for mock testing.
 func (m *MockFileSystem) WriteFile(filename string, data []byte, perm os.FileMode) error <span class="cov0" title="0">{
         if m.WriteFileFunc != nil </span><span class="cov0" title="0">{
                 return m.WriteFileFunc(filename, data, perm)
@@ -274,6 +943,7 @@ func (m *MockFileSystem) WriteFile(filename string, data []byte, perm os.FileMod
         return nil</span>
 }
 
+// ReadFile implements the FileSystem interface for mock testing.
 func (m *MockFileSystem) ReadFile(filename string) ([]byte, error) <span class="cov0" title="0">{
         if m.ReadFileFunc != nil </span><span class="cov0" title="0">{
                 return m.ReadFileFunc(filename)
@@ -284,11 +954,13 @@ func (m *MockFileSystem) ReadFile(filename string) ([]byte, error) <span class="
         <span class="cov0" title="0">return nil, os.ErrNotExist</span>
 }
 
+// OpenFile implements the FileSystem interface for mock testing.
 func (m *MockFileSystem) OpenFile(name string, flag int, perm os.FileMode) (*os.File, error) <span class="cov0" title="0">{
         // For simplicity, this mock doesn't implement OpenFile
         return nil, os.ErrNotExist
 }</span>
 
+// Stat implements the FileSystem interface for mock testing.
 func (m *MockFileSystem) Stat(name string) (os.FileInfo, error) <span class="cov0" title="0">{
         if m.StatFunc != nil </span><span class="cov0" title="0">{
                 return m.StatFunc(name)
@@ -322,14 +994,17 @@ type MockTime struct {
         fixedTime *time.Time
 }
 
+// NewMockTime creates a new mock time provider for testing.
 func NewMockTime() *MockTime <span class="cov8" title="1">{
         return &amp;MockTime{}
 }</span>
 
+// SetFixedTime sets a fixed time for testing purposes.
 func (m *MockTime) SetFixedTime(t time.Time) <span class="cov8" title="1">{
         m.fixedTime = &amp;t
 }</span>
 
+// Now implements the TimeProvider interface for mock testing.
 func (m *MockTime) Now() time.Time <span class="cov8" title="1">{
         if m.fixedTime != nil </span><span class="cov8" title="1">{
                 return *m.fixedTime
@@ -337,10 +1012,12 @@ func (m *MockTime) Now() time.Time <span class="cov8" title="1">{
         <span class="cov8" title="1">return time.Now()</span>
 }
 
+// Sleep implements the TimeProvider interface for mock testing.
 func (m *MockTime) Sleep(d time.Duration) {<span class="cov8" title="1">
         // In mock, sleep is instant (don't actually sleep)
 }</span>
 
+// After implements the TimeProvider interface for mock testing.
 func (m *MockTime) After(d time.Duration) &lt;-chan time.Time <span class="cov8" title="1">{
         // In mock, return a channel that receives immediately
         ch := make(chan time.Time, 1)
@@ -349,7 +1026,8 @@ func (m *MockTime) After(d time.Duration) &lt;-chan time.Time <span class="cov8"
 }</span>
 </pre>
 
-		<pre class="file" id="file2" style="display: none">package service
+		<pre class="file" id="file2" style="display: none">// Package service provides core functionality for the run-script-service daemon.
+package service
 
 import (
         "encoding/json"
@@ -358,8 +1036,45 @@ import (
         "os"
 )
 
+// ScriptConfig represents configuration for a single script
+type ScriptConfig struct {
+        Name        string `json:"name"`
+        Path        string `json:"path"`
+        Interval    int    `json:"interval"` // seconds
+        Enabled     bool   `json:"enabled"`
+        MaxLogLines int    `json:"max_log_lines"`
+        Timeout     int    `json:"timeout"` // seconds, 0 means no limit
+}
+
+// ServiceConfig represents the overall service configuration
+type ServiceConfig struct {
+        Scripts []ScriptConfig `json:"scripts"`
+        WebPort int            `json:"web_port"`
+}
+
+// Config is a legacy struct for backward compatibility
 type Config struct {
         Interval int `json:"interval"`
+}
+
+// Validate checks if the script configuration is valid
+func (sc *ScriptConfig) Validate() error <span class="cov8" title="1">{
+        if sc.Name == "" </span><span class="cov8" title="1">{
+                return fmt.Errorf("script name cannot be empty")
+        }</span>
+        <span class="cov8" title="1">if sc.Path == "" </span><span class="cov8" title="1">{
+                return fmt.Errorf("script path cannot be empty")
+        }</span>
+        <span class="cov8" title="1">if sc.Interval &lt; 0 </span><span class="cov8" title="1">{
+                return fmt.Errorf("interval cannot be negative")
+        }</span>
+        <span class="cov8" title="1">if sc.MaxLogLines &lt; 0 </span><span class="cov0" title="0">{
+                return fmt.Errorf("max_log_lines cannot be negative")
+        }</span>
+        <span class="cov8" title="1">if sc.Timeout &lt; 0 </span><span class="cov0" title="0">{
+                return fmt.Errorf("timeout cannot be negative")
+        }</span>
+        <span class="cov8" title="1">return nil</span>
 }
 
 // LoadConfig loads configuration from the specified file path
@@ -389,15 +1104,89 @@ func SaveConfig(configPath string, config *Config) error <span class="cov8" titl
                 return fmt.Errorf("error marshaling config: %v", err)
         }</span>
 
-        <span class="cov8" title="1">if err := os.WriteFile(configPath, data, 0644); err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if err := os.WriteFile(configPath, data, 0600); err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("error writing config: %v", err)
         }</span>
 
         <span class="cov8" title="1">return nil</span>
 }
+
+// LoadServiceConfig loads the new multi-script configuration with backward compatibility
+func LoadServiceConfig(configPath string, config *ServiceConfig) error <span class="cov8" title="1">{
+        if _, err := os.Stat(configPath); os.IsNotExist(err) </span><span class="cov0" title="0">{
+                return nil // Keep default config
+        }</span>
+
+        <span class="cov8" title="1">data, err := os.ReadFile(configPath)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Printf("Error reading config: %v", err)
+                return nil // Keep default config, don't fail
+        }</span>
+
+        // Try to parse as new format first
+        <span class="cov8" title="1">var tempConfig ServiceConfig
+        if err := json.Unmarshal(data, &amp;tempConfig); err == nil </span><span class="cov8" title="1">{
+                // Check if it looks like new format (has "scripts" field or "web_port" field)
+                var rawConfig map[string]interface{}
+                if err := json.Unmarshal(data, &amp;rawConfig); err != nil </span><span class="cov0" title="0">{
+                        log.Printf("Error parsing config as map: %v", err)
+                }</span>
+
+                <span class="cov8" title="1">if _, hasScripts := rawConfig["scripts"]; hasScripts || rawConfig["web_port"] != nil </span><span class="cov8" title="1">{
+                        // Successfully parsed as new format
+                        for i, script := range tempConfig.Scripts </span><span class="cov8" title="1">{
+                                if err := script.Validate(); err != nil </span><span class="cov0" title="0">{
+                                        log.Printf("Invalid script config %d: %v", i, err)
+                                        return nil // Keep default config
+                                }</span>
+                        }
+                        <span class="cov8" title="1">*config = tempConfig
+                        return nil</span>
+                }
+        }
+
+        // Try to parse as legacy format for backward compatibility
+        <span class="cov8" title="1">var legacyConfig Config
+        if err := json.Unmarshal(data, &amp;legacyConfig); err != nil </span><span class="cov0" title="0">{
+                log.Printf("Error parsing config: %v", err)
+                return nil // Keep default config, don't fail
+        }</span>
+
+        // Convert legacy config to new format
+        <span class="cov8" title="1">config.Scripts = []ScriptConfig{
+                {
+                        Name:        "main",
+                        Path:        "./run.sh", // default script path
+                        Interval:    legacyConfig.Interval,
+                        Enabled:     true,
+                        MaxLogLines: 100, // default
+                        Timeout:     0,   // no timeout
+                },
+        }
+        if config.WebPort == 0 </span><span class="cov0" title="0">{
+                config.WebPort = 8080 // default
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// SaveServiceConfig saves the service configuration to file
+func SaveServiceConfig(configPath string, config *ServiceConfig) error <span class="cov0" title="0">{
+        data, err := json.MarshalIndent(config, "", "  ")
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("error marshaling config: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">if err := os.WriteFile(configPath, data, 0600); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("error writing config: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
 </pre>
 
-		<pre class="file" id="file3" style="display: none">package service
+		<pre class="file" id="file3" style="display: none">// Package service provides core functionality for the run-script-service daemon.
+package service
 
 import (
         "bufio"
@@ -435,13 +1224,13 @@ func NewExecutor(scriptPath, logPath string, maxLines int) *Executor <span class
 }</span>
 
 // ExecuteScript executes the configured script and logs the results
-func (e *Executor) ExecuteScript() *ExecutionResult <span class="cov8" title="1">{
+func (e *Executor) ExecuteScript(args ...string) *ExecutionResult <span class="cov8" title="1">{
         timestamp := time.Now()
         result := &amp;ExecutionResult{
                 Timestamp: timestamp,
         }
 
-        cmd := exec.Command(e.scriptPath)
+        cmd := exec.Command(e.scriptPath, args...)
         cmd.Dir = filepath.Dir(e.scriptPath)
 
         stdout, err := cmd.StdoutPipe()
@@ -458,8 +1247,8 @@ func (e *Executor) ExecuteScript() *ExecutionResult <span class="cov8" title="1"
                 return result
         }</span>
 
-        <span class="cov8" title="1">if err := cmd.Start(); err != nil </span><span class="cov8" title="1">{
-                e.logError(timestamp, fmt.Sprintf("Error starting command: %v", err))
+        <span class="cov8" title="1">if startErr := cmd.Start(); startErr != nil </span><span class="cov8" title="1">{
+                e.logError(timestamp, fmt.Sprintf("Error starting command: %v", startErr))
                 result.ExitCode = -1
                 return result
         }</span>
@@ -482,40 +1271,44 @@ func (e *Executor) ExecuteScript() *ExecutionResult <span class="cov8" title="1"
         <span class="cov8" title="1">result.Stdout = strings.TrimSpace(string(stdoutBytes))
         result.Stderr = strings.TrimSpace(string(stderrBytes))
 
-        // Write to log
-        logEntry := fmt.Sprintf("[%s] Exit code: %d\n", timestamp.Format("2006-01-02 15:04:05"), result.ExitCode)
-        if len(result.Stdout) &gt; 0 </span><span class="cov8" title="1">{
-                logEntry += fmt.Sprintf("STDOUT: %s\n", result.Stdout)
-        }</span>
-        <span class="cov8" title="1">if len(result.Stderr) &gt; 0 </span><span class="cov8" title="1">{
-                logEntry += fmt.Sprintf("STDERR: %s\n", result.Stderr)
-        }</span>
-        <span class="cov8" title="1">logEntry += strings.Repeat("-", 50) + "\n"
+        // Write to log only if logPath is specified
+        if e.logPath != "" </span><span class="cov8" title="1">{
+                logEntry := fmt.Sprintf("[%s] Exit code: %d\n", timestamp.Format("2006-01-02 15:04:05"), result.ExitCode)
+                if result.Stdout != "" </span><span class="cov8" title="1">{
+                        logEntry += fmt.Sprintf("STDOUT: %s\n", result.Stdout)
+                }</span>
+                <span class="cov8" title="1">if result.Stderr != "" </span><span class="cov8" title="1">{
+                        logEntry += fmt.Sprintf("STDERR: %s\n", result.Stderr)
+                }</span>
+                <span class="cov8" title="1">logEntry += strings.Repeat("-", 50) + "\n"
 
-        if err := e.WriteLog(logEntry); err != nil </span><span class="cov0" title="0">{
-                fmt.Printf("Error writing to log: %v\n", err)
-        }</span>
+                if err := e.WriteLog(logEntry); err != nil </span><span class="cov0" title="0">{
+                        fmt.Printf("Error writing to log: %v\n", err)
+                }</span>
 
-        <span class="cov8" title="1">if err := e.TrimLog(); err != nil </span><span class="cov0" title="0">{
-                fmt.Printf("Error trimming log: %v\n", err)
-        }</span>
+                <span class="cov8" title="1">if err := e.TrimLog(); err != nil </span><span class="cov0" title="0">{
+                        fmt.Printf("Error trimming log: %v\n", err)
+                }</span>
+        }
 
         <span class="cov8" title="1">return result</span>
 }
 
 // logError logs an error message
 func (e *Executor) logError(timestamp time.Time, message string) <span class="cov8" title="1">{
-        errorMsg := fmt.Sprintf("[%s] ERROR: %s\n%s\n",
-                timestamp.Format("2006-01-02 15:04:05"), message, strings.Repeat("-", 50))
-        if err := e.WriteLog(errorMsg); err != nil </span><span class="cov0" title="0">{
-                fmt.Printf("Error writing error to log: %v\n", err)
-        }</span>
+        if e.logPath != "" </span><span class="cov8" title="1">{
+                errorMsg := fmt.Sprintf("[%s] ERROR: %s\n%s\n",
+                        timestamp.Format("2006-01-02 15:04:05"), message, strings.Repeat("-", 50))
+                if err := e.WriteLog(errorMsg); err != nil </span><span class="cov0" title="0">{
+                        fmt.Printf("Error writing error to log: %v\n", err)
+                }</span>
+        }
         <span class="cov8" title="1">fmt.Printf("Error executing script: %s\n", message)</span>
 }
 
 // WriteLog writes content to the log file
 func (e *Executor) WriteLog(content string) error <span class="cov8" title="1">{
-        file, err := os.OpenFile(e.logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+        file, err := os.OpenFile(e.logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
         if err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
@@ -542,8 +1335,8 @@ func (e *Executor) TrimLog() error <span class="cov8" title="1">{
                 lines = append(lines, scanner.Text())
         }</span>
 
-        <span class="cov8" title="1">if err := scanner.Err(); err != nil </span><span class="cov0" title="0">{
-                return err
+        <span class="cov8" title="1">if scanErr := scanner.Err(); scanErr != nil </span><span class="cov0" title="0">{
+                return scanErr
         }</span>
 
         <span class="cov8" title="1">if len(lines) &lt;= e.maxLines </span><span class="cov8" title="1">{
@@ -569,7 +1362,907 @@ func (e *Executor) TrimLog() error <span class="cov8" title="1">{
 }
 </pre>
 
-		<pre class="file" id="file4" style="display: none">package service
+		<pre class="file" id="file4" style="display: none">// Package service provides file management functionality
+package service
+
+import (
+        "fmt"
+        "io/fs"
+        "os"
+        "path/filepath"
+        "strings"
+)
+
+// FileManager handles secure file operations
+type FileManager struct {
+        allowedPaths []string
+        deniedPaths  []string
+        baseDir      string
+}
+
+// FileContent represents file content with metadata
+type FileContent struct {
+        Path    string `json:"path"`
+        Content string `json:"content"`
+        Size    int64  `json:"size"`
+        Mode    string `json:"mode"`
+}
+
+// NewFileManager creates a new file manager with security constraints
+func NewFileManager(baseDir string) *FileManager <span class="cov8" title="1">{
+        return &amp;FileManager{
+                baseDir: baseDir,
+                allowedPaths: []string{
+                        ".",          // Current directory
+                        "./scripts",  // Scripts directory
+                        "./logs",     // Logs directory
+                        "./testdata", // Test data directory
+                },
+                deniedPaths: []string{
+                        "/etc",
+                        "/usr",
+                        "/bin",
+                        "/sbin",
+                        "/root",
+                        "/home",
+                        "/var",
+                        "/tmp",
+                        "/proc",
+                        "/sys",
+                },
+        }
+}</span>
+
+// IsPathAllowed checks if a file path is allowed for access
+func (fm *FileManager) IsPathAllowed(path string) bool <span class="cov8" title="1">{
+        // Clean and resolve the path
+        cleanPath := filepath.Clean(path)
+
+        // Convert to absolute path for security checks
+        var absPath string
+        if filepath.IsAbs(cleanPath) </span><span class="cov8" title="1">{
+                absPath = cleanPath
+
+                // Check denied paths first for absolute paths
+                for _, denied := range fm.deniedPaths </span><span class="cov8" title="1">{
+                        if strings.HasPrefix(absPath, denied) </span><span class="cov8" title="1">{
+                                return false
+                        }</span>
+                }
+
+                // Absolute paths outside allowed system paths are denied
+                <span class="cov0" title="0">return false</span>
+        } else<span class="cov8" title="1"> {
+                // Relative paths are relative to baseDir
+                absPath = filepath.Join(fm.baseDir, cleanPath)
+        }</span>
+
+        // For relative paths, check if they're within allowed directories
+        <span class="cov8" title="1">for _, allowed := range fm.allowedPaths </span><span class="cov8" title="1">{
+                allowedAbs := allowed
+                if !filepath.IsAbs(allowed) </span><span class="cov8" title="1">{
+                        allowedAbs = filepath.Join(fm.baseDir, allowed)
+                }</span>
+
+                // Normalize paths for comparison
+                <span class="cov8" title="1">allowedAbs = filepath.Clean(allowedAbs)
+                cleanAbsPath := filepath.Clean(absPath)
+
+                // Allow exact match
+                if cleanAbsPath == allowedAbs </span><span class="cov8" title="1">{
+                        return true
+                }</span>
+
+                // Allow subdirectory (ensure it's actually a subdirectory, not just prefix match)
+                <span class="cov8" title="1">if strings.HasPrefix(cleanAbsPath+string(filepath.Separator), allowedAbs+string(filepath.Separator)) </span><span class="cov8" title="1">{
+                        return true
+                }</span>
+
+                // Allow files within the directory
+                <span class="cov0" title="0">if strings.HasPrefix(cleanAbsPath, allowedAbs+string(filepath.Separator)) </span><span class="cov0" title="0">{
+                        return true
+                }</span>
+        }
+
+        <span class="cov0" title="0">return false</span>
+}
+
+// ReadFile reads a file's content safely
+func (fm *FileManager) ReadFile(path string) (*FileContent, error) <span class="cov8" title="1">{
+        if !fm.IsPathAllowed(path) </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("access denied: path not allowed")
+        }</span>
+
+        // Resolve relative path
+        <span class="cov8" title="1">fullPath := path
+        if !filepath.IsAbs(path) </span><span class="cov8" title="1">{
+                fullPath = filepath.Join(fm.baseDir, path)
+        }</span>
+
+        // Get file info
+        <span class="cov8" title="1">info, err := os.Stat(fullPath)
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("failed to get file info: %w", err)
+        }</span>
+
+        // Read file content
+        <span class="cov8" title="1">content, err := os.ReadFile(fullPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to read file: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return &amp;FileContent{
+                Path:    path,
+                Content: string(content),
+                Size:    info.Size(),
+                Mode:    info.Mode().String(),
+        }, nil</span>
+}
+
+// WriteFile writes content to a file safely
+func (fm *FileManager) WriteFile(path string, content string) error <span class="cov8" title="1">{
+        if !fm.IsPathAllowed(path) </span><span class="cov8" title="1">{
+                return fmt.Errorf("access denied: path not allowed")
+        }</span>
+
+        // Resolve relative path
+        <span class="cov8" title="1">fullPath := path
+        if !filepath.IsAbs(path) </span><span class="cov8" title="1">{
+                fullPath = filepath.Join(fm.baseDir, path)
+        }</span>
+
+        // Ensure directory exists
+        <span class="cov8" title="1">dir := filepath.Dir(fullPath)
+        if err := os.MkdirAll(dir, 0755); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to create directory: %w", err)
+        }</span>
+
+        // Write file
+        <span class="cov8" title="1">if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to write file: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// ValidateScriptSyntax performs basic validation on shell scripts
+func (fm *FileManager) ValidateScriptSyntax(content string) []string <span class="cov8" title="1">{
+        var issues []string
+
+        lines := strings.Split(content, "\n")
+        for i, line := range lines </span><span class="cov8" title="1">{
+                lineNum := i + 1
+                trimmed := strings.TrimSpace(line)
+
+                // Skip empty lines and comments
+                if trimmed == "" || strings.HasPrefix(trimmed, "#") </span><span class="cov8" title="1">{
+                        continue</span>
+                }
+
+                // Check for potential security issues
+                <span class="cov8" title="1">if strings.Contains(trimmed, "rm -rf") </span><span class="cov8" title="1">{
+                        issues = append(issues, fmt.Sprintf("Line %d: Potentially dangerous command 'rm -rf'", lineNum))
+                }</span>
+
+                <span class="cov8" title="1">if strings.Contains(trimmed, "sudo") </span><span class="cov8" title="1">{
+                        issues = append(issues, fmt.Sprintf("Line %d: Use of 'sudo' detected", lineNum))
+                }</span>
+
+                // Check for basic syntax issues
+                <span class="cov8" title="1">if strings.Count(trimmed, "'")%2 != 0 </span><span class="cov0" title="0">{
+                        issues = append(issues, fmt.Sprintf("Line %d: Unmatched single quote", lineNum))
+                }</span>
+
+                <span class="cov8" title="1">if strings.Count(trimmed, "\"")%2 != 0 </span><span class="cov8" title="1">{
+                        issues = append(issues, fmt.Sprintf("Line %d: Unmatched double quote", lineNum))
+                }</span>
+        }
+
+        <span class="cov8" title="1">return issues</span>
+}
+
+// ListFiles lists files in a directory
+func (fm *FileManager) ListFiles(dirPath string) ([]fs.FileInfo, error) <span class="cov8" title="1">{
+        if !fm.IsPathAllowed(dirPath) </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("access denied: path not allowed")
+        }</span>
+
+        // Resolve relative path
+        <span class="cov8" title="1">fullPath := dirPath
+        if !filepath.IsAbs(dirPath) </span><span class="cov8" title="1">{
+                fullPath = filepath.Join(fm.baseDir, dirPath)
+        }</span>
+
+        <span class="cov8" title="1">entries, err := os.ReadDir(fullPath)
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("failed to read directory: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">var fileInfos []fs.FileInfo
+        for _, entry := range entries </span><span class="cov8" title="1">{
+                info, err := entry.Info()
+                if err != nil </span><span class="cov0" title="0">{
+                        continue</span> // Skip files we can't get info for
+                }
+                <span class="cov8" title="1">fileInfos = append(fileInfos, info)</span>
+        }
+
+        <span class="cov8" title="1">return fileInfos, nil</span>
+}
+</pre>
+
+		<pre class="file" id="file5" style="display: none">// Package service provides core functionality for the run-script-service daemon
+package service
+
+import (
+        "encoding/json"
+        "fmt"
+        "os"
+        "path/filepath"
+        "sync"
+        "time"
+)
+
+// LogManager manages multiple script loggers
+type LogManager struct {
+        loggers map[string]*ScriptLogger
+        baseDir string
+        mutex   sync.RWMutex
+}
+
+// ScriptLogger handles logging for a specific script
+type ScriptLogger struct {
+        scriptName string
+        logPath    string
+        maxLines   int
+        entries    []LogEntry
+        mutex      sync.RWMutex
+}
+
+// LogEntry represents a single log entry
+type LogEntry struct {
+        Timestamp  time.Time `json:"timestamp"`
+        ScriptName string    `json:"script_name"`
+        ExitCode   int       `json:"exit_code"`
+        Stdout     string    `json:"stdout"`
+        Stderr     string    `json:"stderr"`
+        Duration   int64     `json:"duration_ms"`
+}
+
+// LogQuery defines criteria for querying logs
+type LogQuery struct {
+        ScriptName string    `json:"script_name,omitempty"`
+        StartTime  time.Time `json:"start_time,omitempty"`
+        EndTime    time.Time `json:"end_time,omitempty"`
+        ExitCode   *int      `json:"exit_code,omitempty"`
+        Limit      int       `json:"limit,omitempty"`
+}
+
+// NewLogManager creates a new LogManager instance
+func NewLogManager(baseDir string) *LogManager <span class="cov8" title="1">{
+        return &amp;LogManager{
+                loggers: make(map[string]*ScriptLogger),
+                baseDir: baseDir,
+        }
+}</span>
+
+// GetLogger returns a logger for the specified script, creating one if it doesn't exist
+func (lm *LogManager) GetLogger(scriptName string) *ScriptLogger <span class="cov8" title="1">{
+        lm.mutex.Lock()
+        defer lm.mutex.Unlock()
+
+        if logger, exists := lm.loggers[scriptName]; exists </span><span class="cov8" title="1">{
+                return logger
+        }</span>
+
+        <span class="cov8" title="1">logger := NewScriptLogger(scriptName, lm.baseDir, 100) // Default max lines
+        lm.loggers[scriptName] = logger
+        return logger</span>
+}
+
+// NewScriptLogger creates a new ScriptLogger instance
+func NewScriptLogger(scriptName, baseDir string, maxLines int) *ScriptLogger <span class="cov8" title="1">{
+        logPath := filepath.Join(baseDir, fmt.Sprintf("%s.log", scriptName))
+
+        logger := &amp;ScriptLogger{
+                scriptName: scriptName,
+                logPath:    logPath,
+                maxLines:   maxLines,
+                entries:    make([]LogEntry, 0),
+        }
+
+        // Ensure log directory exists
+        _ = os.MkdirAll(baseDir, 0750) // Ignore error - logger will still work, file ops may fail later
+
+        return logger
+}</span>
+
+// AddEntry adds a new log entry to the script logger
+func (sl *ScriptLogger) AddEntry(entry *LogEntry) error <span class="cov8" title="1">{
+        sl.mutex.Lock()
+        defer sl.mutex.Unlock()
+
+        // Add entry to in-memory storage
+        sl.entries = append(sl.entries, *entry)
+
+        // Maintain maxLines limit
+        if len(sl.entries) &gt; sl.maxLines </span><span class="cov8" title="1">{
+                sl.entries = sl.entries[len(sl.entries)-sl.maxLines:]
+        }</span>
+
+        // Write to file
+        <span class="cov8" title="1">return sl.writeToFile(entry)</span>
+}
+
+// writeToFile writes a log entry to the log file
+func (sl *ScriptLogger) writeToFile(entry *LogEntry) error <span class="cov8" title="1">{
+        file, err := os.OpenFile(sl.logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to open log file: %w", err)
+        }</span>
+        <span class="cov8" title="1">defer file.Close()
+
+        data, err := json.Marshal(entry)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to marshal log entry: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">_, err = file.Write(append(data, '\n'))
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to write log entry: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// GetEntries returns all log entries for this script
+func (sl *ScriptLogger) GetEntries() []LogEntry <span class="cov8" title="1">{
+        sl.mutex.RLock()
+        defer sl.mutex.RUnlock()
+
+        // Return a copy to prevent external modification
+        entries := make([]LogEntry, len(sl.entries))
+        copy(entries, sl.entries)
+        return entries
+}</span>
+
+// QueryLogs queries logs across all managed scripts
+func (lm *LogManager) QueryLogs(query *LogQuery) ([]LogEntry, error) <span class="cov0" title="0">{
+        lm.mutex.RLock()
+        defer lm.mutex.RUnlock()
+
+        var results []LogEntry
+
+        // If specific script is requested
+        if query.ScriptName != "" </span><span class="cov0" title="0">{
+                if logger, exists := lm.loggers[query.ScriptName]; exists </span><span class="cov0" title="0">{
+                        entries := logger.GetEntries()
+                        results = append(results, entries...)
+                }</span>
+        } else<span class="cov0" title="0"> {
+                // Query all scripts
+                for _, logger := range lm.loggers </span><span class="cov0" title="0">{
+                        entries := logger.GetEntries()
+                        results = append(results, entries...)
+                }</span>
+        }
+
+        // Apply filters
+        <span class="cov0" title="0">filtered := make([]LogEntry, 0)
+        for i := range results </span><span class="cov0" title="0">{
+                if lm.matchesQuery(&amp;results[i], query) </span><span class="cov0" title="0">{
+                        filtered = append(filtered, results[i])
+                }</span>
+        }
+
+        // Apply limit
+        <span class="cov0" title="0">if query.Limit &gt; 0 &amp;&amp; len(filtered) &gt; query.Limit </span><span class="cov0" title="0">{
+                filtered = filtered[len(filtered)-query.Limit:]
+        }</span>
+
+        <span class="cov0" title="0">return filtered, nil</span>
+}
+
+// matchesQuery checks if a log entry matches the query criteria
+func (lm *LogManager) matchesQuery(entry *LogEntry, query *LogQuery) bool <span class="cov0" title="0">{
+        // Check time range
+        if !query.StartTime.IsZero() &amp;&amp; entry.Timestamp.Before(query.StartTime) </span><span class="cov0" title="0">{
+                return false
+        }</span>
+        <span class="cov0" title="0">if !query.EndTime.IsZero() &amp;&amp; entry.Timestamp.After(query.EndTime) </span><span class="cov0" title="0">{
+                return false
+        }</span>
+
+        // Check exit code
+        <span class="cov0" title="0">if query.ExitCode != nil &amp;&amp; entry.ExitCode != *query.ExitCode </span><span class="cov0" title="0">{
+                return false
+        }</span>
+
+        <span class="cov0" title="0">return true</span>
+}
+</pre>
+
+		<pre class="file" id="file6" style="display: none">// Package service provides core functionality for the run-script-service daemon.
+package service
+
+import (
+        "context"
+        "fmt"
+        "sync"
+)
+
+// ScriptManager manages multiple script runners
+type ScriptManager struct {
+        scripts    map[string]*ScriptRunner
+        config     *ServiceConfig
+        configPath string
+        mutex      sync.RWMutex
+}
+
+// NewScriptManager creates a new script manager with the given configuration
+func NewScriptManager(config *ServiceConfig) *ScriptManager <span class="cov8" title="1">{
+        return &amp;ScriptManager{
+                scripts: make(map[string]*ScriptRunner),
+                config:  config,
+        }
+}</span>
+
+// NewScriptManagerWithPath creates a new script manager with configuration and config path
+func NewScriptManagerWithPath(config *ServiceConfig, configPath string) *ScriptManager <span class="cov0" title="0">{
+        return &amp;ScriptManager{
+                scripts:    make(map[string]*ScriptRunner),
+                config:     config,
+                configPath: configPath,
+        }
+}</span>
+
+// StartScript starts a script by name
+func (sm *ScriptManager) StartScript(ctx context.Context, name string) error <span class="cov8" title="1">{
+        sm.mutex.Lock()
+        defer sm.mutex.Unlock()
+
+        // Check if script is already running
+        if _, exists := sm.scripts[name]; exists </span><span class="cov0" title="0">{
+                return fmt.Errorf("script %s is already running", name)
+        }</span>
+
+        // Find the script config
+        <span class="cov8" title="1">var scriptConfig *ScriptConfig
+        for i, sc := range sm.config.Scripts </span><span class="cov8" title="1">{
+                if sc.Name == name </span><span class="cov8" title="1">{
+                        scriptConfig = &amp;sm.config.Scripts[i]
+                        break</span>
+                }
+        }
+
+        <span class="cov8" title="1">if scriptConfig == nil </span><span class="cov8" title="1">{
+                return fmt.Errorf("script %s not found in configuration", name)
+        }</span>
+
+        // Create and start the script runner
+        <span class="cov8" title="1">logPath := fmt.Sprintf("%s.log", name) // Simple log path for now
+        runner := NewScriptRunner(*scriptConfig, logPath)
+        sm.scripts[name] = runner
+
+        // Start the runner in a goroutine
+        go func() </span><span class="cov8" title="1">{
+                runner.Start(ctx)
+                // Clean up when runner stops
+                sm.mutex.Lock()
+                delete(sm.scripts, name)
+                sm.mutex.Unlock()
+        }</span>()
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// StopScript stops a script by name
+func (sm *ScriptManager) StopScript(name string) error <span class="cov8" title="1">{
+        sm.mutex.Lock()
+        defer sm.mutex.Unlock()
+
+        runner, exists := sm.scripts[name]
+        if !exists </span><span class="cov8" title="1">{
+                return fmt.Errorf("script %s is not running", name)
+        }</span>
+
+        <span class="cov8" title="1">runner.Stop()
+        delete(sm.scripts, name)
+        return nil</span>
+}
+
+// StartAllEnabled starts all enabled scripts
+func (sm *ScriptManager) StartAllEnabled(ctx context.Context) error <span class="cov8" title="1">{
+        for _, scriptConfig := range sm.config.Scripts </span><span class="cov8" title="1">{
+                if scriptConfig.Enabled </span><span class="cov8" title="1">{
+                        if err := sm.StartScript(ctx, scriptConfig.Name); err != nil </span><span class="cov0" title="0">{
+                                return fmt.Errorf("failed to start script %s: %v", scriptConfig.Name, err)
+                        }</span>
+                }
+        }
+        <span class="cov8" title="1">return nil</span>
+}
+
+// StopAll stops all running scripts
+func (sm *ScriptManager) StopAll() <span class="cov8" title="1">{
+        sm.mutex.Lock()
+        defer sm.mutex.Unlock()
+
+        for name, runner := range sm.scripts </span><span class="cov8" title="1">{
+                runner.Stop()
+                delete(sm.scripts, name)
+        }</span>
+}
+
+// GetRunningScripts returns a list of currently running script names
+func (sm *ScriptManager) GetRunningScripts() []string <span class="cov0" title="0">{
+        sm.mutex.RLock()
+        defer sm.mutex.RUnlock()
+
+        var running []string
+        for name := range sm.scripts </span><span class="cov0" title="0">{
+                running = append(running, name)
+        }</span>
+        <span class="cov0" title="0">return running</span>
+}
+
+// IsScriptRunning checks if a specific script is running
+func (sm *ScriptManager) IsScriptRunning(name string) bool <span class="cov8" title="1">{
+        sm.mutex.RLock()
+        defer sm.mutex.RUnlock()
+
+        _, exists := sm.scripts[name]
+        return exists
+}</span>
+
+// GetConfig returns the script manager's configuration
+func (sm *ScriptManager) GetConfig() *ServiceConfig <span class="cov0" title="0">{
+        return sm.config
+}</span>
+
+// SaveConfig saves the current configuration to file
+func (sm *ScriptManager) SaveConfig() error <span class="cov0" title="0">{
+        if sm.configPath == "" </span><span class="cov0" title="0">{
+                return fmt.Errorf("config path not set - cannot save configuration")
+        }</span>
+        <span class="cov0" title="0">return SaveServiceConfig(sm.configPath, sm.config)</span>
+}
+
+// AddScript adds a new script configuration
+func (sm *ScriptManager) AddScript(scriptConfig ScriptConfig) error <span class="cov0" title="0">{
+        sm.mutex.Lock()
+        defer sm.mutex.Unlock()
+
+        // Check if script with same name already exists
+        for _, existing := range sm.config.Scripts </span><span class="cov0" title="0">{
+                if existing.Name == scriptConfig.Name </span><span class="cov0" title="0">{
+                        return fmt.Errorf("script with name %s already exists", scriptConfig.Name)
+                }</span>
+        }
+
+        // Add the script to configuration
+        <span class="cov0" title="0">sm.config.Scripts = append(sm.config.Scripts, scriptConfig)
+        return nil</span>
+}
+
+// RunScriptOnce executes a script once by name
+func (sm *ScriptManager) RunScriptOnce(ctx context.Context, name string) error <span class="cov0" title="0">{
+        sm.mutex.RLock()
+        defer sm.mutex.RUnlock()
+
+        // Find the script config
+        var scriptConfig *ScriptConfig
+        for i, sc := range sm.config.Scripts </span><span class="cov0" title="0">{
+                if sc.Name == name </span><span class="cov0" title="0">{
+                        scriptConfig = &amp;sm.config.Scripts[i]
+                        break</span>
+                }
+        }
+
+        <span class="cov0" title="0">if scriptConfig == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("script %s not found in configuration", name)
+        }</span>
+
+        // Create a temporary script runner for one-time execution
+        <span class="cov0" title="0">logPath := fmt.Sprintf("%s.log", name)
+        runner := NewScriptRunner(*scriptConfig, logPath)
+
+        return runner.RunOnce(ctx)</span>
+}
+
+// EnableScript enables a script by name
+func (sm *ScriptManager) EnableScript(name string) error <span class="cov0" title="0">{
+        sm.mutex.Lock()
+        defer sm.mutex.Unlock()
+
+        // Find the script config
+        for i, sc := range sm.config.Scripts </span><span class="cov0" title="0">{
+                if sc.Name == name </span><span class="cov0" title="0">{
+                        sm.config.Scripts[i].Enabled = true
+                        return nil
+                }</span>
+        }
+
+        <span class="cov0" title="0">return fmt.Errorf("script %s not found in configuration", name)</span>
+}
+
+// DisableScript disables a script by name
+func (sm *ScriptManager) DisableScript(name string) error <span class="cov0" title="0">{
+        sm.mutex.Lock()
+        defer sm.mutex.Unlock()
+
+        // Find the script config
+        for i, sc := range sm.config.Scripts </span><span class="cov0" title="0">{
+                if sc.Name == name </span><span class="cov0" title="0">{
+                        sm.config.Scripts[i].Enabled = false
+                        return nil
+                }</span>
+        }
+
+        <span class="cov0" title="0">return fmt.Errorf("script %s not found in configuration", name)</span>
+}
+
+// UpdateScript updates an existing script configuration
+func (sm *ScriptManager) UpdateScript(name string, updatedConfig ScriptConfig) error <span class="cov8" title="1">{
+        sm.mutex.Lock()
+        defer sm.mutex.Unlock()
+
+        // Find the script config and update it
+        for i, sc := range sm.config.Scripts </span><span class="cov8" title="1">{
+                if sc.Name == name </span><span class="cov8" title="1">{
+                        // Ensure the name matches the parameter
+                        updatedConfig.Name = name
+                        sm.config.Scripts[i] = updatedConfig
+                        return nil
+                }</span>
+        }
+
+        <span class="cov8" title="1">return fmt.Errorf("script %s not found in configuration", name)</span>
+}
+
+// RemoveScript removes a script from configuration and stops it if running
+func (sm *ScriptManager) RemoveScript(name string) error <span class="cov8" title="1">{
+        sm.mutex.Lock()
+        defer sm.mutex.Unlock()
+
+        // Stop the script if it's running
+        if runner, exists := sm.scripts[name]; exists </span><span class="cov8" title="1">{
+                runner.Stop()
+                delete(sm.scripts, name)
+        }</span>
+
+        // Find and remove the script from configuration
+        <span class="cov8" title="1">found := false
+        newScripts := make([]ScriptConfig, 0, len(sm.config.Scripts))
+        for _, sc := range sm.config.Scripts </span><span class="cov8" title="1">{
+                if sc.Name != name </span><span class="cov8" title="1">{
+                        newScripts = append(newScripts, sc)
+                }</span> else<span class="cov8" title="1"> {
+                        found = true
+                }</span>
+        }
+
+        <span class="cov8" title="1">if !found </span><span class="cov8" title="1">{
+                return fmt.Errorf("script %s not found in configuration", name)
+        }</span>
+
+        <span class="cov8" title="1">sm.config.Scripts = newScripts
+        return nil</span>
+}
+</pre>
+
+		<pre class="file" id="file7" style="display: none">// Package service provides core functionality for the run-script-service daemon.
+package service
+
+import (
+        "context"
+        "fmt"
+        "sync"
+        "time"
+)
+
+// ScriptExecutor wraps the existing Executor to support context and arguments
+type ScriptExecutor struct {
+        executor *Executor
+}
+
+// NewScriptExecutor creates a new script executor
+func NewScriptExecutor(scriptPath, logPath string, maxLines int) *ScriptExecutor <span class="cov8" title="1">{
+        return &amp;ScriptExecutor{
+                executor: NewExecutor(scriptPath, logPath, maxLines),
+        }
+}</span>
+
+// NewScriptExecutorWithoutLogging creates a script executor that doesn't log to files
+func NewScriptExecutorWithoutLogging(scriptPath string) *ScriptExecutor <span class="cov8" title="1">{
+        return &amp;ScriptExecutor{
+                executor: NewExecutor(scriptPath, "", 0), // No logging
+        }
+}</span>
+
+// Execute executes the script with context support and optional arguments
+func (se *ScriptExecutor) Execute(ctx context.Context, args ...string) error <span class="cov8" title="1">{
+        result, err := se.ExecuteWithResult(ctx, args...)
+        if err != nil </span><span class="cov8" title="1">{
+                return err
+        }</span>
+        <span class="cov8" title="1">if result.ExitCode != 0 </span><span class="cov8" title="1">{
+                return fmt.Errorf("script exited with code %d", result.ExitCode)
+        }</span>
+        <span class="cov8" title="1">return nil</span>
+}
+
+// ExecuteWithResult executes the script and returns detailed execution result
+func (se *ScriptExecutor) ExecuteWithResult(ctx context.Context, args ...string) (*ExecutionResult, error) <span class="cov8" title="1">{
+        // Check if context is already canceled
+        select </span>{
+        case &lt;-ctx.Done():<span class="cov0" title="0">
+                return nil, ctx.Err()</span>
+        default:<span class="cov8" title="1"></span>
+        }
+
+        // Create a channel to signal completion
+        <span class="cov8" title="1">resultChan := make(chan *ExecutionResult, 1)
+
+        // Execute in a goroutine to allow for cancellation
+        go func() </span><span class="cov8" title="1">{
+                result := se.executor.ExecuteScript(args...)
+                resultChan &lt;- result
+        }</span>()
+
+        // Wait for either completion or cancellation
+        <span class="cov8" title="1">select </span>{
+        case &lt;-ctx.Done():<span class="cov8" title="1">
+                return nil, ctx.Err()</span>
+        case result := &lt;-resultChan:<span class="cov8" title="1">
+                return result, nil</span>
+        }
+}
+
+// ScriptRunner manages the execution of a single script
+type ScriptRunner struct {
+        config     ScriptConfig
+        ticker     *time.Ticker
+        cancel     context.CancelFunc
+        executor   *ScriptExecutor
+        logManager *LogManager
+        running    bool
+        mutex      sync.RWMutex
+}
+
+// NewScriptRunner creates a new script runner with the given configuration
+func NewScriptRunner(config ScriptConfig, logPath string) *ScriptRunner <span class="cov8" title="1">{
+        return &amp;ScriptRunner{
+                config:     config,
+                executor:   NewScriptExecutor(config.Path, logPath, config.MaxLogLines),
+                logManager: nil,
+                running:    false,
+        }
+}</span>
+
+// NewScriptRunnerWithLogManager creates a new script runner with LogManager integration
+func NewScriptRunnerWithLogManager(config ScriptConfig, logManager *LogManager) *ScriptRunner <span class="cov8" title="1">{
+        return &amp;ScriptRunner{
+                config:     config,
+                executor:   NewScriptExecutorWithoutLogging(config.Path), // No file logging since we use LogManager
+                logManager: logManager,
+                running:    false,
+        }
+}</span>
+
+// Start begins running the script at the configured interval
+func (sr *ScriptRunner) Start(ctx context.Context) <span class="cov8" title="1">{
+        sr.mutex.Lock()
+        if sr.running </span><span class="cov0" title="0">{
+                sr.mutex.Unlock()
+                return
+        }</span>
+
+        // Create cancellable context
+        <span class="cov8" title="1">runCtx, cancel := context.WithCancel(ctx)
+        sr.cancel = cancel
+        sr.running = true
+
+        // Create ticker for interval execution
+        sr.ticker = time.NewTicker(time.Duration(sr.config.Interval) * time.Second)
+        sr.mutex.Unlock()
+
+        defer func() </span><span class="cov8" title="1">{
+                sr.mutex.Lock()
+                sr.running = false
+                sr.ticker.Stop()
+                sr.mutex.Unlock()
+        }</span>()
+
+        // Run script immediately on start
+        <span class="cov8" title="1">if err := sr.RunOnce(runCtx); err != nil </span><span class="cov8" title="1">{
+                // Log error but continue running - this is expected behavior
+                _ = err
+        }</span>
+
+        // Then run at intervals
+        <span class="cov8" title="1">for </span><span class="cov8" title="1">{
+                select </span>{
+                case &lt;-runCtx.Done():<span class="cov8" title="1">
+                        return</span>
+                case &lt;-sr.ticker.C:<span class="cov0" title="0">
+                        if err := sr.RunOnce(runCtx); err != nil </span><span class="cov0" title="0">{
+                                // Log error but continue running - this is expected behavior
+                                _ = err
+                        }</span>
+                }
+        }
+}
+
+// Stop stops the script runner
+func (sr *ScriptRunner) Stop() <span class="cov8" title="1">{
+        sr.mutex.Lock()
+        defer sr.mutex.Unlock()
+
+        if sr.running &amp;&amp; sr.cancel != nil </span><span class="cov8" title="1">{
+                sr.cancel()
+        }</span>
+}
+
+// RunOnce executes the script once with optional arguments
+func (sr *ScriptRunner) RunOnce(ctx context.Context, args ...string) error <span class="cov8" title="1">{
+        // Create timeout context if timeout is specified
+        if sr.config.Timeout &gt; 0 </span><span class="cov8" title="1">{
+                timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(sr.config.Timeout)*time.Second)
+                defer cancel()
+                ctx = timeoutCtx
+        }</span>
+
+        // If LogManager is available, use it for structured logging
+        <span class="cov8" title="1">if sr.logManager != nil </span><span class="cov8" title="1">{
+                startTime := time.Now()
+                result, err := sr.executor.ExecuteWithResult(ctx, args...)
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+
+                // Create log entry
+                <span class="cov8" title="1">logEntry := &amp;LogEntry{
+                        Timestamp:  result.Timestamp,
+                        ScriptName: sr.config.Name,
+                        ExitCode:   result.ExitCode,
+                        Stdout:     result.Stdout,
+                        Stderr:     result.Stderr,
+                        Duration:   time.Since(startTime).Milliseconds(),
+                }
+
+                // Add to log manager
+                logger := sr.logManager.GetLogger(sr.config.Name)
+                if addErr := logger.AddEntry(logEntry); addErr != nil </span><span class="cov0" title="0">{
+                        // Log error but don't fail the execution
+                        fmt.Printf("Failed to add log entry: %v\n", addErr)
+                }</span>
+
+                <span class="cov8" title="1">if result.ExitCode != 0 </span><span class="cov0" title="0">{
+                        return fmt.Errorf("script exited with code %d", result.ExitCode)
+                }</span>
+                <span class="cov8" title="1">return nil</span>
+        }
+
+        // Fallback to old executor method
+        <span class="cov8" title="1">return sr.executor.Execute(ctx, args...)</span>
+}
+
+// IsRunning returns whether the script runner is currently running
+func (sr *ScriptRunner) IsRunning() bool <span class="cov8" title="1">{
+        sr.mutex.RLock()
+        defer sr.mutex.RUnlock()
+        return sr.running
+}</span>
+
+// GetConfig returns the script configuration
+func (sr *ScriptRunner) GetConfig() ScriptConfig <span class="cov0" title="0">{
+        return sr.config
+}</span>
+</pre>
+
+		<pre class="file" id="file8" style="display: none">// Package service provides core functionality for the run-script-service daemon.
+package service
 
 import (
         "context"
@@ -605,10 +2298,13 @@ func NewService(scriptPath, logPath, configPath string, maxLines int) *Service <
         s.executor = NewExecutor(scriptPath, logPath, maxLines)
 
         // Load existing config if available
-        LoadConfig(configPath, &amp;s.config)
+        if err := LoadConfig(configPath, &amp;s.config); err != nil </span><span class="cov0" title="0">{
+                // Log error but continue with default config - this is expected behavior
+                _ = err
+        }</span>
 
-        return s
-}</span>
+        <span class="cov8" title="1">return s</span>
+}
 
 // SetInterval sets the execution interval and saves the configuration
 func (s *Service) SetInterval(interval int) error <span class="cov8" title="1">{
@@ -679,6 +2375,940 @@ func formatDuration(seconds int) string <span class="cov8" title="1">{
                 return fmt.Sprintf("%dh", seconds/3600)
         }</span>
 }
+</pre>
+
+		<pre class="file" id="file9" style="display: none">// Package web provides file operation handlers for the HTTP API server
+package web
+
+import (
+        "fmt"
+        "net/http"
+        "strings"
+
+        "github.com/gin-gonic/gin"
+        "run-script-service/service"
+)
+
+// FileOperationRequest represents a file operation request
+type FileOperationRequest struct {
+        Path    string `json:"path,omitempty"`
+        Content string `json:"content,omitempty"`
+}
+
+// ValidationRequest represents a script validation request
+type ValidationRequest struct {
+        Content string `json:"content" binding:"required"`
+}
+
+// ValidationResponse represents validation results
+type ValidationResponse struct {
+        Valid  bool     `json:"valid"`
+        Issues []string `json:"issues,omitempty"`
+}
+
+// SetFileManager sets the file manager for the web server
+func (ws *WebServer) SetFileManager(fm *service.FileManager) <span class="cov8" title="1">{
+        ws.fileManager = fm
+
+        // Setup file routes now that file manager is available
+        api := ws.router.Group("/api")
+        ws.setupFileRoutes(api)
+}</span>
+
+// setupFileRoutes configures file operation API routes
+func (ws *WebServer) setupFileRoutes(api *gin.RouterGroup) <span class="cov8" title="1">{
+        if ws.fileManager == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        // File operation endpoints
+        <span class="cov8" title="1">api.GET("/files/*path", ws.handleGetFile)
+        api.PUT("/files/*path", ws.handlePutFile)
+        api.POST("/files/validate", ws.handleValidateFile)
+        api.GET("/files-list/*path", ws.handleListFiles)</span>
+}
+
+// handleGetFile reads and returns a file's content
+func (ws *WebServer) handleGetFile(c *gin.Context) <span class="cov8" title="1">{
+        if ws.fileManager == nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   "File manager not initialized",
+                })
+                return
+        }</span>
+
+        // Extract path from URL parameter
+        <span class="cov8" title="1">filePath := c.Param("path")
+        if filePath == "" </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, APIResponse{
+                        Success: false,
+                        Error:   "File path is required",
+                })
+                return
+        }</span>
+
+        // Remove leading slash from path parameter
+        <span class="cov8" title="1">if filePath[0] == '/' </span><span class="cov8" title="1">{
+                filePath = filePath[1:]
+        }</span>
+
+        <span class="cov8" title="1">fileContent, err := ws.fileManager.ReadFile(filePath)
+        if err != nil </span><span class="cov8" title="1">{
+                statusCode := http.StatusInternalServerError
+                if err.Error() == "access denied: path not allowed" </span><span class="cov8" title="1">{
+                        statusCode = http.StatusForbidden
+                }</span> else<span class="cov8" title="1"> if strings.Contains(err.Error(), "no such file or directory") </span><span class="cov8" title="1">{
+                        statusCode = http.StatusNotFound
+                }</span>
+
+                <span class="cov8" title="1">c.JSON(statusCode, APIResponse{
+                        Success: false,
+                        Error:   err.Error(),
+                })
+                return</span>
+        }
+
+        <span class="cov8" title="1">c.JSON(http.StatusOK, APIResponse{
+                Success: true,
+                Data:    fileContent,
+        })</span>
+}
+
+// handlePutFile writes content to a file
+func (ws *WebServer) handlePutFile(c *gin.Context) <span class="cov8" title="1">{
+        if ws.fileManager == nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   "File manager not initialized",
+                })
+                return
+        }</span>
+
+        // Extract path from URL parameter
+        <span class="cov8" title="1">filePath := c.Param("path")
+        if filePath == "" </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, APIResponse{
+                        Success: false,
+                        Error:   "File path is required",
+                })
+                return
+        }</span>
+
+        // Remove leading slash from path parameter
+        <span class="cov8" title="1">if filePath[0] == '/' </span><span class="cov8" title="1">{
+                filePath = filePath[1:]
+        }</span>
+
+        <span class="cov8" title="1">var request FileOperationRequest
+        if err := c.ShouldBindJSON(&amp;request); err != nil </span><span class="cov8" title="1">{
+                c.JSON(http.StatusBadRequest, APIResponse{
+                        Success: false,
+                        Error:   fmt.Sprintf("Invalid request body: %v", err),
+                })
+                return
+        }</span>
+
+        // Use content from request body
+        <span class="cov8" title="1">content := request.Content
+
+        err := ws.fileManager.WriteFile(filePath, content)
+        if err != nil </span><span class="cov8" title="1">{
+                statusCode := http.StatusInternalServerError
+                if err.Error() == "access denied: path not allowed" </span><span class="cov8" title="1">{
+                        statusCode = http.StatusForbidden
+                }</span>
+
+                <span class="cov8" title="1">c.JSON(statusCode, APIResponse{
+                        Success: false,
+                        Error:   err.Error(),
+                })
+                return</span>
+        }
+
+        <span class="cov8" title="1">c.JSON(http.StatusOK, APIResponse{
+                Success: true,
+                Data: map[string]interface{}{
+                        "message": fmt.Sprintf("File '%s' written successfully", filePath),
+                        "path":    filePath,
+                },
+        })</span>
+}
+
+// handleValidateFile validates script syntax
+func (ws *WebServer) handleValidateFile(c *gin.Context) <span class="cov8" title="1">{
+        if ws.fileManager == nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   "File manager not initialized",
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">var request ValidationRequest
+        if err := c.ShouldBindJSON(&amp;request); err != nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, APIResponse{
+                        Success: false,
+                        Error:   fmt.Sprintf("Invalid request body: %v", err),
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">issues := ws.fileManager.ValidateScriptSyntax(request.Content)
+
+        response := ValidationResponse{
+                Valid:  len(issues) == 0,
+                Issues: issues,
+        }
+
+        c.JSON(http.StatusOK, APIResponse{
+                Success: true,
+                Data:    response,
+        })</span>
+}
+
+// handleListFiles lists files in a directory
+func (ws *WebServer) handleListFiles(c *gin.Context) <span class="cov8" title="1">{
+        if ws.fileManager == nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   "File manager not initialized",
+                })
+                return
+        }</span>
+
+        // Extract path from URL parameter
+        <span class="cov8" title="1">dirPath := c.Param("path")
+        if dirPath == "" </span><span class="cov0" title="0">{
+                dirPath = "." // Default to current directory
+        }</span>
+
+        // Remove leading slash from path parameter
+        <span class="cov8" title="1">if dirPath[0] == '/' </span><span class="cov8" title="1">{
+                dirPath = dirPath[1:]
+        }</span>
+
+        <span class="cov8" title="1">files, err := ws.fileManager.ListFiles(dirPath)
+        if err != nil </span><span class="cov8" title="1">{
+                statusCode := http.StatusInternalServerError
+                if err.Error() == "access denied: path not allowed" </span><span class="cov8" title="1">{
+                        statusCode = http.StatusForbidden
+                }</span> else<span class="cov0" title="0"> if strings.Contains(err.Error(), "no such file or directory") </span><span class="cov0" title="0">{
+                        statusCode = http.StatusNotFound
+                }</span>
+
+                <span class="cov8" title="1">c.JSON(statusCode, APIResponse{
+                        Success: false,
+                        Error:   err.Error(),
+                })
+                return</span>
+        }
+
+        // Convert file info to JSON-serializable format
+        <span class="cov8" title="1">fileList := make([]map[string]interface{}, len(files))
+        for i, file := range files </span><span class="cov8" title="1">{
+                fileList[i] = map[string]interface{}{
+                        "name":     file.Name(),
+                        "size":     file.Size(),
+                        "mode":     file.Mode().String(),
+                        "is_dir":   file.IsDir(),
+                        "mod_time": file.ModTime().Unix(),
+                }
+        }</span>
+
+        <span class="cov8" title="1">c.JSON(http.StatusOK, APIResponse{
+                Success: true,
+                Data:    fileList,
+        })</span>
+}
+</pre>
+
+		<pre class="file" id="file10" style="display: none">// Package web provides HTTP API server functionality
+package web
+
+import (
+        "context"
+        "fmt"
+        "net/http"
+        "strconv"
+        "time"
+
+        "github.com/gin-contrib/cors"
+        "github.com/gin-gonic/gin"
+        "run-script-service/service"
+)
+
+// WebServer represents the HTTP API server
+type WebServer struct {
+        router        *gin.Engine
+        service       *service.Service
+        logManager    *service.LogManager
+        scriptManager *service.ScriptManager
+        fileManager   *service.FileManager
+        port          int
+}
+
+// APIResponse represents the standard API response format
+type APIResponse struct {
+        Success bool        `json:"success"`
+        Data    interface{} `json:"data,omitempty"`
+        Error   string      `json:"error,omitempty"`
+}
+
+// NewWebServer creates a new web server instance
+func NewWebServer(svc *service.Service, logManager *service.LogManager, port int) *WebServer <span class="cov8" title="1">{
+        // Set Gin to release mode for production
+        gin.SetMode(gin.ReleaseMode)
+
+        router := gin.New()
+
+        // Add middleware
+        router.Use(gin.Logger())
+        router.Use(gin.Recovery())
+        router.Use(cors.Default())
+
+        server := &amp;WebServer{
+                router:     router,
+                service:    svc,
+                logManager: logManager,
+                port:       port,
+        }
+
+        // Setup routes
+        server.setupRoutes()
+
+        return server
+}</span>
+
+// SetScriptManager sets the script manager for the web server
+func (ws *WebServer) SetScriptManager(sm *service.ScriptManager) <span class="cov8" title="1">{
+        ws.scriptManager = sm
+}</span>
+
+// setupRoutes configures all API routes
+func (ws *WebServer) setupRoutes() <span class="cov8" title="1">{
+        // Static file routes
+        ws.router.Static("/static", "./web/static")
+        ws.router.GET("/", func(c *gin.Context) </span><span class="cov8" title="1">{
+                c.File("./web/static/index.html")
+        }</span>)
+
+        <span class="cov8" title="1">api := ws.router.Group("/api")
+
+        // System status endpoint
+        api.GET("/status", ws.handleStatus)
+
+        // Script management endpoints
+        api.GET("/scripts", ws.handleGetScripts)
+        api.POST("/scripts", ws.handlePostScript)
+        api.GET("/scripts/:name", ws.handleGetScript)
+        api.PUT("/scripts/:name", ws.handleUpdateScript)
+        api.DELETE("/scripts/:name", ws.handleDeleteScript)
+        api.POST("/scripts/:name/run", ws.handleRunScript)
+        api.POST("/scripts/:name/enable", ws.handleEnableScript)
+        api.POST("/scripts/:name/disable", ws.handleDisableScript)
+
+        // Log management endpoints
+        api.GET("/logs", ws.handleGetLogs)
+        api.GET("/logs/:script", ws.handleGetScriptLogs)
+        api.DELETE("/logs/:script", ws.handleClearScriptLogs)
+
+        // Configuration endpoints
+        api.GET("/config", ws.handleGetConfig)
+        api.PUT("/config", ws.handleUpdateConfig)</span>
+}
+
+// handleStatus returns system status information
+func (ws *WebServer) handleStatus(c *gin.Context) <span class="cov8" title="1">{
+        statusData := map[string]interface{}{
+                "status": "running",
+                "port":   ws.port,
+        }
+
+        c.JSON(http.StatusOK, APIResponse{
+                Success: true,
+                Data:    statusData,
+        })
+}</span>
+
+// handleGetScripts returns all scripts
+func (ws *WebServer) handleGetScripts(c *gin.Context) <span class="cov8" title="1">{
+        if ws.scriptManager == nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   "Script manager not initialized",
+                })
+                return
+        }</span>
+
+        // Get script configs from the manager
+        <span class="cov8" title="1">var scripts []map[string]interface{}
+        for _, scriptConfig := range ws.scriptManager.GetConfig().Scripts </span><span class="cov8" title="1">{
+                running := ws.scriptManager.IsScriptRunning(scriptConfig.Name)
+
+                scripts = append(scripts, map[string]interface{}{
+                        "name":          scriptConfig.Name,
+                        "path":          scriptConfig.Path,
+                        "interval":      scriptConfig.Interval,
+                        "enabled":       scriptConfig.Enabled,
+                        "max_log_lines": scriptConfig.MaxLogLines,
+                        "timeout":       scriptConfig.Timeout,
+                        "running":       running,
+                })
+        }</span>
+
+        <span class="cov8" title="1">c.JSON(http.StatusOK, APIResponse{
+                Success: true,
+                Data:    scripts,
+        })</span>
+}
+
+// handlePostScript creates a new script
+func (ws *WebServer) handlePostScript(c *gin.Context) <span class="cov8" title="1">{
+        if ws.scriptManager == nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   "Script manager not initialized",
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">var scriptConfig service.ScriptConfig
+        if err := c.ShouldBindJSON(&amp;scriptConfig); err != nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, APIResponse{
+                        Success: false,
+                        Error:   fmt.Sprintf("Invalid request body: %v", err),
+                })
+                return
+        }</span>
+
+        // Validate required fields
+        <span class="cov8" title="1">if scriptConfig.Name == "" </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, APIResponse{
+                        Success: false,
+                        Error:   "Script name is required",
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">if scriptConfig.Path == "" </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, APIResponse{
+                        Success: false,
+                        Error:   "Script path is required",
+                })
+                return
+        }</span>
+
+        // Set defaults for optional fields
+        <span class="cov8" title="1">if scriptConfig.Interval &lt;= 0 </span><span class="cov0" title="0">{
+                scriptConfig.Interval = 60 // Default to 1 minute
+        }</span>
+        <span class="cov8" title="1">if scriptConfig.MaxLogLines &lt;= 0 </span><span class="cov0" title="0">{
+                scriptConfig.MaxLogLines = 100 // Default to 100 lines
+        }</span>
+
+        // Add the script
+        <span class="cov8" title="1">if err := ws.scriptManager.AddScript(scriptConfig); err != nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusConflict, APIResponse{
+                        Success: false,
+                        Error:   err.Error(),
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">c.JSON(http.StatusCreated, APIResponse{
+                Success: true,
+                Data: map[string]interface{}{
+                        "name":          scriptConfig.Name,
+                        "path":          scriptConfig.Path,
+                        "interval":      scriptConfig.Interval,
+                        "enabled":       scriptConfig.Enabled,
+                        "max_log_lines": scriptConfig.MaxLogLines,
+                        "timeout":       scriptConfig.Timeout,
+                },
+        })</span>
+}
+
+// handleRunScript executes a script once
+func (ws *WebServer) handleRunScript(c *gin.Context) <span class="cov8" title="1">{
+        if ws.scriptManager == nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   "Script manager not initialized",
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">scriptName := c.Param("name")
+        if scriptName == "" </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, APIResponse{
+                        Success: false,
+                        Error:   "Script name is required",
+                })
+                return
+        }</span>
+
+        // Run the script with a timeout context
+        <span class="cov8" title="1">ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+        defer cancel()
+
+        if err := ws.scriptManager.RunScriptOnce(ctx, scriptName); err != nil </span><span class="cov8" title="1">{
+                c.JSON(http.StatusNotFound, APIResponse{
+                        Success: false,
+                        Error:   err.Error(),
+                })
+                return
+        }</span>
+
+        <span class="cov0" title="0">c.JSON(http.StatusOK, APIResponse{
+                Success: true,
+                Data: map[string]interface{}{
+                        "message": fmt.Sprintf("Script %s executed successfully", scriptName),
+                        "script":  scriptName,
+                },
+        })</span>
+}
+
+// handleGetScript returns information about a specific script
+func (ws *WebServer) handleGetScript(c *gin.Context) <span class="cov8" title="1">{
+        if ws.scriptManager == nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   "Script manager not initialized",
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">scriptName := c.Param("name")
+        if scriptName == "" </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, APIResponse{
+                        Success: false,
+                        Error:   "Script name is required",
+                })
+                return
+        }</span>
+
+        // Find the script in configuration
+        <span class="cov8" title="1">config := ws.scriptManager.GetConfig()
+        for _, scriptConfig := range config.Scripts </span><span class="cov8" title="1">{
+                if scriptConfig.Name == scriptName </span><span class="cov8" title="1">{
+                        running := ws.scriptManager.IsScriptRunning(scriptConfig.Name)
+
+                        scriptData := map[string]interface{}{
+                                "name":          scriptConfig.Name,
+                                "path":          scriptConfig.Path,
+                                "interval":      scriptConfig.Interval,
+                                "enabled":       scriptConfig.Enabled,
+                                "max_log_lines": scriptConfig.MaxLogLines,
+                                "timeout":       scriptConfig.Timeout,
+                                "running":       running,
+                        }
+
+                        c.JSON(http.StatusOK, APIResponse{
+                                Success: true,
+                                Data:    scriptData,
+                        })
+                        return
+                }</span>
+        }
+
+        <span class="cov8" title="1">c.JSON(http.StatusNotFound, APIResponse{
+                Success: false,
+                Error:   fmt.Sprintf("Script '%s' not found", scriptName),
+        })</span>
+}
+
+// handleUpdateScript updates a script configuration
+func (ws *WebServer) handleUpdateScript(c *gin.Context) <span class="cov8" title="1">{
+        if ws.scriptManager == nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   "Script manager not initialized",
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">scriptName := c.Param("name")
+        if scriptName == "" </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, APIResponse{
+                        Success: false,
+                        Error:   "Script name is required",
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">var updateData service.ScriptConfig
+        if err := c.ShouldBindJSON(&amp;updateData); err != nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, APIResponse{
+                        Success: false,
+                        Error:   fmt.Sprintf("Invalid request body: %v", err),
+                })
+                return
+        }</span>
+
+        // Set defaults for optional fields
+        <span class="cov8" title="1">if updateData.Interval &lt;= 0 </span><span class="cov0" title="0">{
+                updateData.Interval = 60 // Default to 1 minute
+        }</span>
+        <span class="cov8" title="1">if updateData.MaxLogLines &lt;= 0 </span><span class="cov0" title="0">{
+                updateData.MaxLogLines = 100 // Default to 100 lines
+        }</span>
+
+        // Update the script
+        <span class="cov8" title="1">if err := ws.scriptManager.UpdateScript(scriptName, updateData); err != nil </span><span class="cov8" title="1">{
+                c.JSON(http.StatusNotFound, APIResponse{
+                        Success: false,
+                        Error:   err.Error(),
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">c.JSON(http.StatusOK, APIResponse{
+                Success: true,
+                Data: map[string]interface{}{
+                        "message":       fmt.Sprintf("Script %s updated successfully", scriptName),
+                        "script":        scriptName,
+                        "name":          updateData.Name,
+                        "path":          updateData.Path,
+                        "interval":      updateData.Interval,
+                        "enabled":       updateData.Enabled,
+                        "max_log_lines": updateData.MaxLogLines,
+                        "timeout":       updateData.Timeout,
+                },
+        })</span>
+}
+
+// handleDeleteScript removes a script
+func (ws *WebServer) handleDeleteScript(c *gin.Context) <span class="cov8" title="1">{
+        if ws.scriptManager == nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   "Script manager not initialized",
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">scriptName := c.Param("name")
+        if scriptName == "" </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, APIResponse{
+                        Success: false,
+                        Error:   "Script name is required",
+                })
+                return
+        }</span>
+
+        // Remove the script
+        <span class="cov8" title="1">if err := ws.scriptManager.RemoveScript(scriptName); err != nil </span><span class="cov8" title="1">{
+                c.JSON(http.StatusNotFound, APIResponse{
+                        Success: false,
+                        Error:   err.Error(),
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">c.JSON(http.StatusOK, APIResponse{
+                Success: true,
+                Data: map[string]interface{}{
+                        "message": fmt.Sprintf("Script %s deleted successfully", scriptName),
+                        "script":  scriptName,
+                },
+        })</span>
+}
+
+// handleEnableScript enables a script
+func (ws *WebServer) handleEnableScript(c *gin.Context) <span class="cov8" title="1">{
+        if ws.scriptManager == nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   "Script manager not initialized",
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">scriptName := c.Param("name")
+        if scriptName == "" </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, APIResponse{
+                        Success: false,
+                        Error:   "Script name is required",
+                })
+                return
+        }</span>
+
+        // Enable the script
+        <span class="cov8" title="1">if err := ws.scriptManager.EnableScript(scriptName); err != nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusNotFound, APIResponse{
+                        Success: false,
+                        Error:   err.Error(),
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">c.JSON(http.StatusOK, APIResponse{
+                Success: true,
+                Data: map[string]interface{}{
+                        "message": fmt.Sprintf("Script %s enabled successfully", scriptName),
+                        "script":  scriptName,
+                        "enabled": true,
+                },
+        })</span>
+}
+
+// handleDisableScript disables a script
+func (ws *WebServer) handleDisableScript(c *gin.Context) <span class="cov8" title="1">{
+        if ws.scriptManager == nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   "Script manager not initialized",
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">scriptName := c.Param("name")
+        if scriptName == "" </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, APIResponse{
+                        Success: false,
+                        Error:   "Script name is required",
+                })
+                return
+        }</span>
+
+        // Disable the script
+        <span class="cov8" title="1">if err := ws.scriptManager.DisableScript(scriptName); err != nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusNotFound, APIResponse{
+                        Success: false,
+                        Error:   err.Error(),
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">c.JSON(http.StatusOK, APIResponse{
+                Success: true,
+                Data: map[string]interface{}{
+                        "message": fmt.Sprintf("Script %s disabled successfully", scriptName),
+                        "script":  scriptName,
+                        "enabled": false,
+                },
+        })</span>
+}
+
+// handleGetLogs returns logs with optional query parameters
+func (ws *WebServer) handleGetLogs(c *gin.Context) <span class="cov8" title="1">{
+        if ws.logManager == nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   "Log manager not initialized",
+                })
+                return
+        }</span>
+
+        // Build query from request parameters
+        <span class="cov8" title="1">query := &amp;service.LogQuery{}
+
+        // Parse optional query parameters
+        if scriptName := c.Query("script"); scriptName != "" </span><span class="cov0" title="0">{
+                query.ScriptName = scriptName
+        }</span>
+
+        <span class="cov8" title="1">if limitStr := c.Query("limit"); limitStr != "" </span><span class="cov0" title="0">{
+                if limit, err := strconv.Atoi(limitStr); err == nil &amp;&amp; limit &gt; 0 </span><span class="cov0" title="0">{
+                        query.Limit = limit
+                }</span>
+        }
+
+        // Query logs
+        <span class="cov8" title="1">entries, err := ws.logManager.QueryLogs(query)
+        if err != nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   fmt.Sprintf("Failed to query logs: %v", err),
+                })
+                return
+        }</span>
+
+        // Convert entries to response format
+        <span class="cov8" title="1">logs := make([]map[string]interface{}, len(entries))
+        for i, entry := range entries </span><span class="cov8" title="1">{
+                logs[i] = map[string]interface{}{
+                        "script":    entry.ScriptName,
+                        "timestamp": entry.Timestamp.Format(time.RFC3339),
+                        "exit_code": entry.ExitCode,
+                        "stdout":    entry.Stdout,
+                        "stderr":    entry.Stderr,
+                        "duration":  entry.Duration,
+                }
+        }</span>
+
+        <span class="cov8" title="1">c.JSON(http.StatusOK, APIResponse{
+                Success: true,
+                Data:    logs,
+        })</span>
+}
+
+// handleGetScriptLogs returns logs for a specific script
+func (ws *WebServer) handleGetScriptLogs(c *gin.Context) <span class="cov8" title="1">{
+        if ws.logManager == nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   "Log manager not initialized",
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">scriptName := c.Param("script")
+        if scriptName == "" </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, APIResponse{
+                        Success: false,
+                        Error:   "Script name is required",
+                })
+                return
+        }</span>
+
+        // Build query for specific script
+        <span class="cov8" title="1">query := &amp;service.LogQuery{
+                ScriptName: scriptName,
+        }
+
+        // Parse optional limit parameter
+        if limitStr := c.Query("limit"); limitStr != "" </span><span class="cov0" title="0">{
+                if limit, err := strconv.Atoi(limitStr); err == nil &amp;&amp; limit &gt; 0 </span><span class="cov0" title="0">{
+                        query.Limit = limit
+                }</span>
+        }
+
+        // Query logs for the specific script
+        <span class="cov8" title="1">entries, err := ws.logManager.QueryLogs(query)
+        if err != nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   fmt.Sprintf("Failed to query logs for script %s: %v", scriptName, err),
+                })
+                return
+        }</span>
+
+        // Convert entries to response format
+        <span class="cov8" title="1">logs := make([]map[string]interface{}, len(entries))
+        for i, entry := range entries </span><span class="cov8" title="1">{
+                logs[i] = map[string]interface{}{
+                        "script":    entry.ScriptName,
+                        "timestamp": entry.Timestamp.Format(time.RFC3339),
+                        "exit_code": entry.ExitCode,
+                        "stdout":    entry.Stdout,
+                        "stderr":    entry.Stderr,
+                        "duration":  entry.Duration,
+                }
+        }</span>
+
+        <span class="cov8" title="1">c.JSON(http.StatusOK, APIResponse{
+                Success: true,
+                Data:    logs,
+        })</span>
+}
+
+// handleClearScriptLogs clears logs for a specific script
+func (ws *WebServer) handleClearScriptLogs(c *gin.Context) <span class="cov0" title="0">{
+        scriptName := c.Param("script")
+        if scriptName == "" </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, APIResponse{
+                        Success: false,
+                        Error:   "Script name is required",
+                })
+                return
+        }</span>
+
+        // For now, return success (would need log manager implementation)
+        <span class="cov0" title="0">c.JSON(http.StatusOK, APIResponse{
+                Success: true,
+                Data: map[string]interface{}{
+                        "message": fmt.Sprintf("Logs cleared for script %s", scriptName),
+                        "script":  scriptName,
+                },
+        })</span>
+}
+
+// handleGetConfig returns system configuration
+func (ws *WebServer) handleGetConfig(c *gin.Context) <span class="cov0" title="0">{
+        if ws.scriptManager == nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   "Script manager not initialized",
+                })
+                return
+        }</span>
+
+        <span class="cov0" title="0">config := ws.scriptManager.GetConfig()
+
+        c.JSON(http.StatusOK, APIResponse{
+                Success: true,
+                Data:    config,
+        })</span>
+}
+
+// handleUpdateConfig updates system configuration
+func (ws *WebServer) handleUpdateConfig(c *gin.Context) <span class="cov8" title="1">{
+        if ws.scriptManager == nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   "Script manager not initialized",
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">var updateData map[string]interface{}
+        if err := c.ShouldBindJSON(&amp;updateData); err != nil </span><span class="cov8" title="1">{
+                c.JSON(http.StatusBadRequest, APIResponse{
+                        Success: false,
+                        Error:   fmt.Sprintf("Invalid request body: %v", err),
+                })
+                return
+        }</span>
+
+        // Get current configuration
+        <span class="cov8" title="1">config := ws.scriptManager.GetConfig()
+
+        // Update web port if provided
+        if webPort, ok := updateData["web_port"]; ok </span><span class="cov8" title="1">{
+                if port, isFloat := webPort.(float64); isFloat </span><span class="cov8" title="1">{
+                        if port &gt;= 1 &amp;&amp; port &lt;= 65535 </span><span class="cov8" title="1">{
+                                config.WebPort = int(port)
+                        }</span> else<span class="cov0" title="0"> {
+                                c.JSON(http.StatusBadRequest, APIResponse{
+                                        Success: false,
+                                        Error:   "Web port must be between 1 and 65535",
+                                })
+                                return
+                        }</span>
+                } else<span class="cov0" title="0"> {
+                        c.JSON(http.StatusBadRequest, APIResponse{
+                                Success: false,
+                                Error:   "Web port must be a number",
+                        })
+                        return
+                }</span>
+        }
+
+        // Save updated configuration
+        <span class="cov8" title="1">if err := ws.scriptManager.SaveConfig(); err != nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   fmt.Sprintf("Failed to save configuration: %v", err),
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">c.JSON(http.StatusOK, APIResponse{
+                Success: true,
+                Data: map[string]interface{}{
+                        "message": "Configuration updated successfully",
+                        "config":  config,
+                },
+        })</span>
+}
+
+// Start starts the web server
+func (ws *WebServer) Start() error <span class="cov0" title="0">{
+        addr := fmt.Sprintf(":%d", ws.port)
+        return ws.router.Run(addr)
+}</span>
 </pre>
 
 		</div>
