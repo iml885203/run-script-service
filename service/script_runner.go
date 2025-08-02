@@ -53,7 +53,7 @@ func (se *ScriptExecutor) ExecuteWithResult(ctx context.Context, args ...string)
 
 	// Execute in a goroutine to allow for cancellation
 	go func() {
-		result := se.executor.ExecuteScript(args...)
+		result := se.executor.ExecuteScriptWithContext(ctx, args...)
 		resultChan <- result
 	}()
 

@@ -43,15 +43,24 @@ type WebSocketHub struct {
 
 	// Unregister requests from clients
 	unregister chan *WebSocketClient
+
+	// Maximum number of concurrent connections
+	maxConnections int
 }
+
+const (
+	// MaxWebSocketConnections defines the maximum number of concurrent WebSocket connections
+	MaxWebSocketConnections = 100
+)
 
 // NewWebSocketHub creates a new WebSocket hub
 func NewWebSocketHub() *WebSocketHub {
 	return &WebSocketHub{
-		broadcast:  make(chan []byte, 256),
-		register:   make(chan *WebSocketClient),
-		unregister: make(chan *WebSocketClient),
-		clients:    make(map[*WebSocketClient]bool),
+		broadcast:      make(chan []byte, 256),
+		register:       make(chan *WebSocketClient),
+		unregister:     make(chan *WebSocketClient),
+		clients:        make(map[*WebSocketClient]bool),
+		maxConnections: MaxWebSocketConnections,
 	}
 }
 
@@ -60,12 +69,21 @@ func (h *WebSocketHub) Run() {
 	for {
 		select {
 		case client := <-h.register:
-			h.clients[client] = true
+			// Check connection limit
+			if len(h.clients) >= h.maxConnections {
+				log.Printf("WebSocket connection limit reached (%d), rejecting new connection", h.maxConnections)
+				close(client.send)
+				client.conn.Close()
+			} else {
+				h.clients[client] = true
+				log.Printf("WebSocket client connected, total: %d", len(h.clients))
+			}
 
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.send)
+				log.Printf("WebSocket client disconnected, total: %d", len(h.clients))
 			}
 
 		case message := <-h.broadcast:
@@ -73,8 +91,10 @@ func (h *WebSocketHub) Run() {
 				select {
 				case client.send <- message:
 				default:
+					// Client can't receive message, disconnect it
 					close(client.send)
 					delete(h.clients, client)
+					client.conn.Close()
 				}
 			}
 		}
@@ -101,6 +121,11 @@ func (h *WebSocketHub) BroadcastMessage(msgType string, data map[string]interfac
 	}
 
 	return nil
+}
+
+// GetConnectionCount returns the number of active connections
+func (h *WebSocketHub) GetConnectionCount() int {
+	return len(h.clients)
 }
 
 // HandleWebSocket handles WebSocket connections

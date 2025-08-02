@@ -54,6 +54,11 @@ func (fm *FileManager) IsPathAllowed(path string) bool {
 	// Clean and resolve the path
 	cleanPath := filepath.Clean(path)
 
+	// Additional security checks
+	if strings.Contains(cleanPath, "..") {
+		return false // Path traversal attempt
+	}
+
 	// Convert to absolute path for security checks
 	var absPath string
 	if filepath.IsAbs(cleanPath) {
@@ -71,6 +76,21 @@ func (fm *FileManager) IsPathAllowed(path string) bool {
 	} else {
 		// Relative paths are relative to baseDir
 		absPath = filepath.Join(fm.baseDir, cleanPath)
+	}
+
+	// Ensure the resolved path is still within baseDir
+	absBaseDir, err := filepath.Abs(fm.baseDir)
+	if err != nil {
+		return false
+	}
+
+	absRequestPath, err := filepath.Abs(absPath)
+	if err != nil {
+		return false
+	}
+
+	if !strings.HasPrefix(absRequestPath, absBaseDir) {
+		return false // Outside base directory
 	}
 
 	// For relative paths, check if they're within allowed directories

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 )
 
 // ScriptConfig represents configuration for a single script
@@ -31,6 +32,11 @@ type Config struct {
 
 // Validate checks if the script configuration is valid
 func (sc *ScriptConfig) Validate() error {
+	return sc.ValidateWithOptions(true)
+}
+
+// ValidateWithOptions checks if the script configuration is valid with optional file existence check
+func (sc *ScriptConfig) ValidateWithOptions(checkFileExists bool) error {
 	if sc.Name == "" {
 		return fmt.Errorf("script name cannot be empty")
 	}
@@ -46,6 +52,38 @@ func (sc *ScriptConfig) Validate() error {
 	if sc.Timeout < 0 {
 		return fmt.Errorf("timeout cannot be negative")
 	}
+
+	// Optionally check if script file exists and is executable
+	if checkFileExists {
+		scriptPath := sc.Path
+		if !filepath.IsAbs(scriptPath) {
+			// Convert relative path to absolute path
+			workDir, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("unable to get working directory: %v", err)
+			}
+			scriptPath = filepath.Join(workDir, sc.Path)
+		}
+
+		info, err := os.Stat(scriptPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("script file does not exist: %s", sc.Path)
+			}
+			return fmt.Errorf("unable to access script file %s: %v", sc.Path, err)
+		}
+
+		// Check if it's a regular file (not a directory)
+		if info.IsDir() {
+			return fmt.Errorf("script path is a directory, not a file: %s", sc.Path)
+		}
+
+		// Check if file is executable
+		if info.Mode()&0111 == 0 {
+			return fmt.Errorf("script file is not executable: %s (mode: %v)", sc.Path, info.Mode())
+		}
+	}
+
 	return nil
 }
 
@@ -107,7 +145,8 @@ func LoadServiceConfig(configPath string, config *ServiceConfig) error {
 		if _, hasScripts := rawConfig["scripts"]; hasScripts || rawConfig["web_port"] != nil {
 			// Successfully parsed as new format
 			for i, script := range tempConfig.Scripts {
-				if err := script.Validate(); err != nil {
+				// Only validate basic fields during config loading, not file existence
+				if err := script.ValidateWithOptions(false); err != nil {
 					log.Printf("Invalid script config %d: %v", i, err)
 					return nil // Keep default config
 				}

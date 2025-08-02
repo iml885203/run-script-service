@@ -3,12 +3,14 @@ package service
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -38,13 +40,25 @@ func NewExecutor(scriptPath, logPath string, maxLines int) *Executor {
 
 // ExecuteScript executes the configured script and logs the results
 func (e *Executor) ExecuteScript(args ...string) *ExecutionResult {
+	// Use context with timeout for backward compatibility
+	ctx := context.Background()
+	return e.ExecuteScriptWithContext(ctx, args...)
+}
+
+// ExecuteScriptWithContext executes the configured script with context support
+func (e *Executor) ExecuteScriptWithContext(ctx context.Context, args ...string) *ExecutionResult {
 	timestamp := time.Now()
 	result := &ExecutionResult{
 		Timestamp: timestamp,
 	}
 
-	cmd := exec.Command(e.scriptPath, args...)
+	cmd := exec.CommandContext(ctx, e.scriptPath, args...)
 	cmd.Dir = filepath.Dir(e.scriptPath)
+
+	// Set process group to enable proper cleanup
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true,
+	}
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -65,6 +79,25 @@ func (e *Executor) ExecuteScript(args ...string) *ExecutionResult {
 		result.ExitCode = -1
 		return result
 	}
+
+	// Ensure process cleanup on exit
+	defer func() {
+		if cmd.Process != nil {
+			// Kill the entire process group to clean up any child processes
+			if pgid, err := syscall.Getpgid(cmd.Process.Pid); err == nil {
+				// Only kill if the process is still running and we can get the pgid
+				_ = syscall.Kill(-pgid, syscall.SIGTERM)
+
+				// Wait a moment for graceful shutdown, then force kill if needed
+				go func() {
+					time.Sleep(100 * time.Millisecond)
+					if cmd.ProcessState == nil || !cmd.ProcessState.Exited() {
+						_ = syscall.Kill(-pgid, syscall.SIGKILL)
+					}
+				}()
+			}
+		}
+	}()
 
 	stdoutBytes, _ := io.ReadAll(stdout)
 	stderrBytes, _ := io.ReadAll(stderr)
