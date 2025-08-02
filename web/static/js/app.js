@@ -303,6 +303,19 @@ class App {
         }
     }
 
+    async clearSpecificScriptLogs(scriptName) {
+        if (!confirm(`Clear logs for script '${scriptName}'?`)) return;
+
+        try {
+            await apiClient.clearScriptLogs(scriptName);
+            components.showNotification(`Logs cleared for script '${scriptName}'`, 'success');
+            await this.loadLogs();
+        } catch (error) {
+            console.error('Failed to clear script logs:', error);
+            components.showNotification('Failed to clear script logs', 'error');
+        }
+    }
+
     startAutoRefresh() {
         if (this.refreshInterval) {
             clearInterval(this.refreshInterval);

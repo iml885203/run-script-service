@@ -112,48 +112,59 @@ class ComponentManager {
         `).join('');
     }
 
-    // Log rendering
-    renderLogs(logs) {
+    // Log rendering (simplified for raw text content)
+    renderLogs(logData) {
         const logsList = document.getElementById('logs-list');
         if (!logsList) return;
 
-        if (!logs || logs.length === 0) {
+        // Handle new API format: {content: "...", script: "..."}
+        if (!logData) {
             logsList.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon">📄</div>
                     <div class="empty-state-title">No Logs</div>
-                    <div class="empty-state-message">Run some scripts to see logs here</div>
+                    <div class="empty-state-message">Select a script to see logs here</div>
                 </div>
             `;
             return;
         }
 
-        logsList.innerHTML = logs.map(log => {
-            const timestamp = new Date(log.timestamp).toLocaleString();
-            const exitCodeClass = log.exit_code === 0 ? 'success' : 'error';
-            const hasStderr = log.stderr && log.stderr.trim();
-
-            return `
-                <div class="log-entry">
-                    <div class="log-entry-header">
-                        <span class="log-entry-script">${this.escapeHtml(log.script)}</span>
-                        <span class="log-entry-time">${timestamp}</span>
-                    </div>
-                    ${log.stdout ? `
-                        <div class="log-entry-content log-entry-stdout">${this.escapeHtml(log.stdout)}</div>
-                    ` : ''}
-                    ${hasStderr ? `
-                        <div class="log-entry-content log-entry-stderr">${this.escapeHtml(log.stderr)}</div>
-                    ` : ''}
-                    <div class="log-entry-meta">
-                        <span class="log-entry-exit-code ${exitCodeClass}">
-                            Exit Code: ${log.exit_code}
-                        </span>
-                        <span>Duration: ${log.duration}ms</span>
-                    </div>
+        // Check if no script is selected
+        if (!logData.script || logData.script === '') {
+            logsList.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📄</div>
+                    <div class="empty-state-title">No Script Selected</div>
+                    <div class="empty-state-message">Please select a script from the dropdown to view logs</div>
                 </div>
             `;
-        }).join('');
+            return;
+        }
+
+        const content = logData.content ? logData.content.trim() : '';
+        if (!content) {
+            logsList.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📄</div>
+                    <div class="empty-state-title">No Logs</div>
+                    <div class="empty-state-message">No logs found for ${this.escapeHtml(logData.script)}</div>
+                </div>
+            `;
+            return;
+        }
+
+        // Display raw log content in a pre-formatted container
+        logsList.innerHTML = `
+            <div class="log-content">
+                <div class="log-content-header">
+                    <span class="log-content-script">Logs for: ${this.escapeHtml(logData.script)}</span>
+                    <button class="btn btn-sm btn-secondary" onclick="app.clearSpecificScriptLogs('${this.escapeHtml(logData.script)}')">
+                        Clear Logs
+                    </button>
+                </div>
+                <pre class="log-content-text">${this.escapeHtml(content)}</pre>
+            </div>
+        `;
     }
 
     // Script filter dropdown
@@ -164,7 +175,8 @@ class ComponentManager {
         // Keep current selection
         const currentValue = filter.value;
 
-        filter.innerHTML = '<option value="">All Scripts</option>';
+        // Start with empty option prompting user to select
+        filter.innerHTML = '<option value="">Select a script...</option>';
 
         if (scripts && scripts.length > 0) {
             scripts.forEach(script => {

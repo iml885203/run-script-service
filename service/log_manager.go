@@ -2,10 +2,14 @@
 package service
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -80,6 +84,9 @@ func NewScriptLogger(scriptName, baseDir string, maxLines int) *ScriptLogger {
 
 	// Ensure log directory exists
 	_ = os.MkdirAll(baseDir, 0750) // Ignore error - logger will still work, file ops may fail later
+
+	// Load existing log file if it exists
+	logger.LoadExistingLogs()
 
 	return logger
 }
@@ -186,4 +193,98 @@ func (lm *LogManager) matchesQuery(entry *LogEntry, query *LogQuery) bool {
 	}
 
 	return true
+}
+
+// LoadExistingLogs loads log entries from existing log file
+func (sl *ScriptLogger) LoadExistingLogs() {
+	if _, err := os.Stat(sl.logPath); os.IsNotExist(err) {
+		return // No existing log file
+	}
+
+	file, err := os.Open(sl.logPath)
+	if err != nil {
+		return // Can't open file, continue without loading
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	var currentEntry *LogEntry
+	var stdoutLines []string
+
+	// Regex to match timestamp and exit code line: [2025-08-02 11:26:16] Exit code: 0
+	timestampRegex := regexp.MustCompile(`^\[([^\]]+)\] Exit code: (\d+)$`)
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		if line == "--------------------------------------------------" {
+			// End of entry
+			if currentEntry != nil {
+				currentEntry.Stdout = strings.Join(stdoutLines, "\n")
+				sl.entries = append(sl.entries, *currentEntry)
+				currentEntry = nil
+				stdoutLines = nil
+			}
+		} else if matches := timestampRegex.FindStringSubmatch(line); matches != nil {
+			// Start of new entry
+			timestamp, _ := time.Parse("2006-01-02 15:04:05", matches[1])
+			exitCode, _ := strconv.Atoi(matches[2])
+
+			currentEntry = &LogEntry{
+				Timestamp:  timestamp,
+				ScriptName: sl.scriptName,
+				ExitCode:   exitCode,
+				Stdout:     "",
+				Stderr:     "",
+				Duration:   0, // Can't determine from existing logs
+			}
+			stdoutLines = make([]string, 0)
+		} else if currentEntry != nil && strings.HasPrefix(line, "STDOUT: ") {
+			// STDOUT line
+			stdoutContent := strings.TrimPrefix(line, "STDOUT: ")
+			stdoutLines = append(stdoutLines, stdoutContent)
+		} else if currentEntry != nil && line != "" && !strings.HasPrefix(line, "STDERR: ") {
+			// Continuation of stdout (multi-line output)
+			stdoutLines = append(stdoutLines, line)
+		}
+	}
+
+	// Handle last entry if file doesn't end with separator
+	if currentEntry != nil {
+		currentEntry.Stdout = strings.Join(stdoutLines, "\n")
+		sl.entries = append(sl.entries, *currentEntry)
+	}
+
+	// Maintain maxLines limit
+	if len(sl.entries) > sl.maxLines {
+		sl.entries = sl.entries[len(sl.entries)-sl.maxLines:]
+	}
+}
+
+// ClearLogs clears all log entries for a specific script
+func (lm *LogManager) ClearLogs(scriptName string) error {
+	lm.mutex.Lock()
+	defer lm.mutex.Unlock()
+
+	if logger, exists := lm.loggers[scriptName]; exists {
+		return logger.ClearEntries()
+	}
+
+	return fmt.Errorf("script '%s' not found", scriptName)
+}
+
+// ClearEntries clears all log entries for this script logger
+func (sl *ScriptLogger) ClearEntries() error {
+	sl.mutex.Lock()
+	defer sl.mutex.Unlock()
+
+	// Clear in-memory entries
+	sl.entries = make([]LogEntry, 0)
+
+	// Clear the log file
+	if err := os.Truncate(sl.logPath, 0); err != nil {
+		return fmt.Errorf("failed to clear log file: %v", err)
+	}
+
+	return nil
 }

@@ -7,17 +7,14 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"run-script-service/service"
 )
 
 func TestWebServer_New(t *testing.T) {
 	// Create test service and log manager
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
 
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 
 	if server == nil {
 		t.Fatal("NewWebServer should not return nil")
@@ -27,13 +24,6 @@ func TestWebServer_New(t *testing.T) {
 		t.Errorf("Expected port 8080, got %d", server.port)
 	}
 
-	if server.service != svc {
-		t.Error("Service not properly assigned")
-	}
-
-	if server.logManager != logManager {
-		t.Error("LogManager not properly assigned")
-	}
 }
 
 func TestAPIResponse_JSON(t *testing.T) {
@@ -76,10 +66,8 @@ func TestAPIResponse_JSON(t *testing.T) {
 
 func TestWebServer_StatusEndpoint(t *testing.T) {
 	// Create test dependencies
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
 
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 
 	// Create test request
 	req := httptest.NewRequest("GET", "/api/status", nil)
@@ -120,10 +108,8 @@ func TestWebServer_ScriptsEndpoint(t *testing.T) {
 	}
 
 	scriptManager := service.NewScriptManager(config)
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
 
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 	server.SetScriptManager(scriptManager)
 
 	// Create test request
@@ -166,10 +152,8 @@ func TestWebServer_PostScript(t *testing.T) {
 	}
 
 	scriptManager := service.NewScriptManager(config)
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
 
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 	server.SetScriptManager(scriptManager)
 
 	// Create test request with script data
@@ -221,10 +205,8 @@ func TestWebServer_RunScript(t *testing.T) {
 	}
 
 	scriptManager := service.NewScriptManager(config)
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
 
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 	server.SetScriptManager(scriptManager)
 
 	// Create test request
@@ -257,10 +239,8 @@ func TestWebServer_RunScript_NotFound(t *testing.T) {
 	}
 
 	scriptManager := service.NewScriptManager(config)
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
 
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 	server.SetScriptManager(scriptManager)
 
 	// Create test request for non-existent script
@@ -287,25 +267,7 @@ func TestWebServer_RunScript_NotFound(t *testing.T) {
 }
 
 func TestWebServer_LogsEndpoint(t *testing.T) {
-	// Create test dependencies with real log manager
-	logManager := service.NewLogManager("./testdata")
-	svc := &service.Service{}
-
-	// Add some test log entries
-	logger := logManager.GetLogger("test-script")
-	err := logger.AddEntry(&service.LogEntry{
-		Timestamp:  time.Now(),
-		ScriptName: "test-script",
-		ExitCode:   0,
-		Stdout:     "Test output",
-		Stderr:     "",
-		Duration:   1000,
-	})
-	if err != nil {
-		t.Fatalf("Failed to add test log entry: %v", err)
-	}
-
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 
 	// Create test request
 	req := httptest.NewRequest("GET", "/api/logs", nil)
@@ -320,7 +282,7 @@ func TestWebServer_LogsEndpoint(t *testing.T) {
 	}
 
 	var response APIResponse
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	err := json.Unmarshal(w.Body.Bytes(), &response)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
@@ -329,37 +291,20 @@ func TestWebServer_LogsEndpoint(t *testing.T) {
 		t.Error("Expected successful response")
 	}
 
-	// Check that data contains log entries
-	data, ok := response.Data.([]interface{})
+	// Should return empty content when no script specified
+	data, ok := response.Data.(map[string]interface{})
 	if !ok {
-		t.Fatal("Expected data to be an array")
+		t.Error("Expected data to be a map")
 	}
 
-	if len(data) == 0 {
-		t.Error("Expected at least one log entry")
+	if data["content"] != "" {
+		t.Error("Expected empty content when no script specified")
 	}
+
 }
 
 func TestWebServer_GetScriptLogs(t *testing.T) {
-	// Create test dependencies with real log manager
-	logManager := service.NewLogManager("./testdata")
-	svc := &service.Service{}
-
-	// Add test log entries for specific script
-	logger := logManager.GetLogger("test-script")
-	err := logger.AddEntry(&service.LogEntry{
-		Timestamp:  time.Now(),
-		ScriptName: "test-script",
-		ExitCode:   0,
-		Stdout:     "Script specific output",
-		Stderr:     "",
-		Duration:   2000,
-	})
-	if err != nil {
-		t.Fatalf("Failed to add test log entry: %v", err)
-	}
-
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 
 	// Create test request for specific script
 	req := httptest.NewRequest("GET", "/api/logs/test-script", nil)
@@ -374,7 +319,7 @@ func TestWebServer_GetScriptLogs(t *testing.T) {
 	}
 
 	var response APIResponse
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	err := json.Unmarshal(w.Body.Bytes(), &response)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
@@ -383,14 +328,19 @@ func TestWebServer_GetScriptLogs(t *testing.T) {
 		t.Error("Expected successful response")
 	}
 
-	// Check that data contains log entries for the specific script
-	data, ok := response.Data.([]interface{})
+	// Check that data contains log content for the specific script
+	data, ok := response.Data.(map[string]interface{})
 	if !ok {
-		t.Fatal("Expected data to be an array")
+		t.Fatal("Expected data to be a map")
 	}
 
-	if len(data) == 0 {
-		t.Error("Expected at least one log entry for the script")
+	script, ok := data["script"].(string)
+	if !ok {
+		t.Fatal("Expected script to be a string")
+	}
+
+	if script != "test-script" {
+		t.Errorf("Expected script 'test-script', got '%s'", script)
 	}
 }
 
@@ -410,10 +360,8 @@ func TestWebServer_GetSpecificScript(t *testing.T) {
 	}
 
 	scriptManager := service.NewScriptManager(config)
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
 
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 	server.SetScriptManager(scriptManager)
 
 	// Create test request
@@ -446,10 +394,8 @@ func TestWebServer_GetSpecificScript_NotFound(t *testing.T) {
 	}
 
 	scriptManager := service.NewScriptManager(config)
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
 
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 	server.SetScriptManager(scriptManager)
 
 	// Create test request for non-existent script
@@ -491,10 +437,8 @@ func TestWebServer_EnableScript(t *testing.T) {
 	}
 
 	scriptManager := service.NewScriptManager(config)
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
 
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 	server.SetScriptManager(scriptManager)
 
 	// Create test request
@@ -536,10 +480,8 @@ func TestWebServer_DisableScript(t *testing.T) {
 	}
 
 	scriptManager := service.NewScriptManager(config)
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
 
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 	server.SetScriptManager(scriptManager)
 
 	// Create test request
@@ -567,9 +509,7 @@ func TestWebServer_DisableScript(t *testing.T) {
 
 func TestWebServer_StaticFiles(t *testing.T) {
 	// Create test dependencies
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 
 	// Test that static route returns 404 when files don't exist
 	req := httptest.NewRequest("GET", "/", nil)
@@ -589,9 +529,7 @@ func TestWebServer_StaticFiles(t *testing.T) {
 
 func TestWebServer_StaticFileRouting(t *testing.T) {
 	// Create test dependencies
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 
 	// Test static file routing
 	req := httptest.NewRequest("GET", "/static/css/main.css", nil)
@@ -635,10 +573,8 @@ func TestWebServer_UpdateConfig(t *testing.T) {
 	}()
 
 	scriptManager := service.NewScriptManagerWithPath(config, configPath)
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
 
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 	server.SetScriptManager(scriptManager)
 
 	// Create test request with updated config data
@@ -681,10 +617,8 @@ func TestWebServer_UpdateConfig_InvalidJSON(t *testing.T) {
 	}()
 
 	scriptManager := service.NewScriptManagerWithPath(config, configPath)
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
 
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 	server.SetScriptManager(scriptManager)
 
 	// Create test request with invalid JSON
@@ -727,10 +661,8 @@ func TestWebServer_UpdateScript(t *testing.T) {
 	}
 
 	scriptManager := service.NewScriptManager(config)
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
 
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 	server.SetScriptManager(scriptManager)
 
 	// Create test request with updated script data
@@ -772,10 +704,8 @@ func TestWebServer_UpdateScript_NotFound(t *testing.T) {
 	}
 
 	scriptManager := service.NewScriptManager(config)
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
 
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 	server.SetScriptManager(scriptManager)
 
 	// Create test request for non-existent script
@@ -826,10 +756,8 @@ func TestWebServer_DeleteScript(t *testing.T) {
 	}
 
 	scriptManager := service.NewScriptManager(config)
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
 
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 	server.SetScriptManager(scriptManager)
 
 	// Create test request
@@ -862,10 +790,8 @@ func TestWebServer_DeleteScript_NotFound(t *testing.T) {
 	}
 
 	scriptManager := service.NewScriptManager(config)
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
 
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 	server.SetScriptManager(scriptManager)
 
 	// Create test request for non-existent script
@@ -893,9 +819,7 @@ func TestWebServer_DeleteScript_NotFound(t *testing.T) {
 
 func TestWebServer_WebSocketRouteSetup(t *testing.T) {
 	// Create test dependencies
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 
 	// Test that WebSocket route is configured but returns 404 since we haven't implemented the handler yet
 	req := httptest.NewRequest("GET", "/ws", nil)

@@ -752,15 +752,13 @@ func runMultiScriptServiceWithWeb(configPath string) {
 		config.WebPort = 8080
 	}
 
-	// Create log manager
+	// Get current directory for file operations
 	dir, err := os.Executable()
 	if err != nil {
 		dir, _ = os.Getwd()
 	} else {
 		dir = filepath.Dir(dir)
 	}
-	logsDir := filepath.Join(dir, "logs")
-	logManager := service.NewLogManager(logsDir)
 
 	// Create file manager for secure file operations
 	fileManager := service.NewFileManager(dir)
@@ -768,8 +766,8 @@ func runMultiScriptServiceWithWeb(configPath string) {
 	// Create script manager
 	scriptManager := service.NewScriptManagerWithPath(&config, configPath)
 
-	// Create web server
-	webServer := web.NewWebServer(nil, logManager, config.WebPort)
+	// Create web server (simplified, no LogManager dependency)
+	webServer := web.NewWebServer(nil, config.WebPort)
 	webServer.SetScriptManager(scriptManager)
 	webServer.SetFileManager(fileManager)
 

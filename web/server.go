@@ -5,7 +5,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strconv"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -17,7 +18,6 @@ import (
 type WebServer struct {
 	router        *gin.Engine
 	service       *service.Service
-	logManager    *service.LogManager
 	scriptManager *service.ScriptManager
 	fileManager   *service.FileManager
 	wsHub         *WebSocketHub
@@ -32,7 +32,7 @@ type APIResponse struct {
 }
 
 // NewWebServer creates a new web server instance
-func NewWebServer(svc *service.Service, logManager *service.LogManager, port int) *WebServer {
+func NewWebServer(svc *service.Service, port int) *WebServer {
 	// Set Gin to release mode for production
 	gin.SetMode(gin.ReleaseMode)
 
@@ -48,11 +48,10 @@ func NewWebServer(svc *service.Service, logManager *service.LogManager, port int
 	go wsHub.Run()
 
 	server := &WebServer{
-		router:     router,
-		service:    svc,
-		logManager: logManager,
-		wsHub:      wsHub,
-		port:       port,
+		router:  router,
+		service: svc,
+		wsHub:   wsHub,
+		port:    port,
 	}
 
 	// Setup routes
@@ -102,6 +101,7 @@ func (ws *WebServer) setupRoutes() {
 	// Log management endpoints
 	api.GET("/logs", ws.handleGetLogs)
 	api.GET("/logs/:script", ws.handleGetScriptLogs)
+	api.GET("/logs/raw/:script", ws.handleGetRawLogs) // New simple endpoint
 	api.DELETE("/logs/:script", ws.handleClearScriptLogs)
 
 	// Configuration endpoints
@@ -250,6 +250,8 @@ func (ws *WebServer) handleRunScript(c *gin.Context) {
 		})
 		return
 	}
+
+	// Note: Logs are now handled via raw file access in /logs/raw/:script endpoint
 
 	c.JSON(http.StatusOK, APIResponse{
 		Success: true,
@@ -482,69 +484,66 @@ func (ws *WebServer) handleDisableScript(c *gin.Context) {
 	})
 }
 
-// handleGetLogs returns logs with optional query parameters
+// handleGetLogs returns raw log content (simplified approach)
 func (ws *WebServer) handleGetLogs(c *gin.Context) {
-	if ws.logManager == nil {
-		c.JSON(http.StatusInternalServerError, APIResponse{
-			Success: false,
-			Error:   "Log manager not initialized",
+	scriptName := c.Query("script")
+
+	// If no script specified, return empty content
+	if scriptName == "" {
+		c.JSON(http.StatusOK, APIResponse{
+			Success: true,
+			Data: map[string]interface{}{
+				"content": "",
+				"script":  "",
+			},
 		})
 		return
 	}
 
-	// Build query from request parameters
-	query := &service.LogQuery{}
-
-	// Parse optional query parameters
-	if scriptName := c.Query("script"); scriptName != "" {
-		query.ScriptName = scriptName
+	// Get log file path
+	dir, err := os.Executable()
+	if err != nil {
+		dir, _ = os.Getwd()
+	} else {
+		dir = filepath.Dir(dir)
 	}
 
-	if limitStr := c.Query("limit"); limitStr != "" {
-		if limit, err := strconv.Atoi(limitStr); err == nil && limit > 0 {
-			query.Limit = limit
-		}
+	logFile := filepath.Join(dir, fmt.Sprintf("%s.log", scriptName))
+
+	// Check if log file exists
+	if _, err := os.Stat(logFile); os.IsNotExist(err) {
+		c.JSON(http.StatusOK, APIResponse{
+			Success: true,
+			Data: map[string]interface{}{
+				"content": "",
+				"script":  scriptName,
+				"message": "No log file found",
+			},
+		})
+		return
 	}
 
-	// Query logs
-	entries, err := ws.logManager.QueryLogs(query)
+	// Read raw log file content
+	content, err := os.ReadFile(logFile)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, APIResponse{
 			Success: false,
-			Error:   fmt.Sprintf("Failed to query logs: %v", err),
+			Error:   fmt.Sprintf("Failed to read log file: %v", err),
 		})
 		return
-	}
-
-	// Convert entries to response format
-	logs := make([]map[string]interface{}, len(entries))
-	for i, entry := range entries {
-		logs[i] = map[string]interface{}{
-			"script":    entry.ScriptName,
-			"timestamp": entry.Timestamp.Format(time.RFC3339),
-			"exit_code": entry.ExitCode,
-			"stdout":    entry.Stdout,
-			"stderr":    entry.Stderr,
-			"duration":  entry.Duration,
-		}
 	}
 
 	c.JSON(http.StatusOK, APIResponse{
 		Success: true,
-		Data:    logs,
+		Data: map[string]interface{}{
+			"content": string(content),
+			"script":  scriptName,
+		},
 	})
 }
 
-// handleGetScriptLogs returns logs for a specific script
+// handleGetScriptLogs returns raw log content for a specific script
 func (ws *WebServer) handleGetScriptLogs(c *gin.Context) {
-	if ws.logManager == nil {
-		c.JSON(http.StatusInternalServerError, APIResponse{
-			Success: false,
-			Error:   "Log manager not initialized",
-		})
-		return
-	}
-
 	scriptName := c.Param("script")
 	if scriptName == "" {
 		c.JSON(http.StatusBadRequest, APIResponse{
@@ -554,48 +553,49 @@ func (ws *WebServer) handleGetScriptLogs(c *gin.Context) {
 		return
 	}
 
-	// Build query for specific script
-	query := &service.LogQuery{
-		ScriptName: scriptName,
-	}
-
-	// Parse optional limit parameter
-	if limitStr := c.Query("limit"); limitStr != "" {
-		if limit, err := strconv.Atoi(limitStr); err == nil && limit > 0 {
-			query.Limit = limit
-		}
-	}
-
-	// Query logs for the specific script
-	entries, err := ws.logManager.QueryLogs(query)
+	// Get log file path
+	dir, err := os.Executable()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, APIResponse{
-			Success: false,
-			Error:   fmt.Sprintf("Failed to query logs for script %s: %v", scriptName, err),
+		dir, _ = os.Getwd()
+	} else {
+		dir = filepath.Dir(dir)
+	}
+
+	logFile := filepath.Join(dir, fmt.Sprintf("%s.log", scriptName))
+
+	// Check if log file exists
+	if _, err := os.Stat(logFile); os.IsNotExist(err) {
+		c.JSON(http.StatusOK, APIResponse{
+			Success: true,
+			Data: map[string]interface{}{
+				"content": "",
+				"script":  scriptName,
+				"message": "No log file found",
+			},
 		})
 		return
 	}
 
-	// Convert entries to response format
-	logs := make([]map[string]interface{}, len(entries))
-	for i, entry := range entries {
-		logs[i] = map[string]interface{}{
-			"script":    entry.ScriptName,
-			"timestamp": entry.Timestamp.Format(time.RFC3339),
-			"exit_code": entry.ExitCode,
-			"stdout":    entry.Stdout,
-			"stderr":    entry.Stderr,
-			"duration":  entry.Duration,
-		}
+	// Read raw log file content
+	content, err := os.ReadFile(logFile)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Failed to read log file: %v", err),
+		})
+		return
 	}
 
 	c.JSON(http.StatusOK, APIResponse{
 		Success: true,
-		Data:    logs,
+		Data: map[string]interface{}{
+			"content": string(content),
+			"script":  scriptName,
+		},
 	})
 }
 
-// handleClearScriptLogs clears logs for a specific script
+// handleClearScriptLogs clears logs for a specific script (simplified)
 func (ws *WebServer) handleClearScriptLogs(c *gin.Context) {
 	scriptName := c.Param("script")
 	if scriptName == "" {
@@ -606,12 +606,83 @@ func (ws *WebServer) handleClearScriptLogs(c *gin.Context) {
 		return
 	}
 
-	// For now, return success (would need log manager implementation)
+	// Get log file path
+	dir, err := os.Executable()
+	if err != nil {
+		dir, _ = os.Getwd()
+	} else {
+		dir = filepath.Dir(dir)
+	}
+
+	logFile := filepath.Join(dir, fmt.Sprintf("%s.log", scriptName))
+
+	// Clear the log file by truncating it
+	if err := os.Truncate(logFile, 0); err != nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Failed to clear log file: %v", err),
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, APIResponse{
 		Success: true,
 		Data: map[string]interface{}{
 			"message": fmt.Sprintf("Logs cleared for script %s", scriptName),
 			"script":  scriptName,
+		},
+	})
+}
+
+// handleGetRawLogs returns raw log file content (simple approach)
+func (ws *WebServer) handleGetRawLogs(c *gin.Context) {
+	scriptName := c.Param("script")
+	if scriptName == "" {
+		c.JSON(http.StatusBadRequest, APIResponse{
+			Success: false,
+			Error:   "Script name is required",
+		})
+		return
+	}
+
+	// Get log file path
+	dir, err := os.Executable()
+	if err != nil {
+		dir, _ = os.Getwd()
+	} else {
+		dir = filepath.Dir(dir)
+	}
+
+	logFile := filepath.Join(dir, fmt.Sprintf("%s.log", scriptName))
+
+	// Check if log file exists
+	if _, err := os.Stat(logFile); os.IsNotExist(err) {
+		c.JSON(http.StatusOK, APIResponse{
+			Success: true,
+			Data: map[string]interface{}{
+				"script":  scriptName,
+				"content": "",
+				"message": "No log file found",
+			},
+		})
+		return
+	}
+
+	// Read log file content
+	content, err := os.ReadFile(logFile)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Failed to read log file: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Success: true,
+		Data: map[string]interface{}{
+			"script":  scriptName,
+			"content": string(content),
 		},
 	})
 }

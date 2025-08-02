@@ -21,11 +21,9 @@ func TestWebServer_FileOperations(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Create test dependencies
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
 	fileManager := service.NewFileManager(tempDir)
 
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 	server.SetFileManager(fileManager)
 
 	// Create test file
@@ -316,9 +314,7 @@ func TestWebServer_FileOperations(t *testing.T) {
 
 func TestWebServer_FileOperations_NoFileManager(t *testing.T) {
 	// Create web server without file manager
-	svc := &service.Service{}
-	logManager := &service.LogManager{}
-	server := NewWebServer(svc, logManager, 8080)
+	server := NewWebServer(nil, 8080)
 	// Note: not setting file manager
 
 	t.Run("get file without file manager", func(t *testing.T) {
