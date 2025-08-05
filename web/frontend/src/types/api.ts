@@ -4,6 +4,7 @@ export interface ScriptConfig {
   interval: number
   enabled: boolean
   timeout?: number
+  status?: 'running' | 'completed' | 'failed' | 'idle'
 }
 
 export interface LogEntry {
@@ -18,6 +19,9 @@ export interface SystemMetrics {
   status: string
   runningScripts: number
   totalScripts: number
+  cpu_percent?: number
+  memory_percent?: number
+  disk_percent?: number
 }
 
 export interface ServiceConfig {

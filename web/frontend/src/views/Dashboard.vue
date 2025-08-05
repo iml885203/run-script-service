@@ -1,6 +1,21 @@
 <template>
   <div class="dashboard">
-    <h2>System Dashboard</h2>
+    <div class="dashboard-header">
+      <h2>System Dashboard</h2>
+      <!-- Real-time connection status indicator -->
+      <div class="connection-status" :class="{ 
+        'connected': wsIsConnected, 
+        'disconnected': !wsIsConnected 
+      }">
+        <span class="status-dot"></span>
+        {{ wsIsConnected ? 'Live' : 'Offline' }}
+      </div>
+    </div>
+
+    <!-- WebSocket error display -->
+    <div v-if="wsError" class="websocket-error">
+      Real-time updates unavailable: {{ wsError }}
+    </div>
 
     <div v-if="metricsLoading" class="loading">
       Loading system metrics...
@@ -32,6 +47,22 @@
         <h3>Total Scripts</h3>
         <div class="metric-value" data-testid="total-scripts-value">{{ metrics.totalScripts }}</div>
       </div>
+
+      <!-- System resource metrics -->
+      <div v-if="metrics.cpu_percent !== undefined" class="metric-card" data-testid="cpu-card">
+        <h3>CPU Usage</h3>
+        <div class="metric-value cpu-metric">{{ metrics.cpu_percent }}%</div>
+      </div>
+
+      <div v-if="metrics.memory_percent !== undefined" class="metric-card" data-testid="memory-card">
+        <h3>Memory Usage</h3>
+        <div class="metric-value memory-metric">{{ metrics.memory_percent }}%</div>
+      </div>
+
+      <div v-if="metrics.disk_percent !== undefined" class="metric-card" data-testid="disk-card">
+        <h3>Disk Usage</h3>
+        <div class="metric-value disk-metric">{{ metrics.disk_percent }}%</div>
+      </div>
     </div>
 
     <div class="scripts-overview">
@@ -58,6 +89,10 @@
               <span class="status" :class="{ 'enabled': script.enabled, 'disabled': !script.enabled }">
                 {{ script.enabled ? 'Enabled' : 'Disabled' }}
               </span>
+              <!-- Real-time script status -->
+              <span v-if="script.status" class="script-status" :class="script.status">
+                {{ script.status }}
+              </span>
             </div>
           </div>
           <div class="script-actions">
@@ -79,6 +114,7 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useSystemMetrics } from '@/composables/useSystemMetrics'
 import { useScripts } from '@/composables/useScripts'
+import { useWebSocket } from '@/composables/useWebSocket'
 
 const {
   metrics,
@@ -96,16 +132,47 @@ const {
   runScript
 } = useScripts()
 
+// WebSocket for real-time updates
+const {
+  isConnected: wsIsConnected,
+  error: wsError,
+  connect: wsConnect,
+  disconnect: wsDisconnect,
+  onMessage
+} = useWebSocket()
+
 onMounted(async () => {
   // Start auto-refresh for metrics (every 30 seconds)
   startAutoRefresh(30000)
 
   // Fetch scripts initially
   await fetchScripts()
+
+  // Connect WebSocket for real-time updates
+  wsConnect()
+
+  // Register WebSocket message handlers
+  onMessage('system_metrics', (message: any) => {
+    // Update system metrics in real-time
+    if (metrics.value && message.data) {
+      Object.assign(metrics.value, message.data)
+    }
+  })
+
+  onMessage('script_status', (message: any) => {
+    // Update script status in real-time
+    if (message.data && scripts.value) {
+      const script = scripts.value.find(s => s.name === message.data.script_name)
+      if (script) {
+        script.status = message.data.status
+      }
+    }
+  })
 })
 
 onUnmounted(() => {
   cleanupMetrics()
+  wsDisconnect()
 })
 </script>
 
@@ -114,9 +181,63 @@ onUnmounted(() => {
   max-width: 1200px;
 }
 
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
 h2 {
   color: var(--color-text);
-  margin-bottom: 2rem;
+  margin: 0;
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid;
+}
+
+.connection-status.connected {
+  color: var(--color-success);
+  background: var(--color-success-soft);
+  border-color: var(--color-success);
+}
+
+.connection-status.disconnected {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+  border-color: var(--color-warning);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.connection-status.connected .status-dot {
+  background: var(--color-success);
+  box-shadow: 0 0 6px var(--color-success);
+}
+
+.connection-status.disconnected .status-dot {
+  background: var(--color-warning);
+}
+
+.websocket-error {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--color-danger);
 }
 
 .loading, .error {
@@ -246,6 +367,34 @@ h2 {
 .status.disabled {
   color: var(--color-warning);
   background: var(--color-warning-soft);
+}
+
+.script-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  text-transform: uppercase;
+}
+
+.script-status.running {
+  color: var(--color-brand);
+  background: var(--color-brand-soft);
+}
+
+.script-status.completed {
+  color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.script-status.failed {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.script-status.idle {
+  color: var(--color-text-muted);
+  background: var(--color-background-mute);
 }
 
 .btn-primary {
