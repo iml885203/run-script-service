@@ -11,26 +11,26 @@
     </div>
 
     <div v-else-if="metrics" class="metrics-grid">
-      <div class="metric-card">
+      <div class="metric-card" data-testid="system-status-card">
         <h3>System Status</h3>
-        <div class="metric-value" :class="{ 'status-running': metrics.status === 'running' }">
+        <div class="metric-value" :class="{ 'status-running': metrics.status === 'running' }" data-testid="status-value">
           {{ metrics.status }}
         </div>
       </div>
 
-      <div class="metric-card">
+      <div class="metric-card" data-testid="uptime-card">
         <h3>Uptime</h3>
-        <div class="metric-value">{{ metrics.uptime }}</div>
+        <div class="metric-value" data-testid="uptime-value">{{ metrics.uptime }}</div>
       </div>
 
-      <div class="metric-card">
+      <div class="metric-card" data-testid="running-scripts-card">
         <h3>Running Scripts</h3>
-        <div class="metric-value">{{ metrics.runningScripts }}</div>
+        <div class="metric-value" data-testid="running-scripts-value">{{ metrics.runningScripts }}</div>
       </div>
 
-      <div class="metric-card">
+      <div class="metric-card" data-testid="total-scripts-card">
         <h3>Total Scripts</h3>
-        <div class="metric-value">{{ metrics.totalScripts }}</div>
+        <div class="metric-value" data-testid="total-scripts-value">{{ metrics.totalScripts }}</div>
       </div>
     </div>
 

@@ -3,10 +3,14 @@ package web
 
 import (
 	"context"
+	"embed"
 	"fmt"
+	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -14,6 +18,9 @@ import (
 
 	"run-script-service/service"
 )
+
+//go:embed frontend/dist/*
+var frontendFS embed.FS
 
 // WebServer represents the HTTP API server
 type WebServer struct {
@@ -99,11 +106,57 @@ func (ws *WebServer) StartSystemMetricsBroadcasting(ctx context.Context, interva
 
 // setupRoutes configures all API routes
 func (ws *WebServer) setupRoutes() {
-	// Static file routes
-	ws.router.Static("/static", "./web/frontend/dist")
-	ws.router.GET("/", func(c *gin.Context) {
-		c.File("./web/frontend/dist/index.html")
-	})
+	// Create a sub filesystem for the dist directory
+	distFS, err := fs.Sub(frontendFS, "frontend/dist")
+	if err != nil {
+		fmt.Printf("DEBUG: embed fs.Sub failed: %v, using fallback\n", err)
+		// Fallback to file system if embed fails (development mode)
+		ws.router.Static("/static", "./web/frontend/dist")
+		ws.router.GET("/", func(c *gin.Context) {
+			c.File("./web/frontend/dist/index.html")
+		})
+	} else {
+		fmt.Println("DEBUG: Using embedded filesystem")
+		// Use embedded filesystem for static files
+		ws.router.StaticFS("/static", http.FS(distFS))
+		
+		// Root route serves index.html from embedded FS
+		ws.router.GET("/", func(c *gin.Context) {
+			indexFile, err := distFS.Open("index.html")
+			if err != nil {
+				fmt.Printf("DEBUG: Failed to open embedded index.html: %v\n", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load frontend"})
+				return
+			}
+			defer indexFile.Close()
+			
+			c.Header("Content-Type", "text/html")
+			http.ServeContent(c.Writer, c.Request, "index.html", time.Now(), indexFile.(io.ReadSeeker))
+		})
+		
+		// Serve index.html for SPA routes (NoRoute handler)
+		ws.router.NoRoute(func(c *gin.Context) {
+			path := c.Request.URL.Path
+			
+			// If it's an API route, let it 404
+			if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/ws") {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
+				return
+			}
+			
+			// For all other routes, serve index.html (Vue.js SPA)
+			indexFile, err := distFS.Open("index.html")
+			if err != nil {
+				fmt.Printf("DEBUG: Failed to open embedded index.html in NoRoute: %v\n", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load frontend"})
+				return
+			}
+			defer indexFile.Close()
+			
+			c.Header("Content-Type", "text/html")
+			http.ServeContent(c.Writer, c.Request, "index.html", time.Now(), indexFile.(io.ReadSeeker))
+		})
+	}
 
 	// WebSocket endpoint
 	ws.router.GET("/ws", func(c *gin.Context) {
@@ -138,9 +191,36 @@ func (ws *WebServer) setupRoutes() {
 
 // handleStatus returns system status information
 func (ws *WebServer) handleStatus(c *gin.Context) {
+	uptime := "Unknown"
+	runningScripts := 0
+	totalScripts := 0
+	
+	// Get script counts if script manager is available
+	if ws.scriptManager != nil {
+		config := ws.scriptManager.GetConfig()
+		totalScripts = len(config.Scripts)
+		
+		// Count running/enabled scripts
+		for _, script := range config.Scripts {
+			if script.Enabled && ws.scriptManager.IsScriptRunning(script.Name) {
+				runningScripts++
+			}
+		}
+	}
+	
+	// Calculate uptime if system monitor is available
+	if ws.systemMonitor != nil {
+		uptimeStr := ws.systemMonitor.GetUptime()
+		if uptimeStr != "" {
+			uptime = uptimeStr
+		}
+	}
+	
 	statusData := map[string]interface{}{
-		"status": "running",
-		"port":   ws.port,
+		"status":         "running",
+		"uptime":         uptime,
+		"runningScripts": runningScripts,
+		"totalScripts":   totalScripts,
 	}
 
 	c.JSON(http.StatusOK, APIResponse{

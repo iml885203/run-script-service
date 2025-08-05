@@ -1,4 +1,4 @@
-import type { ScriptConfig, LogEntry, SystemMetrics, ServiceConfig } from '@/types/api'
+import type { ScriptConfig, LogEntry, SystemMetrics, ServiceConfig, ApiResponse } from '@/types/api'
 
 export class ApiService {
   private static readonly BASE_URL = '/api'
@@ -16,7 +16,13 @@ export class ApiService {
       throw new Error(`API request failed: ${response.status} ${response.statusText}`)
     }
 
-    return response.json()
+    const result = await response.json() as ApiResponse<T>
+    
+    if (!result.success) {
+      throw new Error(result.error || 'API request failed')
+    }
+
+    return result.data as T
   }
 
   static async getScripts(): Promise<ScriptConfig[]> {

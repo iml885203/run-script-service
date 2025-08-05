@@ -16,8 +16,11 @@ dependencies:
     version: 4.5.1(vue@3.5.18)
 
 devDependencies:
+  '@playwright/test':
+    specifier: ^1.54.2
+    version: 1.54.2
   '@types/node':
-    specifier: ^20.10.0
+    specifier: ^20.19.9
     version: 20.19.9
   '@vitejs/plugin-vue':
     specifier: ^4.5.0
@@ -517,6 +520,14 @@ packages:
     requiresBuild: true
     dev: true
     optional: true
+
+  /@playwright/test@1.54.2:
+    resolution: {integrity: sha512-A+znathYxPf+72riFd1r1ovOLqsIIB0jKIoPjyK2kqEIe30/6jF6BC7QNluHuwUmsD2tv1XZVugN8GqfTMOxsA==}
+    engines: {node: '>=18'}
+    hasBin: true
+    dependencies:
+      playwright: 1.54.2
+    dev: true
 
   /@rollup/rollup-android-arm-eabi@4.46.2:
     resolution: {integrity: sha512-Zj3Hl6sN34xJtMv7Anwb5Gu01yujyE/cLBDB2gnHTAHaWS1Z38L7kuSG+oAh0giZMqG060f/YBStXtMH6FvPMA==}

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"runtime"
 	"sync"
 	"syscall"
@@ -27,10 +28,13 @@ type SystemMonitor struct {
 	mu              sync.RWMutex
 	activeScripts   int
 	totalExecutions int
+	startTime       time.Time
 }
 
 func NewSystemMonitor() *SystemMonitor {
-	return &SystemMonitor{}
+	return &SystemMonitor{
+		startTime: time.Now(),
+	}
 }
 
 func (sm *SystemMonitor) SetActiveScripts(count int) {
@@ -100,6 +104,28 @@ func (sm *SystemMonitor) getCPUUsage() float64 {
 	// involve reading /proc/stat and calculating CPU usage over time
 	// For testing purposes, return a reasonable value
 	return 25.0
+}
+
+// GetUptime returns a human-readable uptime string
+func (sm *SystemMonitor) GetUptime() string {
+	sm.mu.RLock()
+	startTime := sm.startTime
+	sm.mu.RUnlock()
+	
+	uptime := time.Since(startTime)
+	
+	// Format uptime as human-readable string
+	days := int(uptime.Hours()) / 24
+	hours := int(uptime.Hours()) % 24
+	minutes := int(uptime.Minutes()) % 60
+	
+	if days > 0 {
+		return fmt.Sprintf("%dd %dh %dm", days, hours, minutes)
+	} else if hours > 0 {
+		return fmt.Sprintf("%dh %dm", hours, minutes)
+	} else {
+		return fmt.Sprintf("%dm", minutes)
+	}
 }
 
 // EventPublisher is a function type for publishing events

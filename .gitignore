@@ -8,6 +8,10 @@ run-script-service
 # Runtime configuration (contains user-specific settings)
 service_config.json
 
+# PID files (runtime process tracking)
+*.pid
+run-script-service.pid
+
 # Auto-generated systemd service file (user and path specific)
 run-script.service
 
