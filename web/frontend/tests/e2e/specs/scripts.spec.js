@@ -14,10 +14,8 @@ test.describe('Scripts Page', () => {
   });
 
   test('should display existing scripts with complete information', async ({ page }) => {
-    // Wait for scripts to load
-    await page.waitForResponse(response =>
-      response.url().includes('/api/scripts') && response.status() === 200
-    );
+    // Wait for scripts to load by waiting for script cards to appear
+    await expect(page.locator('[data-testid="script-card"]').first()).toBeVisible({ timeout: 10000 });
 
     // Should have script cards
     const scriptCards = page.locator('[data-testid="script-card"]');
@@ -94,9 +92,8 @@ test.describe('Scripts Page', () => {
   });
 
   test('should enable/disable scripts', async ({ page }) => {
-    await page.waitForResponse(response =>
-      response.url().includes('/api/scripts') && response.status() === 200
-    );
+    // Wait for scripts to load by waiting for script cards to appear  
+    await expect(page.locator('[data-testid="script-card"]').first()).toBeVisible({ timeout: 10000 });
 
     const scriptCards = page.locator('[data-testid="script-card"]');
     const scriptCount = await scriptCards.count();

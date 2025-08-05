@@ -12,25 +12,25 @@
 
     <div v-else>
       <div class="scripts-header">
-        <button @click="showAddForm = true" class="btn btn-primary">
+        <button @click="showAddForm = true" class="btn btn-primary" data-testid="add-script-button">
           Add New Script
         </button>
       </div>
 
       <div v-if="scripts.length === 0" class="no-scripts">
-        <p>No scripts configured yet.</p>
+        <p data-testid="no-scripts-message">No scripts configured yet.</p>
       </div>
 
       <div v-else class="scripts-list">
-        <div v-for="script in scripts" :key="script.name" class="script-card">
+        <div v-for="script in scripts" :key="script.name" class="script-card" data-testid="script-card">
           <div class="script-info">
-            <h3>{{ script.name }}</h3>
-            <p class="script-path">{{ script.path }}</p>
+            <h3 data-testid="script-name">{{ script.name }}</h3>
+            <p class="script-path" data-testid="script-path">{{ script.path }}</p>
             <div class="script-details">
-              <span class="detail">
+              <span class="detail" data-testid="script-interval">
                 <strong>Interval:</strong> {{ script.interval }}s
               </span>
-              <span class="detail">
+              <span class="detail" data-testid="script-status">
                 <strong>Status:</strong>
                 <span :class="{ 'enabled': script.enabled, 'disabled': !script.enabled }">
                   {{ script.enabled ? 'Enabled' : 'Disabled' }}
