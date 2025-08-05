@@ -83,7 +83,7 @@
 
 				<option value="file13">run-script-service/web/handlers_files.go (77.8%)</option>
 
-				<option value="file14">run-script-service/web/server.go (52.6%)</option>
+				<option value="file14">run-script-service/web/server.go (49.5%)</option>
 
 				<option value="file15">run-script-service/web/vue_build_manager.go (13.6%)</option>
 
@@ -3714,6 +3714,7 @@ import (
         "net/http"
         "os"
         "path/filepath"
+        "strconv"
         "strings"
         "time"
 
@@ -3742,6 +3743,14 @@ type APIResponse struct {
         Success bool        `json:"success"`
         Data    interface{} `json:"data,omitempty"`
         Error   string      `json:"error,omitempty"`
+}
+
+// LogEntry represents a structured log entry for the frontend
+type LogEntry struct {
+        Timestamp string `json:"timestamp"`
+        Message   string `json:"message"`
+        Level     string `json:"level"` // "info", "warning", "error"
+        Script    string `json:"script,omitempty"`
 }
 
 // NewWebServer creates a new web server instance
@@ -4276,61 +4285,32 @@ func (ws *WebServer) handleDisableScript(c *gin.Context) <span class="cov8" titl
         ws.handleScriptToggle(c, false)
 }</span>
 
-// handleGetLogs returns raw log content (simplified approach)
+// handleGetLogs returns structured log entries as expected by frontend
 func (ws *WebServer) handleGetLogs(c *gin.Context) <span class="cov8" title="1">{
         scriptName := c.Query("script")
+        limit := c.DefaultQuery("limit", "50")
 
-        // If no script specified, return empty content
-        if scriptName == "" </span><span class="cov8" title="1">{
+        // Parse limit
+        maxEntries := 50
+        if parsedLimit, err := strconv.Atoi(limit); err == nil &amp;&amp; parsedLimit &gt; 0 </span><span class="cov8" title="1">{
+                maxEntries = parsedLimit
+        }</span>
+
+        // If no script specified, return aggregated logs from all scripts
+        <span class="cov8" title="1">if scriptName == "" </span><span class="cov8" title="1">{
+                allLogs := ws.getAggregatedLogs(maxEntries)
                 c.JSON(http.StatusOK, APIResponse{
                         Success: true,
-                        Data: map[string]interface{}{
-                                "content": "",
-                                "script":  "",
-                        },
+                        Data:    allLogs,
                 })
                 return
         }</span>
 
-        // Get log file path
-        <span class="cov0" title="0">dir, err := os.Executable()
-        if err != nil </span><span class="cov0" title="0">{
-                dir, _ = os.Getwd()
-        }</span> else<span class="cov0" title="0"> {
-                dir = filepath.Dir(dir)
-        }</span>
-
-        <span class="cov0" title="0">logFile := filepath.Join(dir, fmt.Sprintf("%s.log", scriptName))
-
-        // Check if log file exists
-        if _, err := os.Stat(logFile); os.IsNotExist(err) </span><span class="cov0" title="0">{
-                c.JSON(http.StatusOK, APIResponse{
-                        Success: true,
-                        Data: map[string]interface{}{
-                                "content": "",
-                                "script":  scriptName,
-                                "message": "No log file found",
-                        },
-                })
-                return
-        }</span>
-
-        // Read raw log file content
-        <span class="cov0" title="0">content, err := os.ReadFile(logFile)
-        if err != nil </span><span class="cov0" title="0">{
-                c.JSON(http.StatusInternalServerError, APIResponse{
-                        Success: false,
-                        Error:   fmt.Sprintf("Failed to read log file: %v", err),
-                })
-                return
-        }</span>
-
-        <span class="cov0" title="0">c.JSON(http.StatusOK, APIResponse{
+        // Get logs for specific script
+        <span class="cov0" title="0">scriptLogs := ws.getScriptLogs(scriptName, maxEntries)
+        c.JSON(http.StatusOK, APIResponse{
                 Success: true,
-                Data: map[string]interface{}{
-                        "content": string(content),
-                        "script":  scriptName,
-                },
+                Data:    scriptLogs,
         })</span>
 }
 
@@ -4597,6 +4577,101 @@ func (ws *WebServer) Start() error <span class="cov0" title="0">{
         addr := fmt.Sprintf(":%d", ws.port)
         return ws.router.Run(addr)
 }</span>
+
+// getAggregatedLogs returns logs from all scripts in LogEntry format
+func (ws *WebServer) getAggregatedLogs(maxEntries int) []LogEntry <span class="cov8" title="1">{
+        // Initialize with non-nil slice to ensure JSON serializes as [] not null
+        allLogs := make([]LogEntry, 0)
+
+        if ws.scriptManager == nil </span><span class="cov8" title="1">{
+                return allLogs
+        }</span>
+
+        // Get all configured scripts
+        <span class="cov0" title="0">config := ws.scriptManager.GetConfig()
+        for _, script := range config.Scripts </span><span class="cov0" title="0">{
+                scriptLogs := ws.getScriptLogs(script.Name, maxEntries)
+                allLogs = append(allLogs, scriptLogs...)
+        }</span>
+
+        // If we have more logs than requested, truncate to most recent
+        <span class="cov0" title="0">if len(allLogs) &gt; maxEntries </span><span class="cov0" title="0">{
+                allLogs = allLogs[len(allLogs)-maxEntries:]
+        }</span>
+
+        <span class="cov0" title="0">return allLogs</span>
+}
+
+// getScriptLogs returns logs for a specific script in LogEntry format
+func (ws *WebServer) getScriptLogs(scriptName string, maxEntries int) []LogEntry <span class="cov0" title="0">{
+        // Initialize with non-nil slice to ensure JSON serializes as [] not null
+        logs := make([]LogEntry, 0)
+
+        // Get log file path
+        dir, err := os.Executable()
+        if err != nil </span><span class="cov0" title="0">{
+                dir, _ = os.Getwd()
+        }</span> else<span class="cov0" title="0"> {
+                dir = filepath.Dir(dir)
+        }</span>
+
+        <span class="cov0" title="0">logFile := filepath.Join(dir, fmt.Sprintf("%s.log", scriptName))
+
+        // Check if log file exists
+        if _, err := os.Stat(logFile); os.IsNotExist(err) </span><span class="cov0" title="0">{
+                return logs // Return empty array
+        }</span>
+
+        // Read log file content
+        <span class="cov0" title="0">content, err := os.ReadFile(logFile)
+        if err != nil </span><span class="cov0" title="0">{
+                return logs // Return empty array on error
+        }</span>
+
+        // Parse log content into LogEntry objects
+        <span class="cov0" title="0">lines := strings.Split(string(content), "\n")
+        for _, line := range lines </span><span class="cov0" title="0">{
+                line = strings.TrimSpace(line)
+                if line == "" </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+
+                // Simple log parsing - assume format: timestamp level message
+                // For now, create basic LogEntry objects from raw log lines
+                <span class="cov0" title="0">logEntry := LogEntry{
+                        Timestamp: time.Now().Format(time.RFC3339), // Default timestamp
+                        Message:   line,
+                        Level:     "info", // Default level
+                        Script:    scriptName,
+                }
+
+                // Try to extract timestamp and level from line if possible
+                if len(line) &gt; 19 &amp;&amp; line[10] == 'T' </span><span class="cov0" title="0">{ // ISO timestamp format
+                        if timestampEnd := strings.Index(line[20:], " "); timestampEnd &gt; 0 </span><span class="cov0" title="0">{
+                                logEntry.Timestamp = line[:20+timestampEnd]
+                                remaining := strings.TrimSpace(line[20+timestampEnd:])
+
+                                // Check for level indicators
+                                if strings.Contains(strings.ToLower(remaining), "error") </span><span class="cov0" title="0">{
+                                        logEntry.Level = "error"
+                                }</span> else<span class="cov0" title="0"> if strings.Contains(strings.ToLower(remaining), "warn") </span><span class="cov0" title="0">{
+                                        logEntry.Level = "warning"
+                                }</span>
+
+                                <span class="cov0" title="0">logEntry.Message = remaining</span>
+                        }
+                }
+
+                <span class="cov0" title="0">logs = append(logs, logEntry)</span>
+        }
+
+        // Limit to maxEntries (most recent)
+        <span class="cov0" title="0">if len(logs) &gt; maxEntries </span><span class="cov0" title="0">{
+                logs = logs[len(logs)-maxEntries:]
+        }</span>
+
+        <span class="cov0" title="0">return logs</span>
+}
 </pre>
 
 		<pre class="file" id="file15" style="display: none">package web

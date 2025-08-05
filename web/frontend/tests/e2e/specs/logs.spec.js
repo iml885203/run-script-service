@@ -123,7 +123,7 @@ test.describe('Logs Page', () => {
     // Should show total count
     const totalCount = logSummary.locator('[data-testid="total-logs"]');
     await expect(totalCount).toBeVisible();
-    
+
     // Get the text content and check it matches the expected format
     const totalCountText = await totalCount.textContent();
     expect(totalCountText).toMatch(/Total.*\d+/);
