@@ -1,12 +1,14 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"run-script-service/service"
 )
@@ -832,5 +834,35 @@ func TestWebServer_WebSocketRouteSetup(t *testing.T) {
 		t.Log("WebSocket route not implemented yet (expected for TDD)")
 	} else {
 		t.Logf("WebSocket route status: %d (might be implemented)", w.Code)
+	}
+}
+
+func TestWebServer_SystemMonitorIntegration(t *testing.T) {
+	server := NewWebServer(nil, 8080)
+
+	// Test that web server can be configured with system monitor
+	if server.systemMonitor != nil {
+		t.Error("SystemMonitor should be nil initially")
+	}
+
+	// Test setting system monitor
+	monitor := service.NewSystemMonitor()
+	server.SetSystemMonitor(monitor)
+
+	if server.systemMonitor == nil {
+		t.Error("SystemMonitor should not be nil after SetSystemMonitor")
+	}
+}
+
+func TestWebServer_StartSystemMetricsBroadcasting(t *testing.T) {
+	server := NewWebServer(nil, 8080)
+	monitor := service.NewSystemMonitor()
+	server.SetSystemMonitor(monitor)
+
+	// Test that we can start system metrics broadcasting
+	// This should not fail when system monitor is configured
+	err := server.StartSystemMetricsBroadcasting(context.Background(), time.Millisecond*10)
+	if err != nil {
+		t.Errorf("Expected no error starting system metrics broadcasting, got: %v", err)
 	}
 }

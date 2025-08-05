@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"run-script-service/service"
 	"run-script-service/web"
@@ -766,10 +767,14 @@ func runMultiScriptServiceWithWeb(configPath string) {
 	// Create script manager
 	scriptManager := service.NewScriptManagerWithPath(&config, configPath)
 
+	// Create system monitor
+	systemMonitor := service.NewSystemMonitor()
+
 	// Create web server (simplified, no LogManager dependency)
 	webServer := web.NewWebServer(nil, config.WebPort)
 	webServer.SetScriptManager(scriptManager)
 	webServer.SetFileManager(fileManager)
+	webServer.SetSystemMonitor(systemMonitor)
 
 	// Set up signal handling
 	sigChan := make(chan os.Signal, 1)
@@ -789,6 +794,14 @@ func runMultiScriptServiceWithWeb(configPath string) {
 	fmt.Println("Multi-script service with web interface started")
 	fmt.Printf("Running scripts: %v\n", scriptManager.GetRunningScripts())
 	fmt.Printf("Web interface available at http://localhost:%d\n", config.WebPort)
+
+	// Start system metrics broadcasting (every 30 seconds)
+	err = webServer.StartSystemMetricsBroadcasting(ctx, 30*time.Second)
+	if err != nil {
+		fmt.Printf("Failed to start system metrics broadcasting: %v\n", err)
+	} else {
+		fmt.Println("System metrics broadcasting started")
+	}
 
 	// Start web server in goroutine
 	go func() {

@@ -21,6 +21,7 @@ type WebServer struct {
 	scriptManager *service.ScriptManager
 	fileManager   *service.FileManager
 	wsHub         *WebSocketHub
+	systemMonitor *service.SystemMonitor
 	port          int
 }
 
@@ -68,6 +69,31 @@ func (ws *WebServer) SetScriptManager(sm *service.ScriptManager) {
 // GetWebSocketHub returns the WebSocket hub for broadcasting messages
 func (ws *WebServer) GetWebSocketHub() *WebSocketHub {
 	return ws.wsHub
+}
+
+// SetSystemMonitor sets the system monitor for the web server
+func (ws *WebServer) SetSystemMonitor(monitor *service.SystemMonitor) {
+	ws.systemMonitor = monitor
+}
+
+// StartSystemMetricsBroadcasting starts periodic system metrics broadcasting via WebSocket
+func (ws *WebServer) StartSystemMetricsBroadcasting(ctx context.Context, interval time.Duration) error {
+	if ws.systemMonitor == nil {
+		return fmt.Errorf("system monitor not configured")
+	}
+
+	// Create event publisher that broadcasts via WebSocket
+	publisher := func(msgType string, data map[string]interface{}) error {
+		if ws.wsHub != nil {
+			return ws.wsHub.BroadcastMessage(msgType, data)
+		}
+		return nil
+	}
+
+	// Start periodic broadcasting in a goroutine
+	go ws.systemMonitor.StartPeriodicBroadcasting(ctx, interval, publisher)
+
+	return nil
 }
 
 // setupRoutes configures all API routes

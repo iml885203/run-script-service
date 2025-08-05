@@ -31,10 +31,10 @@ Implement real-time system monitoring features providing live updates of script 
 - [x] **實作**: Add script start/stop/error event broadcasting
 
 ### Step 3: System Resource Monitoring (TDD)
-- [ ] **測試**: Create tests for system metrics collection
-- [ ] **實作**: Implement CPU, memory, disk usage monitoring
-- [ ] **測試**: Test metrics data structure and formatting
-- [ ] **實作**: Add periodic system metrics broadcasting
+- [x] **測試**: Create tests for system metrics collection
+- [x] **實作**: Implement CPU, memory, disk usage monitoring
+- [x] **測試**: Test metrics data structure and formatting
+- [x] **實作**: Add periodic system metrics broadcasting
 
 ### Step 4: Live Dashboard Updates (TDD)
 - [ ] **測試**: Create frontend WebSocket client tests
