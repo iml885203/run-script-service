@@ -69,11 +69,11 @@
           data-testid="log-entry"
         >
           <div class="log-header">
-            <span class="log-timestamp">{{ formatTimestamp(log.timestamp) }}</span>
-            <span :class="['log-level', `level-${log.level}`]">{{ log.level.toUpperCase() }}</span>
+            <span class="log-timestamp" data-testid="log-timestamp">{{ formatTimestamp(log.timestamp) }}</span>
+            <span :class="['log-level', `level-${log.level}`]" data-testid="log-level">{{ log.level.toUpperCase() }}</span>
             <span v-if="log.script" class="log-script">{{ log.script }}</span>
           </div>
-          <div class="log-message">{{ log.message }}</div>
+          <div class="log-message" data-testid="log-message">{{ log.message }}</div>
         </div>
       </div>
     </div>
