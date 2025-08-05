@@ -5,7 +5,7 @@
     <div class="logs-controls">
       <div class="filters">
         <label for="script-filter">Filter by script:</label>
-        <select id="script-filter" v-model="selectedScript" @change="setScriptFilter(selectedScript)">
+        <select id="script-filter" v-model="selectedScript" @change="setScriptFilter(selectedScript)" data-testid="script-filter">
           <option value="">All scripts</option>
           <option v-for="script in availableScripts" :key="script" :value="script">
             {{ script }}
@@ -13,7 +13,7 @@
         </select>
 
         <label for="limit">Limit:</label>
-        <select id="limit" v-model="currentLimit" @change="setLimit(currentLimit)">
+        <select id="limit" v-model="currentLimit" @change="setLimit(currentLimit)" data-testid="limit-filter">
           <option :value="25">25 entries</option>
           <option :value="50">50 entries</option>
           <option :value="100">100 entries</option>
@@ -22,10 +22,10 @@
       </div>
 
       <div class="actions">
-        <button @click="refreshLogs" :disabled="loading" class="btn btn-secondary">
+        <button @click="refreshLogs" :disabled="loading" class="btn btn-secondary" data-testid="refresh-button">
           Refresh
         </button>
-        <button @click="clearLogs()" :disabled="loading" class="btn btn-danger">
+        <button @click="clearLogs()" :disabled="loading" class="btn btn-danger" data-testid="clear-logs-button">
           Clear Logs
         </button>
       </div>
@@ -44,7 +44,7 @@
     </div>
 
     <div v-else class="logs-container">
-      <div class="logs-summary">
+      <div class="logs-summary" data-testid="logs-summary">
         <span class="summary-item">
           <strong>Total:</strong> {{ filteredLogs.length }}
         </span>
@@ -59,11 +59,12 @@
         </span>
       </div>
 
-      <div class="logs-list">
+      <div class="logs-list" data-testid="logs-list">
         <div
           v-for="(log, index) in filteredLogs"
           :key="index"
           :class="['log-entry', `log-${log.level}`]"
+          data-testid="log-entry"
         >
           <div class="log-header">
             <span class="log-timestamp">{{ formatTimestamp(log.timestamp) }}</span>

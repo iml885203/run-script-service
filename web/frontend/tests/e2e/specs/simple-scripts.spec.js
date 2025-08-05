@@ -20,7 +20,7 @@ test.describe('Scripts Page - Simple Tests', () => {
 
   test('should check if API call is being made', async ({ page }) => {
     let apiCallMade = false;
-    
+
     // Listen for API requests
     page.on('request', request => {
       if (request.url().includes('/api/scripts')) {
@@ -57,7 +57,7 @@ test.describe('Scripts Page - Simple Tests', () => {
 
   test('should check JavaScript console for errors', async ({ page }) => {
     const consoleMessages = [];
-    
+
     page.on('console', msg => {
       consoleMessages.push({
         type: msg.type(),

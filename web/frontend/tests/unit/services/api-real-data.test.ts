@@ -47,7 +47,7 @@ describe('ApiService - Real Backend Data', () => {
     expect(scripts).toHaveLength(2)
     expect(scripts[0]).toEqual({
       enabled: true,
-      interval: 300, 
+      interval: 300,
       max_log_lines: 100,
       name: "test1",
       path: "/home/logan/run-script-service-develop/test1.sh",
@@ -58,7 +58,7 @@ describe('ApiService - Real Backend Data', () => {
       enabled: true,
       interval: 600,
       max_log_lines: 100,
-      name: "test2", 
+      name: "test2",
       path: "/home/logan/run-script-service-develop/test2.sh",
       running: true,
       timeout: 30

@@ -42,7 +42,7 @@ describe('Scripts Integration Test', () => {
           name: "test2",
           path: "/home/logan/run-script-service-develop/test2.sh",
           running: true,
-          timeout: 30 
+          timeout: 30
         }
       ]
     }

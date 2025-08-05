@@ -92,7 +92,7 @@ test.describe('Scripts Page', () => {
   });
 
   test('should enable/disable scripts', async ({ page }) => {
-    // Wait for scripts to load by waiting for script cards to appear  
+    // Wait for scripts to load by waiting for script cards to appear
     await expect(page.locator('[data-testid="script-card"]').first()).toBeVisible({ timeout: 10000 });
 
     const scriptCards = page.locator('[data-testid="script-card"]');

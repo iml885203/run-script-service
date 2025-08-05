@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { createRouter, createWebHistory } from 'vue-router' 
+import { createRouter, createWebHistory } from 'vue-router'
 import Scripts from '@/views/Scripts.vue'
 import { ref } from 'vue'
 
@@ -34,7 +34,7 @@ describe('Scripts Component', () => {
           timeout: 0
         },
         {
-          name: 'test2', 
+          name: 'test2',
           path: '/home/logan/run-script-service-develop/test2.sh',
           interval: 600,
           enabled: true,

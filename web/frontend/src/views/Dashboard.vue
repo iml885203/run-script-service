@@ -66,7 +66,7 @@
       </div>
 
       <div v-else class="no-scripts">
-        No scripts configured. <router-link to="/scripts">Add scripts</router-link> to get started.
+        No scripts configured. <router-link to="/scripts" data-testid="add-scripts-link">Add scripts</router-link> to get started.
       </div>
     </div>
   </div>

@@ -775,6 +775,14 @@ func (ws *WebServer) handleGetRawLogs(c *gin.Context) {
 	})
 }
 
+// ConfigResponse represents the configuration format expected by the frontend
+type ConfigResponse struct {
+	WebPort      int    `json:"webPort"`
+	Interval     string `json:"interval"`
+	LogRetention int    `json:"logRetention"`
+	AutoRefresh  bool   `json:"autoRefresh"`
+}
+
 // handleGetConfig returns system configuration
 func (ws *WebServer) handleGetConfig(c *gin.Context) {
 	if ws.scriptManager == nil {
@@ -787,9 +795,17 @@ func (ws *WebServer) handleGetConfig(c *gin.Context) {
 
 	config := ws.scriptManager.GetConfig()
 
+	// Convert to frontend-expected format
+	response := ConfigResponse{
+		WebPort:      config.WebPort,
+		Interval:     "1h", // default interval as string
+		LogRetention: 100,  // default log retention
+		AutoRefresh:  true, // default auto-refresh setting
+	}
+
 	c.JSON(http.StatusOK, APIResponse{
 		Success: true,
-		Data:    config,
+		Data:    response,
 	})
 }
 
@@ -815,8 +831,26 @@ func (ws *WebServer) handleUpdateConfig(c *gin.Context) {
 	// Get current configuration
 	config := ws.scriptManager.GetConfig()
 
-	// Update web port if provided
-	if webPort, ok := updateData["web_port"]; ok {
+	// Update web port if provided (handle both camelCase and snake_case)
+	if webPort, ok := updateData["webPort"]; ok {
+		if port, isFloat := webPort.(float64); isFloat {
+			if port >= 1 && port <= 65535 {
+				config.WebPort = int(port)
+			} else {
+				c.JSON(http.StatusBadRequest, APIResponse{
+					Success: false,
+					Error:   "Web port must be between 1 and 65535",
+				})
+				return
+			}
+		} else {
+			c.JSON(http.StatusBadRequest, APIResponse{
+				Success: false,
+				Error:   "Web port must be a number",
+			})
+			return
+		}
+	} else if webPort, ok := updateData["web_port"]; ok {
 		if port, isFloat := webPort.(float64); isFloat {
 			if port >= 1 && port <= 65535 {
 				config.WebPort = int(port)

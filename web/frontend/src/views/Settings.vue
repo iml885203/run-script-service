@@ -21,6 +21,7 @@
               v-model.number="configForm.webPort"
               type="number"
               id="webPort"
+              data-testid="web-port-input"
               min="1024"
               max="65535"
               required
@@ -38,6 +39,7 @@
               v-model="configForm.interval"
               type="text"
               id="interval"
+              data-testid="interval-input"
               placeholder="1h"
               required
             />
@@ -54,6 +56,7 @@
               v-model.number="configForm.logRetention"
               type="number"
               id="logRetention"
+              data-testid="log-retention-input"
               min="10"
               max="10000"
               required
@@ -70,6 +73,7 @@
               <input
                 v-model="configForm.autoRefresh"
                 type="checkbox"
+                data-testid="auto-refresh-checkbox"
               />
               Enable auto-refresh
             </label>
@@ -78,10 +82,10 @@
         </div>
 
         <div class="form-actions">
-          <button type="button" @click="resetForm" class="btn btn-secondary">
+          <button type="button" @click="resetForm" class="btn btn-secondary" data-testid="reset-button">
             Reset
           </button>
-          <button type="submit" :disabled="loading || !hasChanges" class="btn btn-primary">
+          <button type="submit" :disabled="loading || !hasChanges" class="btn btn-primary" data-testid="save-button">
             Save Settings
           </button>
         </div>
@@ -93,15 +97,15 @@
       <div class="info-grid">
         <div class="info-item">
           <label>Version:</label>
-          <span>1.0.0</span>
+          <span data-testid="system-version">1.0.0</span>
         </div>
         <div class="info-item">
           <label>Platform:</label>
-          <span>{{ navigator.platform }}</span>
+          <span data-testid="system-platform">{{ navigator.platform }}</span>
         </div>
         <div class="info-item">
           <label>User Agent:</label>
-          <span class="small-text">{{ navigator.userAgent }}</span>
+          <span class="small-text" data-testid="system-user-agent">{{ navigator.userAgent }}</span>
         </div>
       </div>
     </div>
