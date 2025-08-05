@@ -43,3 +43,4 @@ run.sh
 web/frontend/node_modules/
 web/frontend/dist/
 web/frontend/test-results/
+web/frontend/playwright-report/
