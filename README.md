@@ -273,23 +273,24 @@ The `plans/` directory contains detailed implementation plans for upcoming featu
 
 | Plan | Feature | Status |
 |------|---------|--------|
-| [01-unit-testing.md](plans/01-unit-testing.md) | 單元測試基礎設施 | ✅ Completed |
-| [02-tdd-workflow.md](plans/02-tdd-workflow.md) | TDD 開發流程 | ✅ Completed |
-| [03-multi-script-support.md](plans/03-multi-script-support.md) | 多腳本支援 | ✅ Completed |
-| [04-multi-log-management.md](plans/04-multi-log-management.md) | 多日誌管理 | ✅ Completed |
-| [05-web-framework.md](plans/05-web-framework.md) | Web 框架設置 | ✅ Completed |
-| [06-web-ui-basic.md](plans/06-web-ui-basic.md) | 基礎 Web UI | ✅ Completed |
-| [07-web-editing.md](plans/07-web-editing.md) | Web 編輯功能 | ✅ Completed |
+| ~~01-unit-testing.md~~ | Unit Testing Infrastructure | ✅ Completed - Integrated into project |
+| ~~02-tdd-workflow.md~~ | TDD Development Workflow | ✅ Completed - See [docs/development.md](docs/development.md) |
+| ~~03-multi-script-support.md~~ | Multi-Script Support | ✅ Completed - Core functionality implemented |
+| ~~04-multi-log-management.md~~ | Multi-Log Management | ✅ Completed - Logging system implemented |
+| ~~05-web-framework.md~~ | Web Framework Setup | ✅ Completed - Web interface implemented |
+| ~~06-web-ui-basic.md~~ | Basic Web UI | ✅ Completed - Web UI available |
+| ~~07-web-editing.md~~ | Web Editing Features | ✅ Completed - Management interface implemented |
+| [09-vue-frontend-migration.md](plans/09-vue-frontend-migration.md) | Vue.js Frontend Migration | 📋 Planned - Future enhancement |
 
 ### Development Workflow
 
-Each plan contains:
-- **目標**: Clear feature objectives
-- **前置需求**: Dependencies on other plans
-- **實施步驟**: Step-by-step implementation guide
-- **驗收標準**: Acceptance criteria for completion
-- **相關檔案**: Files that will be created/modified
-- **測試案例**: Test scenarios to validate
+**Current Active Development Standards:**
+- **TDD Workflow**: All development must follow Test-Driven Development principles outlined in [docs/development.md](docs/development.md)
+- **Code Quality**: Automated linting, formatting, and testing via `make ci`
+- **Small Iterations**: Feature development in small, reviewable increments
+
+**Completed Plans Integration:**
+Most development plans (Plans 01-07) have been successfully implemented and their guidelines integrated into the main project structure and documentation. Future enhancements are tracked in remaining plan files.
 
 ### Getting Started with Development
 

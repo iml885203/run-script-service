@@ -33,6 +33,64 @@ go build -o run-script-service main.go
 chmod +x run.sh run-script-service
 ```
 
+### Development Commands (TDD Workflow)
+```bash
+# TDD Cycle - MUST follow Red-Green-Refactor cycle
+make tdd              # Start file watching mode, auto-run tests
+make test             # Run all tests
+make coverage         # Generate test coverage report
+
+# Code Quality Checks
+make format           # Format code (gofmt + goimports)
+make lint             # Run golangci-lint checks
+make ci               # Complete CI pipeline (format + lint + test + build)
+
+# Build & Clean
+make build            # Build Go binary
+make clean            # Clean artifacts
+```
+
+## Development Workflow
+
+### 🚨 Mandatory TDD Process
+
+**All code changes MUST follow Test-Driven Development (TDD) cycle**:
+
+1. **🔴 Red Phase**: Write failing test first
+   ```bash
+   # Write test, ensure it fails
+   make test  # New test should fail
+   git commit -m "test: add failing test for [feature]"
+   ```
+
+2. **🟢 Green Phase**: Write minimal implementation to pass tests
+   ```bash
+   # Implement minimal functionality
+   make test  # All tests should pass
+   git commit -m "feat: implement minimal [feature]"
+   ```
+
+3. **🔵 Refactor Phase**: Refactor and improve code
+   ```bash
+   # Improve code quality while keeping tests passing
+   make ci    # Complete checks
+   git commit -m "refactor: improve [feature] implementation"
+   ```
+
+### 📋 Development Checklist
+
+Every commit must satisfy:
+- [ ] Follow Red-Green-Refactor cycle
+- [ ] All tests pass (`make test`)
+- [ ] Code coverage >80%
+- [ ] Pass linting checks (`make lint`)
+- [ ] Small incremental changes (<100 lines)
+- [ ] Use Conventional Commits format
+
+### 📚 Related Documentation
+- **[docs/development.md](docs/development.md)** - Complete TDD workflow and development guide
+- **[Makefile](Makefile)** - Development command definitions
+
 ## Architecture
 
 This is a **Go-based service manager** that executes shell scripts at configurable intervals. The architecture consists of:

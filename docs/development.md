@@ -1,27 +1,87 @@
 # Development Guide
 
-This document outlines the development workflow and standards for the run-script-service project.
+This document outlines the **mandatory development workflow and standards** for the run-script-service project.
 
-## TDD Workflow
+## 🚨 Mandatory TDD Workflow
 
-This project follows Test-Driven Development (TDD) principles using the Red-Green-Refactor cycle:
+**All code changes MUST follow Test-Driven Development (TDD) principles using the Red-Green-Refactor cycle.**
 
-### 1. Red Phase
-Write a failing test that describes the desired functionality:
+### Prohibited Development Patterns
+- ❌ Writing implementation code before tests
+- ❌ Large feature commits (>500 lines of changes)
+- ❌ Skipping any TDD phase
+- ❌ Functional code without corresponding tests
+
+### Required Development Pattern
+- ✅ Red-Green-Refactor cycle
+- ✅ Small incremental changes (<100 lines per commit)
+- ✅ Test-first approach
+- ✅ Every commit includes corresponding tests
+
+## 🔄 TDD Cycle Process
+
+### Phase 1: 🔴 Red (Write Failing Test)
+
 ```bash
-make test  # Should fail
+# 1. Create feature branch
+git checkout -b feature/descriptive-name
+
+# 2. Write failing test
+# Add test case in *_test.go file
+
+# 3. Run tests to ensure failure
+make test
+# Expected: New test fails, existing tests pass
+
+# 4. Commit failing test
+git add .
+git commit -m "test: add failing test for [feature description]
+
+Red phase: Test should fail because functionality is not yet implemented
+- Add Test[FunctionName] test case
+- Define expected behavior and interface"
 ```
 
-### 2. Green Phase
-Write the minimal code to make the test pass:
+### Phase 2: 🟢 Green (Minimal Implementation)
+
 ```bash
-make test  # Should pass
+# 1. Write minimal code to make test pass
+# Only write just enough code to pass the test, no over-engineering
+
+# 2. Run tests to ensure they pass
+make test
+# Expected: All tests pass
+
+# 3. Commit minimal implementation
+git add .
+git commit -m "feat: implement minimal [feature description]
+
+Green phase: Minimal implementation to make tests pass
+- Implement [FunctionName] basic functionality
+- All tests passing"
 ```
 
-### 3. Refactor Phase
-Improve the code while keeping tests passing:
+### Phase 3: 🔵 Refactor (Improve Code Quality)
+
 ```bash
-make test  # Should still pass
+# 1. Improve code quality
+# Enhance design, performance, readability while keeping tests passing
+
+# 2. Continuously run tests
+make tdd  # Start file watching mode
+
+# 3. Run full CI checks
+make ci
+# Expected: Formatting, linting, tests all pass
+
+# 4. Commit refactoring improvements
+git add .
+git commit -m "refactor: improve [feature description] implementation
+
+Refactor phase: Optimize code quality
+- Improve [specific improvements]
+- Maintain all tests passing
+- Code coverage: X%"
 ```
 
 ## Development Commands
@@ -59,13 +119,155 @@ make build
 make clean
 ```
 
+## 📋 Commit Checklist
+
+Every commit MUST satisfy the following conditions:
+
+### 🔴 Red Phase Commit
+- [ ] Added new test cases
+- [ ] New tests fail as expected
+- [ ] Existing tests still pass
+- [ ] Commit message clearly explains test intent
+
+### 🟢 Green Phase Commit
+- [ ] Implemented minimal code to make tests pass
+- [ ] All tests pass (`make test`)
+- [ ] No over-engineering or extra features
+- [ ] Commit message describes implementation
+
+### 🔵 Refactor Phase Commit
+- [ ] Code quality improvements made
+- [ ] All tests still pass
+- [ ] Passes all CI checks (`make ci`)
+- [ ] Coverage has not decreased
+
+## 📊 Quality Standards
+
+### Test Coverage
+- 🎯 **Target**: >85% coverage
+- 🚨 **Minimum**: >80% coverage
+- 📈 **Trend**: Coverage must not decrease
+
+### Code Quality
+- ✅ Pass `golangci-lint` checks
+- ✅ Pass `go vet` checks
+- ✅ Conform to `gofmt` formatting
+- ✅ Correct import ordering (`goimports`)
+
+### Commit Quality
+- 📝 Use [Conventional Commits](https://www.conventionalcommits.org/) format
+- 🔍 Atomic commits (single feature change)
+- 📏 Small incremental changes (<100 lines)
+
+## 🚨 Violation Handling
+
+### Common Violations
+1. **Large feature commits**: PRs with >500 lines of changes
+2. **Missing tests**: Functional code without corresponding tests
+3. **Skipping Red phase**: Committing passing tests with implementation
+4. **Coverage decrease**: New code causing overall coverage to drop
+
+### Enforcement Actions
+- 🔙 **Require rework**: Violating PRs must be redone using TDD process
+- 📚 **Education**: Provide TDD training and guidance
+- 🔒 **Mandatory checks**: CI enforces TDD compliance
+
+## 📖 TDD Example
+
+### Example: Adding Script Path Validation
+
+#### 🔴 Red Phase
+```go
+// config_test.go
+func TestServiceConfig_ValidateScriptPath(t *testing.T) {
+    config := &ServiceConfig{
+        Scripts: []ScriptConfig{
+            {Name: "test", Path: "../invalid/path.sh"},
+        },
+    }
+
+    err := config.Validate()
+    if err == nil {
+        t.Error("Expected validation error for invalid script path")
+    }
+
+    if !strings.Contains(err.Error(), "invalid script path") {
+        t.Errorf("Expected 'invalid script path' error, got: %v", err)
+    }
+}
+```
+
+```bash
+make test  # Fails: functionality not implemented
+git commit -m "test: add script path validation test
+
+Red phase: Test should fail because ValidateScriptPath not implemented
+- Add TestServiceConfig_ValidateScriptPath test
+- Check invalid paths should return error"
+```
+
+#### 🟢 Green Phase
+```go
+// config.go
+func (c *ServiceConfig) Validate() error {
+    for _, script := range c.Scripts {
+        if strings.Contains(script.Path, "..") {
+            return fmt.Errorf("invalid script path: %s", script.Path)
+        }
+    }
+    return nil
+}
+```
+
+```bash
+make test  # Passes: minimal implementation
+git commit -m "feat: implement basic script path validation
+
+Green phase: Minimal implementation checking for '..'
+- Implement ServiceConfig.Validate() method
+- Check script paths don't contain '..'
+- All tests passing"
+```
+
+#### 🔵 Refactor Phase
+```go
+// config.go - improved implementation
+func (c *ServiceConfig) Validate() error {
+    for _, script := range c.Scripts {
+        if err := validateScriptPath(script.Path); err != nil {
+            return fmt.Errorf("script %s: %w", script.Name, err)
+        }
+    }
+    return nil
+}
+
+func validateScriptPath(path string) error {
+    // More comprehensive path validation logic
+    if !filepath.IsAbs(path) && strings.Contains(path, "..") {
+        return fmt.Errorf("invalid script path: %s", path)
+    }
+    return nil
+}
+```
+
+```bash
+make ci    # Passes: code quality checks
+git commit -m "refactor: improve script path validation
+
+Refactor phase: Extract validateScriptPath function
+- Add more comprehensive path validation logic
+- Improve error messages with script names
+- Maintain all tests passing
+- Code coverage: 87%"
+```
+
 ## Code Standards
 
 ### Testing
 - All public functions must have tests
 - Use table-driven tests for multiple scenarios
 - Use mock interfaces for external dependencies
-- Aim for >80% code coverage
+- Aim for >85% code coverage
 
 ### Code Style
 - Follow Go conventions (gofmt, goimports)
@@ -83,14 +285,8 @@ feat: add interval validation
 fix: handle graceful shutdown
 test: add service integration tests
 docs: update development guide
+refactor: extract validation logic
 ```
-
-### Pre-commit Checklist
-- [ ] All tests pass (`make test`)
-- [ ] Code is formatted (`make format`)
-- [ ] No linter warnings (`make lint`)
-- [ ] Coverage is maintained
-- [ ] Documentation is updated
 
 ## Project Structure
 
