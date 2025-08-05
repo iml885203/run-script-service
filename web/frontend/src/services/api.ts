@@ -17,7 +17,7 @@ export class ApiService {
     }
 
     const result = await response.json() as ApiResponse<T>
-    
+
     if (!result.success) {
       throw new Error(result.error || 'API request failed')
     }

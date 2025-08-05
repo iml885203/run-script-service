@@ -23,12 +23,12 @@ This plan uses Test-Driven Development (TDD) methodology to systematically fix f
 #### **Scripts Page Data Display** (Priority: High)
 **Current Issues Identified:**
 - Script cards showing incomplete information (empty names/paths)
-- Only showing "Interval: s" and "Status: Disabled" 
+- Only showing "Interval: s" and "Status: Disabled"
 - Missing script details from API responses
 
 **TDD Test Cases:**
 - [ ] Should display script names correctly
-- [ ] Should display script paths correctly  
+- [ ] Should display script paths correctly
 - [ ] Should show proper interval formatting (not just "s")
 - [ ] Should display actual enable/disable status
 - [ ] Should have functional action buttons
@@ -62,7 +62,7 @@ This plan uses Test-Driven Development (TDD) methodology to systematically fix f
 
 #### **Settings Page JavaScript Errors** (Priority: Medium)
 **Current Issues Identified:**
-- `TypeError: v.value.forEach is not a function` JavaScript errors  
+- `TypeError: v.value.forEach is not a function` JavaScript errors
 - Configuration data may not be loading properly
 - Form validation and state management issues
 
@@ -89,7 +89,7 @@ This plan uses Test-Driven Development (TDD) methodology to systematically fix f
 
 #### Test Categories
 - **Unit Tests**: Composables and services (Vitest)
-- **Integration Tests**: API communication (Vitest)  
+- **Integration Tests**: API communication (Vitest)
 - **E2E Tests**: Full user workflows (Playwright)
 
 #### Success Criteria
@@ -118,7 +118,7 @@ All backend APIs follow this structure:
 
 #### Key Files Modified
 - `web/frontend/src/services/api.ts` - API response parsing
-- `web/server.go` - Backend status endpoint enhancement  
+- `web/server.go` - Backend status endpoint enhancement
 - `service/monitor.go` - System monitor uptime tracking
 - `web/frontend/src/views/Dashboard.vue` - Data-testid attributes
 

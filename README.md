@@ -12,7 +12,7 @@ graph TB
         GIT[Git Repository]
         CI[GitHub Actions CI]
     end
-    
+
     subgraph "Frontend Layer (Vue.js)"
         VUE[Vue.js 3 + TypeScript]
         ROUTER[Vue Router]
@@ -20,7 +20,7 @@ graph TB
         TESTS[Vitest Tests]
         BUILD[Vite Build]
     end
-    
+
     subgraph "Backend Layer (Go)"
         DAEMON[Service Daemon]
         API[REST API Server]
@@ -28,26 +28,26 @@ graph TB
         SCRIPTMGR[Script Manager]
         LOGGER[Log Manager]
     end
-    
+
     subgraph "Data Layer"
         CONFIGJSON[service_config.json]
         LOGS[Log Files]
         PID[PID Files]
     end
-    
+
     subgraph "External Scripts"
         SCRIPT1[Script 1]
         SCRIPT2[Script 2]
         SCRIPTN[Script N]
     end
-    
+
     subgraph "Web Interface"
         DASH[Dashboard View]
         SCRIPTUI[Script Management]
         LOGUI[Log Viewer]
         SETTINGS[Settings Panel]
     end
-    
+
     %% Development Flow
     DEV --> PNPM
     PNPM --> VUE
@@ -55,7 +55,7 @@ graph TB
     GIT --> CI
     CI --> TESTS
     CI --> BUILD
-    
+
     %% Frontend Architecture
     VUE --> ROUTER
     VUE --> COMP
@@ -63,17 +63,17 @@ graph TB
     COMP --> SCRIPTUI
     COMP --> LOGUI
     COMP --> SETTINGS
-    
+
     %% Frontend to Backend
     VUE --> API
     API --> DAEMON
-    
+
     %% Backend Architecture
     DAEMON --> CONFIG
     DAEMON --> SCRIPTMGR
     DAEMON --> LOGGER
     DAEMON --> API
-    
+
     %% Data Management
     CONFIG --> CONFIGJSON
     LOGGER --> LOGS
@@ -81,18 +81,18 @@ graph TB
     SCRIPTMGR --> SCRIPT1
     SCRIPTMGR --> SCRIPT2
     SCRIPTMGR --> SCRIPTN
-    
+
     %% Script Execution
     SCRIPT1 --> LOGS
     SCRIPT2 --> LOGS
     SCRIPTN --> LOGS
-    
+
     %% User Interaction
     DEV --> DASH
     DEV --> SCRIPTUI
     DEV --> LOGUI
     DEV --> SETTINGS
-    
+
     style VUE fill:#4fc08d
     style DAEMON fill:#00add8
     style PNPM fill:#f69220

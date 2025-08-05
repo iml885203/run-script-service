@@ -9,7 +9,7 @@ test.describe('Settings Page', () => {
 
   test('should not have JavaScript errors', async ({ page }) => {
     const errors = [];
-    
+
     page.on('console', msg => {
       if (msg.type() === 'error') {
         errors.push(msg.text());
@@ -24,7 +24,7 @@ test.describe('Settings Page', () => {
     await page.waitForTimeout(3000);
 
     // Should not have forEach errors or other JS errors
-    const forEachErrors = errors.filter(error => 
+    const forEachErrors = errors.filter(error =>
       error.includes('forEach is not a function')
     );
     expect(forEachErrors.length).toBe(0);
@@ -50,13 +50,13 @@ test.describe('Settings Page', () => {
 
     await page.reload();
     await page.waitForTimeout(2000);
-    
+
     expect(configApiCalled).toBe(true);
   });
 
   test('should display all form fields with values', async ({ page }) => {
     // Wait for configuration to load
-    await page.waitForResponse(response => 
+    await page.waitForResponse(response =>
       response.url().includes('/api/config') && response.status() === 200,
       { timeout: 10000 }
     );
@@ -67,7 +67,7 @@ test.describe('Settings Page', () => {
     await expect(webPortField).not.toHaveValue(''); // Should have actual value
     await expect(webPortField).toHaveValue(/^\d+$/); // Should be numeric
 
-    // Default Execution Interval field  
+    // Default Execution Interval field
     const intervalField = page.locator('input[data-testid="interval-input"]');
     await expect(intervalField).toBeVisible();
     await expect(intervalField).not.toHaveValue(''); // Should have actual value
@@ -87,16 +87,16 @@ test.describe('Settings Page', () => {
   test('should enable save button when changes are made', async ({ page }) => {
     // Wait for form to load
     await page.waitForTimeout(2000);
-    
+
     const saveButton = page.locator('button:has-text("Save Settings")');
-    
+
     // Initially save button should be disabled (no changes)
     await expect(saveButton).toBeDisabled();
-    
+
     // Make a change to a field
     const webPortField = page.locator('input[data-testid="web-port-input"]');
     await webPortField.fill('8081');
-    
+
     // Save button should now be enabled
     await expect(saveButton).toBeEnabled();
   });
@@ -104,19 +104,19 @@ test.describe('Settings Page', () => {
   test('should reset form when reset button is clicked', async ({ page }) => {
     // Wait for form to load
     await page.waitForTimeout(2000);
-    
+
     // Get original value
     const webPortField = page.locator('input[data-testid="web-port-input"]');
     const originalValue = await webPortField.inputValue();
-    
+
     // Make a change
     await webPortField.fill('9999');
     await expect(webPortField).toHaveValue('9999');
-    
+
     // Click reset
     const resetButton = page.locator('button:has-text("Reset")');
     await resetButton.click();
-    
+
     // Should revert to original value
     await expect(webPortField).toHaveValue(originalValue);
   });
@@ -142,29 +142,29 @@ test.describe('Settings Page', () => {
   test('should save configuration successfully', async ({ page }) => {
     // Wait for form to load
     await page.waitForTimeout(2000);
-    
+
     let saveApiCalled = false;
-    
+
     page.on('response', response => {
       if (response.url().includes('/api/config') && response.request().method() === 'PUT') {
         saveApiCalled = true;
         expect(response.status()).toBe(200);
       }
     });
-    
+
     // Make a change
     const intervalField = page.locator('input[data-testid="interval-input"]');
     await intervalField.fill('2h');
-    
+
     // Save
     const saveButton = page.locator('button:has-text("Save Settings")');
     await expect(saveButton).toBeEnabled();
     await saveButton.click();
-    
+
     // Should make API call
     await page.waitForTimeout(2000);
     expect(saveApiCalled).toBe(true);
-    
+
     // Save button should be disabled again (no pending changes)
     await expect(saveButton).toBeDisabled();
   });
@@ -172,15 +172,15 @@ test.describe('Settings Page', () => {
   test('should handle form validation', async ({ page }) => {
     // Wait for form to load
     await page.waitForTimeout(2000);
-    
+
     // Test port validation - should not accept invalid ports
     const webPortField = page.locator('input[data-testid="web-port-input"]');
-    
+
     // Try invalid port number
     await webPortField.fill('99999'); // Invalid port
-    
+
     const saveButton = page.locator('button:has-text("Save Settings")');
-    
+
     // Should either prevent save or show validation error
     // This depends on the actual validation implementation
     if (await saveButton.isEnabled()) {

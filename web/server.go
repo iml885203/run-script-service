@@ -119,7 +119,7 @@ func (ws *WebServer) setupRoutes() {
 		fmt.Println("DEBUG: Using embedded filesystem")
 		// Use embedded filesystem for static files
 		ws.router.StaticFS("/static", http.FS(distFS))
-		
+
 		// Root route serves index.html from embedded FS
 		ws.router.GET("/", func(c *gin.Context) {
 			indexFile, err := distFS.Open("index.html")
@@ -129,21 +129,21 @@ func (ws *WebServer) setupRoutes() {
 				return
 			}
 			defer indexFile.Close()
-			
+
 			c.Header("Content-Type", "text/html")
 			http.ServeContent(c.Writer, c.Request, "index.html", time.Now(), indexFile.(io.ReadSeeker))
 		})
-		
+
 		// Serve index.html for SPA routes (NoRoute handler)
 		ws.router.NoRoute(func(c *gin.Context) {
 			path := c.Request.URL.Path
-			
+
 			// If it's an API route, let it 404
 			if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/ws") {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
 				return
 			}
-			
+
 			// For all other routes, serve index.html (Vue.js SPA)
 			indexFile, err := distFS.Open("index.html")
 			if err != nil {
@@ -152,7 +152,7 @@ func (ws *WebServer) setupRoutes() {
 				return
 			}
 			defer indexFile.Close()
-			
+
 			c.Header("Content-Type", "text/html")
 			http.ServeContent(c.Writer, c.Request, "index.html", time.Now(), indexFile.(io.ReadSeeker))
 		})
@@ -194,12 +194,12 @@ func (ws *WebServer) handleStatus(c *gin.Context) {
 	uptime := "Unknown"
 	runningScripts := 0
 	totalScripts := 0
-	
+
 	// Get script counts if script manager is available
 	if ws.scriptManager != nil {
 		config := ws.scriptManager.GetConfig()
 		totalScripts = len(config.Scripts)
-		
+
 		// Count running/enabled scripts
 		for _, script := range config.Scripts {
 			if script.Enabled && ws.scriptManager.IsScriptRunning(script.Name) {
@@ -207,7 +207,7 @@ func (ws *WebServer) handleStatus(c *gin.Context) {
 			}
 		}
 	}
-	
+
 	// Calculate uptime if system monitor is available
 	if ws.systemMonitor != nil {
 		uptimeStr := ws.systemMonitor.GetUptime()
@@ -215,7 +215,7 @@ func (ws *WebServer) handleStatus(c *gin.Context) {
 			uptime = uptimeStr
 		}
 	}
-	
+
 	statusData := map[string]interface{}{
 		"status":         "running",
 		"uptime":         uptime,
