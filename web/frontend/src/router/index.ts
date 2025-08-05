@@ -46,7 +46,7 @@ const router = createRouter({
 })
 
 // Update document title on route change
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   if (to.meta?.title) {
     document.title = `${to.meta.title} - Run Script Service`
   }

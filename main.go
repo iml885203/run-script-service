@@ -1037,7 +1037,7 @@ func ensureFrontendBuilt(workDir string) error {
 	return nil
 }
 
-// buildFrontend builds the frontend using npm/vite
+// buildFrontend builds the frontend using pnpm/vite
 func buildFrontend(frontendDir string) error {
 	fmt.Printf("Building frontend in %s...\n", frontendDir)
 
@@ -1045,15 +1045,15 @@ func buildFrontend(frontendDir string) error {
 	nodeModulesDir := filepath.Join(frontendDir, "node_modules")
 	if _, err := os.Stat(nodeModulesDir); os.IsNotExist(err) {
 		fmt.Println("Installing frontend dependencies...")
-		if err := runCommand("npm", []string{"install"}, frontendDir); err != nil {
-			return fmt.Errorf("npm install failed: %v", err)
+		if err := runCommand("pnpm", []string{"install"}, frontendDir); err != nil {
+			return fmt.Errorf("pnpm install failed: %v", err)
 		}
 	}
 
 	// Run the build command
 	fmt.Println("Running frontend build...")
-	if err := runCommand("npm", []string{"run", "build"}, frontendDir); err != nil {
-		return fmt.Errorf("npm run build failed: %v", err)
+	if err := runCommand("pnpm", []string{"build"}, frontendDir); err != nil {
+		return fmt.Errorf("pnpm build failed: %v", err)
 	}
 
 	fmt.Println("Frontend build completed successfully")

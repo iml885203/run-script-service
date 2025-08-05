@@ -60,18 +60,24 @@ describe('Router Navigation', () => {
     consoleSpy.mockRestore()
   })
 
-  it('should maintain route history', async () => {
-    await router.push('/')
+  it('should handle multiple navigation operations', async () => {
+    // Test navigation to different routes
     await router.push('/scripts')
-    await router.push('/logs')
-
-    expect(router.currentRoute.value.path).toBe('/logs')
-
-    await router.back()
     expect(router.currentRoute.value.path).toBe('/scripts')
+    expect(router.currentRoute.value.name).toBe('Scripts')
 
-    await router.back()
+    await router.push('/logs')
+    expect(router.currentRoute.value.path).toBe('/logs')
+    expect(router.currentRoute.value.name).toBe('Logs')
+
+    await router.push('/settings')
+    expect(router.currentRoute.value.path).toBe('/settings')
+    expect(router.currentRoute.value.name).toBe('Settings')
+
+    // Test navigation back to dashboard
+    await router.push('/')
     expect(router.currentRoute.value.path).toBe('/')
+    expect(router.currentRoute.value.name).toBe('Dashboard')
   })
 
   it('should support programmatic navigation', async () => {

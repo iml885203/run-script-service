@@ -44,15 +44,15 @@ build-frontend:
 	@echo "Building Vue.js + TypeScript frontend..."
 	@if [ ! -d "web/frontend/node_modules" ]; then \
 		echo "Installing frontend dependencies..."; \
-		cd web/frontend && npm install; \
+		cd web/frontend && pnpm install; \
 	fi
 	@echo "Running frontend build..."
-	cd web/frontend && npx vite build
+	cd web/frontend && pnpm build
 	@echo "Frontend build completed successfully"
 
 test-frontend:
 	@echo "Running frontend tests..."
-	cd web/frontend && npm test -- --run
+	cd web/frontend && pnpm test -- --run
 	@echo "Frontend tests completed"
 
 embed-frontend: build-frontend

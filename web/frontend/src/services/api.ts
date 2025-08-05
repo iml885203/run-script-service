@@ -1,4 +1,4 @@
-import type { ScriptConfig, LogEntry, SystemMetrics, ServiceConfig, ApiResponse } from '@/types/api'
+import type { ScriptConfig, LogEntry, SystemMetrics, ServiceConfig } from '@/types/api'
 
 export class ApiService {
   private static readonly BASE_URL = '/api'

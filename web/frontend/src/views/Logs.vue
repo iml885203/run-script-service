@@ -87,7 +87,6 @@ const {
   loading,
   error,
   selectedScript,
-  limit,
   filteredLogs,
   errorLogs,
   warningLogs,
@@ -99,7 +98,7 @@ const {
   refreshLogs
 } = useLogs()
 
-const { scripts, fetchScripts } = useScripts()
+const { fetchScripts } = useScripts()
 
 const currentLimit = ref(50)
 

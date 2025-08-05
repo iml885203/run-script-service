@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import { ApiService } from '@/services/api'
 
 // Mock fetch for integration tests
@@ -8,6 +8,12 @@ global.fetch = mockFetch
 describe('API Integration Tests', () => {
   beforeAll(() => {
     // Setup test environment
+  })
+
+  beforeEach(() => {
+    // Clear all mocks before each test to ensure isolation
+    vi.clearAllMocks()
+    mockFetch.mockClear()
   })
 
   afterAll(() => {
@@ -28,7 +34,11 @@ describe('API Integration Tests', () => {
 
       const scripts = await ApiService.getScripts()
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/scripts')
+      expect(mockFetch).toHaveBeenCalledWith('/api/scripts', {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
       expect(scripts).toEqual(mockScripts)
     })
 
@@ -63,7 +73,10 @@ describe('API Integration Tests', () => {
       await ApiService.runScript('test-script')
 
       expect(mockFetch).toHaveBeenCalledWith('/api/scripts/test-script/run', {
-        method: 'POST'
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       })
     })
 
@@ -74,7 +87,7 @@ describe('API Integration Tests', () => {
         statusText: 'Internal Server Error'
       })
 
-      await expect(ApiService.getScripts()).rejects.toThrow('HTTP error! status: 500')
+      await expect(ApiService.getScripts()).rejects.toThrow('API request failed: 500 Internal Server Error')
     })
   })
 
@@ -102,7 +115,11 @@ describe('API Integration Tests', () => {
 
       const logs = await ApiService.getLogs()
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/logs?limit=50')
+      expect(mockFetch).toHaveBeenCalledWith('/api/logs?limit=50', {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
       expect(logs).toEqual(mockLogs)
     })
 
@@ -123,7 +140,11 @@ describe('API Integration Tests', () => {
 
       const logs = await ApiService.getLogs('test1', 100)
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/logs?script=test1&limit=100')
+      expect(mockFetch).toHaveBeenCalledWith('/api/logs?script=test1&limit=100', {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
       expect(logs).toEqual(mockLogs)
     })
 
@@ -136,7 +157,10 @@ describe('API Integration Tests', () => {
       await ApiService.clearLogs('test1')
 
       expect(mockFetch).toHaveBeenCalledWith('/api/logs/test1', {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       })
     })
   })
@@ -157,7 +181,11 @@ describe('API Integration Tests', () => {
 
       const status = await ApiService.getStatus()
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/status')
+      expect(mockFetch).toHaveBeenCalledWith('/api/status', {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
       expect(status).toEqual(mockStatus)
     })
   })
@@ -177,7 +205,11 @@ describe('API Integration Tests', () => {
 
       const config = await ApiService.getConfig()
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/config')
+      expect(mockFetch).toHaveBeenCalledWith('/api/config', {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
       expect(config).toEqual(mockConfig)
     })
 
@@ -196,7 +228,7 @@ describe('API Integration Tests', () => {
       await ApiService.updateConfig(newConfig)
 
       expect(mockFetch).toHaveBeenCalledWith('/api/config', {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newConfig)
       })
@@ -228,7 +260,7 @@ describe('API Integration Tests', () => {
         statusText: 'Not Found'
       })
 
-      await expect(ApiService.getScripts()).rejects.toThrow('HTTP error! status: 404')
+      await expect(ApiService.getScripts()).rejects.toThrow('API request failed: 404 Not Found')
     })
   })
 
@@ -248,7 +280,11 @@ describe('API Integration Tests', () => {
       const scripts = await ApiService.getScripts()
 
       expect(scripts).toEqual(mockScripts)
-      expect(mockFetch).toHaveBeenCalledWith('/api/scripts')
+      expect(mockFetch).toHaveBeenCalledWith('/api/scripts', {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
     })
   })
 })

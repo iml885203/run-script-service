@@ -128,6 +128,9 @@ const hasChanges = computed(() => {
   return JSON.stringify(configForm.value) !== JSON.stringify(originalConfig.value)
 })
 
+// Access navigator globally
+const navigator = window.navigator
+
 const fetchConfig = async () => {
   loading.value = true
   error.value = null
