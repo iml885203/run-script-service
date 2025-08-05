@@ -1,4 +1,4 @@
-.PHONY: test build clean coverage lint format tdd ci
+.PHONY: test build clean coverage lint format tdd ci build-frontend embed-frontend build-all test-frontend
 
 # 測試相關
 test:
@@ -39,5 +39,30 @@ format:
 tdd: test-watch
 
 
+# 前端建構相關 (Plan 09)
+build-frontend:
+	@echo "Building Vue.js + TypeScript frontend..."
+	@if [ ! -d "web/frontend/node_modules" ]; then \
+		echo "Installing frontend dependencies..."; \
+		cd web/frontend && npm install; \
+	fi
+	@echo "Running frontend build..."
+	cd web/frontend && npx vite build
+	@echo "Frontend build completed successfully"
+
+test-frontend:
+	@echo "Running frontend tests..."
+	cd web/frontend && npm test -- --run
+	@echo "Frontend tests completed"
+
+embed-frontend: build-frontend
+	@echo "Frontend assets embedded via Go embed.FS"
+	@echo "Re-run 'make build' to include updated frontend assets"
+
+build-all: build-frontend build
+	@echo "Complete build process finished"
+	@echo "Backend binary: ./run-script-service"
+	@echo "Frontend assets: embedded in binary"
+
 # CI 管道
-ci: format lint test build
+ci: format lint test test-frontend build-all

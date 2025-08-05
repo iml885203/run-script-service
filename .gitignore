@@ -34,3 +34,7 @@ Thumbs.db
 run-*.sh
 run.sh
 !run.sh.example
+
+# Frontend build output
+web/frontend/node_modules/
+web/frontend/dist/

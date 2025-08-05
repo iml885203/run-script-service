@@ -100,9 +100,9 @@ func (ws *WebServer) StartSystemMetricsBroadcasting(ctx context.Context, interva
 // setupRoutes configures all API routes
 func (ws *WebServer) setupRoutes() {
 	// Static file routes
-	ws.router.Static("/static", "./web/static")
+	ws.router.Static("/static", "./web/frontend/dist")
 	ws.router.GET("/", func(c *gin.Context) {
-		c.File("./web/static/index.html")
+		c.File("./web/frontend/dist/index.html")
 	})
 
 	// WebSocket endpoint
