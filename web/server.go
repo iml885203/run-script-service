@@ -434,8 +434,8 @@ func (ws *WebServer) handleDeleteScript(c *gin.Context) {
 	})
 }
 
-// handleEnableScript enables a script
-func (ws *WebServer) handleEnableScript(c *gin.Context) {
+// handleScriptToggle handles both enable and disable script operations
+func (ws *WebServer) handleScriptToggle(c *gin.Context, enable bool) {
 	if ws.scriptManager == nil {
 		c.JSON(http.StatusInternalServerError, APIResponse{
 			Success: false,
@@ -453,8 +453,17 @@ func (ws *WebServer) handleEnableScript(c *gin.Context) {
 		return
 	}
 
-	// Enable the script
-	if err := ws.scriptManager.EnableScript(scriptName); err != nil {
+	var err error
+	var action string
+	if enable {
+		err = ws.scriptManager.EnableScript(scriptName)
+		action = "enabled"
+	} else {
+		err = ws.scriptManager.DisableScript(scriptName)
+		action = "disabled"
+	}
+
+	if err != nil {
 		c.JSON(http.StatusNotFound, APIResponse{
 			Success: false,
 			Error:   err.Error(),
@@ -465,49 +474,21 @@ func (ws *WebServer) handleEnableScript(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse{
 		Success: true,
 		Data: map[string]interface{}{
-			"message": fmt.Sprintf("Script %s enabled successfully", scriptName),
+			"message": fmt.Sprintf("Script %s %s successfully", scriptName, action),
 			"script":  scriptName,
-			"enabled": true,
+			"enabled": enable,
 		},
 	})
 }
 
+// handleEnableScript enables a script
+func (ws *WebServer) handleEnableScript(c *gin.Context) {
+	ws.handleScriptToggle(c, true)
+}
+
 // handleDisableScript disables a script
 func (ws *WebServer) handleDisableScript(c *gin.Context) {
-	if ws.scriptManager == nil {
-		c.JSON(http.StatusInternalServerError, APIResponse{
-			Success: false,
-			Error:   "Script manager not initialized",
-		})
-		return
-	}
-
-	scriptName := c.Param("name")
-	if scriptName == "" {
-		c.JSON(http.StatusBadRequest, APIResponse{
-			Success: false,
-			Error:   "Script name is required",
-		})
-		return
-	}
-
-	// Disable the script
-	if err := ws.scriptManager.DisableScript(scriptName); err != nil {
-		c.JSON(http.StatusNotFound, APIResponse{
-			Success: false,
-			Error:   err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, APIResponse{
-		Success: true,
-		Data: map[string]interface{}{
-			"message": fmt.Sprintf("Script %s disabled successfully", scriptName),
-			"script":  scriptName,
-			"enabled": false,
-		},
-	})
+	ws.handleScriptToggle(c, false)
 }
 
 // handleGetLogs returns raw log content (simplified approach)

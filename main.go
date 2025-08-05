@@ -390,8 +390,8 @@ func handleListScripts(configPath string) (CommandResult, error) {
 	return CommandResult{shouldRunService: false}, nil
 }
 
-// handleEnableScript enables a script
-func handleEnableScript(scriptName, configPath string) (CommandResult, error) {
+// handleScriptToggle enables or disables a script
+func handleScriptToggle(scriptName, configPath string, enable bool) (CommandResult, error) {
 	var config service.ServiceConfig
 	err := service.LoadServiceConfig(configPath, &config)
 	if err != nil {
@@ -401,7 +401,7 @@ func handleEnableScript(scriptName, configPath string) (CommandResult, error) {
 	found := false
 	for i, script := range config.Scripts {
 		if script.Name == scriptName {
-			config.Scripts[i].Enabled = true
+			config.Scripts[i].Enabled = enable
 			found = true
 			break
 		}
@@ -416,38 +416,22 @@ func handleEnableScript(scriptName, configPath string) (CommandResult, error) {
 		return CommandResult{shouldRunService: false}, fmt.Errorf("failed to save config: %v", err)
 	}
 
-	fmt.Printf("Script '%s' enabled\n", scriptName)
+	action := "disabled"
+	if enable {
+		action = "enabled"
+	}
+	fmt.Printf("Script '%s' %s\n", scriptName, action)
 	return CommandResult{shouldRunService: false}, nil
+}
+
+// handleEnableScript enables a script
+func handleEnableScript(scriptName, configPath string) (CommandResult, error) {
+	return handleScriptToggle(scriptName, configPath, true)
 }
 
 // handleDisableScript disables a script
 func handleDisableScript(scriptName, configPath string) (CommandResult, error) {
-	var config service.ServiceConfig
-	err := service.LoadServiceConfig(configPath, &config)
-	if err != nil {
-		return CommandResult{shouldRunService: false}, fmt.Errorf("failed to load config: %v", err)
-	}
-
-	found := false
-	for i, script := range config.Scripts {
-		if script.Name == scriptName {
-			config.Scripts[i].Enabled = false
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		return CommandResult{shouldRunService: false}, fmt.Errorf("script '%s' not found", scriptName)
-	}
-
-	err = service.SaveServiceConfig(configPath, &config)
-	if err != nil {
-		return CommandResult{shouldRunService: false}, fmt.Errorf("failed to save config: %v", err)
-	}
-
-	fmt.Printf("Script '%s' disabled\n", scriptName)
-	return CommandResult{shouldRunService: false}, nil
+	return handleScriptToggle(scriptName, configPath, false)
 }
 
 // handleRemoveScript removes a script from configuration

@@ -4,13 +4,12 @@ run:
 
 linters-settings:
   govet:
-    check-shadowing: true
-  golint:
+    enable:
+      - shadow
+  revive:
     min-confidence: 0
   gocyclo:
     min-complexity: 15
-  maligned:
-    suggest-new: true
   dupl:
     threshold: 100
   goconst:
@@ -40,7 +39,6 @@ linters:
   disable-all: true
   enable:
     - bodyclose
-    - deadcode
     - depguard
     - dogsled
     - dupl
@@ -53,28 +51,24 @@ linters:
     - gocyclo
     - gofmt
     - goimports
-    - golint
     - goprintffuncname
     - gosec
     - gosimple
     - govet
     - ineffassign
-    - interfacer
     - lll
     - misspell
     - nakedret
     - noctx
     - nolintlint
+    - revive
     - rowserrcheck
-    - scopelint
     - staticcheck
-    - structcheck
     - stylecheck
     - typecheck
     - unconvert
     - unparam
     - unused
-    - varcheck
     - whitespace
 
 issues:
@@ -93,7 +87,7 @@ issues:
     - path: service/config\.go
       linters:
         - gosec # Config file reading is expected behavior
-        - golint # Allow ServiceConfig name for clarity
+        - revive # Allow ServiceConfig name for clarity
     - path: service/executor\.go
       linters:
         - gosec # Script execution is the core functionality
