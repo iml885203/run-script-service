@@ -31,13 +31,16 @@ export function useLogs() {
     error.value = null
 
     try {
-      logs.value = await ApiService.getLogs(
+      const result = await ApiService.getLogs(
         scriptName || selectedScript.value || undefined,
         logLimit || limit.value
       )
+      // Ensure we always have an array
+      logs.value = Array.isArray(result) ? result : []
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch logs'
       console.error('Failed to fetch logs:', err)
+      logs.value = [] // Ensure we have an empty array on error
     } finally {
       loading.value = false
     }

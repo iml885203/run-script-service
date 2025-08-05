@@ -13,7 +13,7 @@
         </select>
 
         <label for="limit">Limit:</label>
-        <select id="limit" v-model="currentLimit" @change="setLimit(currentLimit)" data-testid="limit-filter">
+        <select id="limit" v-model="currentLimit" @change="setLimit(currentLimit)" data-testid="limit-select">
           <option :value="25">25 entries</option>
           <option :value="50">50 entries</option>
           <option :value="100">100 entries</option>
@@ -39,13 +39,13 @@
       {{ error }}
     </div>
 
-    <div v-else-if="filteredLogs.length === 0" class="no-logs">
+    <div v-else-if="filteredLogs.length === 0" class="no-logs" data-testid="no-logs-message">
       No logs found.
     </div>
 
     <div v-else class="logs-container">
       <div class="logs-summary" data-testid="logs-summary">
-        <span class="summary-item">
+        <span class="summary-item" data-testid="total-logs">
           <strong>Total:</strong> {{ filteredLogs.length }}
         </span>
         <span class="summary-item error-count" v-if="errorLogs.length > 0">

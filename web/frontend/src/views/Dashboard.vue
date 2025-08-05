@@ -35,7 +35,10 @@
     </div>
 
     <div class="scripts-overview">
-      <h3>Scripts Overview</h3>
+      <div class="scripts-overview-header">
+        <h3>Scripts Overview</h3>
+        <router-link to="/scripts" class="scripts-link" data-testid="manage-scripts-link">Add scripts</router-link>
+      </div>
 
       <div v-if="scriptsLoading" class="loading">
         Loading scripts...
@@ -162,9 +165,31 @@ h2 {
   color: var(--color-success);
 }
 
-.scripts-overview h3 {
-  color: var(--color-text);
+.scripts-overview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 1.5rem;
+}
+
+.scripts-overview-header h3 {
+  color: var(--color-text);
+  margin: 0;
+}
+
+.scripts-link {
+  color: var(--color-brand);
+  text-decoration: none;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-brand);
+  border-radius: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.scripts-link:hover {
+  background: var(--color-brand);
+  color: white;
 }
 
 .scripts-list {

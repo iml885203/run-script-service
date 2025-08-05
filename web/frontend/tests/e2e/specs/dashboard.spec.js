@@ -81,11 +81,11 @@ test.describe('Dashboard Page', () => {
   });
 
   test('should have working navigation to scripts', async ({ page }) => {
-    // Test: Scripts overview link should work - use the specific "Add scripts" link
-    const addScriptsLink = page.getByRole('link', { name: 'Add scripts' });
-    await expect(addScriptsLink).toBeVisible();
+    // Test: Scripts overview link should work - use the manage scripts link
+    const manageScriptsLink = page.locator('[data-testid="manage-scripts-link"]');
+    await expect(manageScriptsLink).toBeVisible();
 
-    await addScriptsLink.click();
+    await manageScriptsLink.click();
     await expect(page).toHaveURL('/scripts');
     await expect(page.locator('h2')).toContainText('Script Management');
   });
