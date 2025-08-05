@@ -1,0 +1,713 @@
+package web
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	"run-script-service/service"
+)
+
+// Helper function to create a web server with script manager for testing
+func createTestServerWithScripts(scripts []service.ScriptConfig) *WebServer {
+	config := &service.ServiceConfig{Scripts: scripts}
+	scriptManager := service.NewScriptManager(config)
+	server := NewWebServer(nil, 8080)
+	server.SetScriptManager(scriptManager)
+	return server
+}
+
+// Helper function to test a not-found response
+func assertNotFoundResponse(t *testing.T, w *httptest.ResponseRecorder) {
+	t.Helper()
+	if w.Code != http.StatusNotFound {
+		t.Errorf("Expected status 404, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if response.Success {
+		t.Error("Expected failed response for non-existent resource")
+	}
+}
+
+// Helper function to test a successful response
+func assertSuccessResponse(t *testing.T, w *httptest.ResponseRecorder) {
+	t.Helper()
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Error("Expected successful response")
+	}
+}
+
+// Helper function to create a standard test script configuration
+func createTestScript(name string, enabled bool) service.ScriptConfig {
+	return service.ScriptConfig{
+		Name:        name,
+		Path:        "./test.sh",
+		Interval:    60,
+		Enabled:     enabled,
+		MaxLogLines: 100,
+		Timeout:     30,
+	}
+}
+
+func TestWebServer_New(t *testing.T) {
+	// Create test service and log manager
+
+	server := NewWebServer(nil, 8080)
+
+	if server == nil {
+		t.Fatal("NewWebServer should not return nil")
+	}
+
+	if server.port != 8080 {
+		t.Errorf("Expected port 8080, got %d", server.port)
+	}
+
+}
+
+func TestAPIResponse_JSON(t *testing.T) {
+	tests := []struct {
+		name     string
+		response APIResponse
+		expected string
+	}{
+		{
+			name: "success response",
+			response: APIResponse{
+				Success: true,
+				Data:    map[string]string{"test": "data"},
+			},
+			expected: `{"success":true,"data":{"test":"data"}}`,
+		},
+		{
+			name: "error response",
+			response: APIResponse{
+				Success: false,
+				Error:   "test error",
+			},
+			expected: `{"success":false,"error":"test error"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			jsonData, err := json.Marshal(tt.response)
+			if err != nil {
+				t.Fatalf("Failed to marshal response: %v", err)
+			}
+
+			if string(jsonData) != tt.expected {
+				t.Errorf("Expected %s, got %s", tt.expected, string(jsonData))
+			}
+		})
+	}
+}
+
+func TestWebServer_StatusEndpoint(t *testing.T) {
+	// Create test dependencies
+
+	server := NewWebServer(nil, 8080)
+
+	// Create test request
+	req := httptest.NewRequest("GET", "/api/status", nil)
+	w := httptest.NewRecorder()
+
+	// Call the status handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Error("Expected successful response")
+	}
+}
+
+func TestWebServer_ScriptsEndpoint(t *testing.T) {
+	// Create test dependencies with proper config
+	config := &service.ServiceConfig{
+		Scripts: []service.ScriptConfig{
+			{
+				Name:        "test-script",
+				Path:        "./test.sh",
+				Interval:    60,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     30,
+			},
+		},
+	}
+
+	scriptManager := service.NewScriptManager(config)
+
+	server := NewWebServer(nil, 8080)
+	server.SetScriptManager(scriptManager)
+
+	// Create test request
+	req := httptest.NewRequest("GET", "/api/scripts", nil)
+	w := httptest.NewRecorder()
+
+	// Call the scripts handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Error("Expected successful response")
+	}
+
+	// Check that data contains script info
+	data, ok := response.Data.([]interface{})
+	if !ok {
+		t.Fatal("Expected data to be an array")
+	}
+
+	if len(data) != 1 {
+		t.Errorf("Expected 1 script, got %d", len(data))
+	}
+}
+
+func TestWebServer_PostScript(t *testing.T) {
+	// Create test dependencies with empty config
+	config := &service.ServiceConfig{
+		Scripts: []service.ScriptConfig{},
+	}
+
+	scriptManager := service.NewScriptManager(config)
+
+	server := NewWebServer(nil, 8080)
+	server.SetScriptManager(scriptManager)
+
+	// Create test request with script data
+	scriptData := `{
+		"name": "new-script",
+		"path": "./new-script.sh",
+		"interval": 120,
+		"enabled": true,
+		"max_log_lines": 200,
+		"timeout": 60
+	}`
+
+	req := httptest.NewRequest("POST", "/api/scripts", strings.NewReader(scriptData))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	// Call the post script handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusCreated {
+		t.Errorf("Expected status 201, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Error("Expected successful response")
+	}
+}
+
+func TestWebServer_RunScript(t *testing.T) {
+	// Create test dependencies with a script
+	config := &service.ServiceConfig{
+		Scripts: []service.ScriptConfig{
+			{
+				Name:        "test-script",
+				Path:        "./test.sh",
+				Interval:    60,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     30,
+			},
+		},
+	}
+
+	scriptManager := service.NewScriptManager(config)
+
+	server := NewWebServer(nil, 8080)
+	server.SetScriptManager(scriptManager)
+
+	// Create test request
+	req := httptest.NewRequest("POST", "/api/scripts/test-script/run", nil)
+	w := httptest.NewRecorder()
+
+	// Call the run script handler
+	server.router.ServeHTTP(w, req)
+
+	// Since the script doesn't exist, we expect a 404
+	if w.Code != http.StatusNotFound {
+		t.Errorf("Expected status 404, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if response.Success {
+		t.Error("Expected failed response for non-existent script")
+	}
+}
+
+func TestWebServer_RunScript_NotFound(t *testing.T) {
+	server := createTestServerWithScripts([]service.ScriptConfig{})
+
+	req := httptest.NewRequest("POST", "/api/scripts/non-existent/run", nil)
+	w := httptest.NewRecorder()
+
+	server.router.ServeHTTP(w, req)
+
+	assertNotFoundResponse(t, w)
+}
+
+func TestWebServer_LogsEndpoint(t *testing.T) {
+	server := NewWebServer(nil, 8080)
+
+	// Create test request
+	req := httptest.NewRequest("GET", "/api/logs", nil)
+	w := httptest.NewRecorder()
+
+	// Call the logs handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Error("Expected successful response")
+	}
+
+	// Should return empty content when no script specified
+	data, ok := response.Data.(map[string]interface{})
+	if !ok {
+		t.Error("Expected data to be a map")
+	}
+
+	if data["content"] != "" {
+		t.Error("Expected empty content when no script specified")
+	}
+
+}
+
+func TestWebServer_GetScriptLogs(t *testing.T) {
+	server := NewWebServer(nil, 8080)
+
+	// Create test request for specific script
+	req := httptest.NewRequest("GET", "/api/logs/test-script", nil)
+	w := httptest.NewRecorder()
+
+	// Call the script logs handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Error("Expected successful response")
+	}
+
+	// Check that data contains log content for the specific script
+	data, ok := response.Data.(map[string]interface{})
+	if !ok {
+		t.Fatal("Expected data to be a map")
+	}
+
+	script, ok := data["script"].(string)
+	if !ok {
+		t.Fatal("Expected script to be a string")
+	}
+
+	if script != "test-script" {
+		t.Errorf("Expected script 'test-script', got '%s'", script)
+	}
+}
+
+func TestWebServer_GetSpecificScript(t *testing.T) {
+	server := createTestServerWithScripts([]service.ScriptConfig{
+		createTestScript("test-script", true),
+	})
+
+	req := httptest.NewRequest("GET", "/api/scripts/test-script", nil)
+	w := httptest.NewRecorder()
+
+	server.router.ServeHTTP(w, req)
+
+	assertSuccessResponse(t, w)
+}
+
+func TestWebServer_GetSpecificScript_NotFound(t *testing.T) {
+	server := createTestServerWithScripts([]service.ScriptConfig{})
+
+	req := httptest.NewRequest("GET", "/api/scripts/non-existent", nil)
+	w := httptest.NewRecorder()
+
+	server.router.ServeHTTP(w, req)
+
+	assertNotFoundResponse(t, w)
+}
+
+func TestWebServer_EnableScript(t *testing.T) {
+	server := createTestServerWithScripts([]service.ScriptConfig{
+		createTestScript("test-script", false),
+	})
+
+	req := httptest.NewRequest("POST", "/api/scripts/test-script/enable", nil)
+	w := httptest.NewRecorder()
+
+	server.router.ServeHTTP(w, req)
+
+	assertSuccessResponse(t, w)
+}
+
+func TestWebServer_DisableScript(t *testing.T) {
+	server := createTestServerWithScripts([]service.ScriptConfig{
+		createTestScript("test-script", true),
+	})
+
+	req := httptest.NewRequest("POST", "/api/scripts/test-script/disable", nil)
+	w := httptest.NewRecorder()
+
+	server.router.ServeHTTP(w, req)
+
+	assertSuccessResponse(t, w)
+}
+
+func TestWebServer_StaticFiles(t *testing.T) {
+	// Create test dependencies
+	server := NewWebServer(nil, 8080)
+
+	// Test that static route returns 404 when files don't exist
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+
+	server.router.ServeHTTP(w, req)
+
+	// Expect 404 since the actual static files may not exist in test environment
+	if w.Code == http.StatusNotFound {
+		t.Log("Static file routing is configured (returns 404 when files don't exist)")
+	} else if w.Code == http.StatusOK {
+		t.Log("Static files served successfully")
+	} else {
+		t.Logf("Unexpected status code: %d", w.Code)
+	}
+}
+
+func TestWebServer_StaticFileRouting(t *testing.T) {
+	// Create test dependencies
+	server := NewWebServer(nil, 8080)
+
+	// Test static file routing
+	req := httptest.NewRequest("GET", "/static/css/main.css", nil)
+	w := httptest.NewRecorder()
+
+	server.router.ServeHTTP(w, req)
+
+	// Should return 404 if file doesn't exist, or 200 if it does
+	if w.Code == http.StatusNotFound {
+		t.Log("Static file routing configured (404 when file doesn't exist)")
+	} else if w.Code == http.StatusOK {
+		t.Log("Static CSS file served successfully")
+	} else {
+		t.Logf("Unexpected status code: %d", w.Code)
+	}
+}
+
+func TestWebServer_UpdateConfig(t *testing.T) {
+	// Create test dependencies with config
+	config := &service.ServiceConfig{
+		WebPort: 8080,
+		Scripts: []service.ScriptConfig{
+			{
+				Name:        "test-script",
+				Path:        "./test.sh",
+				Interval:    60,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     30,
+			},
+		},
+	}
+
+	// Create temporary config file for testing
+	configPath := "/tmp/test_config.json"
+	if err := service.SaveServiceConfig(configPath, config); err != nil {
+		t.Fatalf("Failed to save test config: %v", err)
+	}
+	defer func() {
+		_ = os.Remove(configPath)
+	}()
+
+	scriptManager := service.NewScriptManagerWithPath(config, configPath)
+
+	server := NewWebServer(nil, 8080)
+	server.SetScriptManager(scriptManager)
+
+	// Create test request with updated config data
+	configData := `{
+		"web_port": 9090
+	}`
+
+	req := httptest.NewRequest("PUT", "/api/config", strings.NewReader(configData))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	// Call the update config handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Error("Expected successful response")
+	}
+}
+
+func TestWebServer_UpdateConfig_InvalidJSON(t *testing.T) {
+	// Create test dependencies
+	config := &service.ServiceConfig{WebPort: 8080}
+	configPath := "/tmp/test_config_invalid.json"
+	if err := service.SaveServiceConfig(configPath, config); err != nil {
+		t.Fatalf("Failed to save test config: %v", err)
+	}
+	defer func() {
+		_ = os.Remove(configPath)
+	}()
+
+	scriptManager := service.NewScriptManagerWithPath(config, configPath)
+
+	server := NewWebServer(nil, 8080)
+	server.SetScriptManager(scriptManager)
+
+	// Create test request with invalid JSON
+	req := httptest.NewRequest("PUT", "/api/config", strings.NewReader("invalid json"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	// Call the update config handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if response.Success {
+		t.Error("Expected failed response for invalid JSON")
+	}
+}
+
+func TestWebServer_UpdateScript(t *testing.T) {
+	// Create test dependencies with a script
+	config := &service.ServiceConfig{
+		Scripts: []service.ScriptConfig{
+			{
+				Name:        "test-script",
+				Path:        "./test.sh",
+				Interval:    60,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     30,
+			},
+		},
+	}
+
+	scriptManager := service.NewScriptManager(config)
+
+	server := NewWebServer(nil, 8080)
+	server.SetScriptManager(scriptManager)
+
+	// Create test request with updated script data
+	updateData := `{
+		"path": "./updated-test.sh",
+		"interval": 120,
+		"enabled": false,
+		"max_log_lines": 200,
+		"timeout": 60
+	}`
+
+	req := httptest.NewRequest("PUT", "/api/scripts/test-script", strings.NewReader(updateData))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	// Call the update script handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Error("Expected successful response")
+	}
+}
+
+func TestWebServer_UpdateScript_NotFound(t *testing.T) {
+	server := createTestServerWithScripts([]service.ScriptConfig{})
+
+	updateData := `{
+		"path": "./test.sh",
+		"interval": 60,
+		"enabled": true,
+		"max_log_lines": 100,
+		"timeout": 30
+	}`
+
+	req := httptest.NewRequest("PUT", "/api/scripts/nonexistent", strings.NewReader(updateData))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	server.router.ServeHTTP(w, req)
+
+	assertNotFoundResponse(t, w)
+}
+
+func TestWebServer_DeleteScript(t *testing.T) {
+	server := createTestServerWithScripts([]service.ScriptConfig{
+		createTestScript("test-script", true),
+	})
+
+	req := httptest.NewRequest("DELETE", "/api/scripts/test-script", nil)
+	w := httptest.NewRecorder()
+
+	server.router.ServeHTTP(w, req)
+
+	assertSuccessResponse(t, w)
+}
+
+func TestWebServer_DeleteScript_NotFound(t *testing.T) {
+	server := createTestServerWithScripts([]service.ScriptConfig{})
+
+	req := httptest.NewRequest("DELETE", "/api/scripts/nonexistent", nil)
+	w := httptest.NewRecorder()
+
+	server.router.ServeHTTP(w, req)
+
+	assertNotFoundResponse(t, w)
+}
+
+func TestWebServer_WebSocketRouteSetup(t *testing.T) {
+	// Create test dependencies
+	server := NewWebServer(nil, 8080)
+
+	// Test that WebSocket route is configured but returns 404 since we haven't implemented the handler yet
+	req := httptest.NewRequest("GET", "/ws", nil)
+	w := httptest.NewRecorder()
+
+	server.router.ServeHTTP(w, req)
+
+	// Should return 404 since we haven't implemented the WebSocket handler yet
+	if w.Code == http.StatusNotFound {
+		t.Log("WebSocket route not implemented yet (expected for TDD)")
+	} else {
+		t.Logf("WebSocket route status: %d (might be implemented)", w.Code)
+	}
+}
+
+func TestWebServer_SystemMonitorIntegration(t *testing.T) {
+	server := NewWebServer(nil, 8080)
+
+	// Test that web server can be configured with system monitor
+	if server.systemMonitor != nil {
+		t.Error("SystemMonitor should be nil initially")
+	}
+
+	// Test setting system monitor
+	monitor := service.NewSystemMonitor()
+	server.SetSystemMonitor(monitor)
+
+	if server.systemMonitor == nil {
+		t.Error("SystemMonitor should not be nil after SetSystemMonitor")
+	}
+}
+
+func TestWebServer_StartSystemMetricsBroadcasting(t *testing.T) {
+	server := NewWebServer(nil, 8080)
+	monitor := service.NewSystemMonitor()
+	server.SetSystemMonitor(monitor)
+
+	// Test that we can start system metrics broadcasting
+	// This should not fail when system monitor is configured
+	err := server.StartSystemMetricsBroadcasting(context.Background(), time.Millisecond*10)
+	if err != nil {
+		t.Errorf("Expected no error starting system metrics broadcasting, got: %v", err)
+	}
+}

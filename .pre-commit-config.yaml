@@ -13,19 +13,27 @@ repos:
     rev: v0.5.1
     hooks:
       - id: go-fmt
-      # - id: go-imports  # Disabled: requires goimports in PATH
       - id: go-vet
       - id: go-mod-tidy
 
-  # golangci-lint
+  # golangci-lint (updated to match CI version)
   - repo: https://github.com/golangci/golangci-lint
-    rev: v1.55.2
+    rev: v1.60.1
     hooks:
       - id: golangci-lint
 
-  # Tests
+  # Custom Go tools
   - repo: local
     hooks:
+      # Install and run goimports
+      - id: goimports
+        name: goimports
+        entry: bash -c 'go install golang.org/x/tools/cmd/goimports@latest && $(go env GOPATH)/bin/goimports -local run-script-service -w .'
+        language: system
+        files: \.go$
+        pass_filenames: false
+
+      # Tests
       - id: go-test
         name: go test
         entry: go test ./...
