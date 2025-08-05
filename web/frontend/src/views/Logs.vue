@@ -39,11 +39,8 @@
       {{ error }}
     </div>
 
-    <div v-else-if="filteredLogs.length === 0" class="no-logs" data-testid="no-logs-message">
-      No logs found.
-    </div>
-
     <div v-else class="logs-container">
+      <!-- Always show logs summary, even when no logs -->
       <div class="logs-summary" data-testid="logs-summary">
         <span class="summary-item" data-testid="total-logs">
           <strong>Total:</strong> {{ filteredLogs.length }}
@@ -54,12 +51,17 @@
         <span class="summary-item warning-count" v-if="warningLogs.length > 0">
           <strong>Warnings:</strong> {{ warningLogs.length }}
         </span>
-        <span class="summary-item info-count">
+        <span class="summary-item info-count" v-if="infoLogs.length > 0">
           <strong>Info:</strong> {{ infoLogs.length }}
         </span>
       </div>
 
-      <div class="logs-list" data-testid="logs-list">
+      <!-- Show no logs message when empty -->
+      <div v-if="filteredLogs.length === 0" class="no-logs" data-testid="no-logs-message">
+        No logs found.
+      </div>
+
+      <div v-else class="logs-list" data-testid="logs-list">
         <div
           v-for="(log, index) in filteredLogs"
           :key="index"

@@ -327,16 +327,81 @@ func TestWebServer_LogsEndpoint(t *testing.T) {
 		t.Error("Expected successful response")
 	}
 
-	// Should return empty content when no script specified
-	data, ok := response.Data.(map[string]interface{})
+	// Should return empty array when no script specified (new LogEntry format)
+	logs, ok := response.Data.([]interface{})
 	if !ok {
-		t.Error("Expected data to be a map")
+		t.Error("Expected data to be an array of LogEntry objects")
 	}
 
-	if data["content"] != "" {
-		t.Error("Expected empty content when no script specified")
+	if len(logs) != 0 {
+		t.Error("Expected empty array when no script specified")
 	}
 
+}
+
+// TDD Test: Red Phase - Test for LogEntry array format expected by frontend
+func TestWebServer_LogsEndpoint_ExpectedFormat(t *testing.T) {
+	server := NewWebServer(nil, 8080)
+
+	// Create test request
+	req := httptest.NewRequest("GET", "/api/logs", nil)
+	w := httptest.NewRecorder()
+
+	// Call the logs handler
+	server.router.ServeHTTP(w, req)
+
+	// Check response
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Error("Expected successful response")
+	}
+
+	// TDD: Frontend expects an array of LogEntry objects, not raw content
+	logs, ok := response.Data.([]interface{})
+	if !ok {
+		t.Errorf("Expected data to be an array of LogEntry objects, got %T", response.Data)
+	}
+
+	// When no logs exist, should return empty array (not nil)
+	if logs == nil {
+		t.Error("Expected empty array when no logs, got nil")
+	}
+
+	// Each entry should have the LogEntry structure: timestamp, message, level, script?
+	for i, entry := range logs {
+		logEntry, ok := entry.(map[string]interface{})
+		if !ok {
+			t.Errorf("Log entry %d should be an object, got %T", i, entry)
+			continue
+		}
+
+		// Check required fields
+		if _, hasTimestamp := logEntry["timestamp"]; !hasTimestamp {
+			t.Errorf("Log entry %d missing timestamp field", i)
+		}
+		if _, hasMessage := logEntry["message"]; !hasMessage {
+			t.Errorf("Log entry %d missing message field", i)
+		}
+		if level, hasLevel := logEntry["level"]; !hasLevel {
+			t.Errorf("Log entry %d missing level field", i)
+		} else {
+			// Level should be one of: info, warning, error
+			levelStr, ok := level.(string)
+			if !ok || (levelStr != "info" && levelStr != "warning" && levelStr != "error") {
+				t.Errorf("Log entry %d has invalid level: %v", i, level)
+			}
+		}
+		// script field is optional
+	}
 }
 
 func TestWebServer_GetScriptLogs(t *testing.T) {
