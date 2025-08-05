@@ -42,3 +42,4 @@ run.sh
 # Frontend build output
 web/frontend/node_modules/
 web/frontend/dist/
+web/frontend/test-results/
