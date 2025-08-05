@@ -12,6 +12,24 @@ import (
 	"run-script-service/service"
 )
 
+// Helper function to test access denied responses
+func assertAccessDeniedResponse(t *testing.T, w *httptest.ResponseRecorder) {
+	t.Helper()
+	if w.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if response.Success {
+		t.Error("Expected failed response for denied access")
+	}
+}
+
 func TestWebServer_FileOperations(t *testing.T) {
 	// Create temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "web_files_test")
@@ -76,19 +94,7 @@ func TestWebServer_FileOperations(t *testing.T) {
 
 		server.router.ServeHTTP(w, req)
 
-		if w.Code != http.StatusForbidden {
-			t.Errorf("Expected status 403, got %d", w.Code)
-		}
-
-		var response APIResponse
-		err := json.Unmarshal(w.Body.Bytes(), &response)
-		if err != nil {
-			t.Fatalf("Failed to unmarshal response: %v", err)
-		}
-
-		if response.Success {
-			t.Error("Expected failed response for denied access")
-		}
+		assertAccessDeniedResponse(t, w)
 	})
 
 	t.Run("get file - not found", func(t *testing.T) {
@@ -296,19 +302,7 @@ func TestWebServer_FileOperations(t *testing.T) {
 
 		server.router.ServeHTTP(w, req)
 
-		if w.Code != http.StatusForbidden {
-			t.Errorf("Expected status 403, got %d", w.Code)
-		}
-
-		var response APIResponse
-		err := json.Unmarshal(w.Body.Bytes(), &response)
-		if err != nil {
-			t.Fatalf("Failed to unmarshal response: %v", err)
-		}
-
-		if response.Success {
-			t.Error("Expected failed response for denied access")
-		}
+		assertAccessDeniedResponse(t, w)
 	})
 }
 

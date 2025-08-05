@@ -13,6 +13,63 @@ import (
 	"run-script-service/service"
 )
 
+// Helper function to create a web server with script manager for testing
+func createTestServerWithScripts(scripts []service.ScriptConfig) *WebServer {
+	config := &service.ServiceConfig{Scripts: scripts}
+	scriptManager := service.NewScriptManager(config)
+	server := NewWebServer(nil, 8080)
+	server.SetScriptManager(scriptManager)
+	return server
+}
+
+// Helper function to test a not-found response
+func assertNotFoundResponse(t *testing.T, w *httptest.ResponseRecorder) {
+	t.Helper()
+	if w.Code != http.StatusNotFound {
+		t.Errorf("Expected status 404, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if response.Success {
+		t.Error("Expected failed response for non-existent resource")
+	}
+}
+
+// Helper function to test a successful response
+func assertSuccessResponse(t *testing.T, w *httptest.ResponseRecorder) {
+	t.Helper()
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Error("Expected successful response")
+	}
+}
+
+// Helper function to create a standard test script configuration
+func createTestScript(name string, enabled bool) service.ScriptConfig {
+	return service.ScriptConfig{
+		Name:        name,
+		Path:        "./test.sh",
+		Interval:    60,
+		Enabled:     enabled,
+		MaxLogLines: 100,
+		Timeout:     30,
+	}
+}
+
 func TestWebServer_New(t *testing.T) {
 	// Create test service and log manager
 
@@ -235,37 +292,14 @@ func TestWebServer_RunScript(t *testing.T) {
 }
 
 func TestWebServer_RunScript_NotFound(t *testing.T) {
-	// Create test dependencies with empty config
-	config := &service.ServiceConfig{
-		Scripts: []service.ScriptConfig{},
-	}
+	server := createTestServerWithScripts([]service.ScriptConfig{})
 
-	scriptManager := service.NewScriptManager(config)
-
-	server := NewWebServer(nil, 8080)
-	server.SetScriptManager(scriptManager)
-
-	// Create test request for non-existent script
 	req := httptest.NewRequest("POST", "/api/scripts/non-existent/run", nil)
 	w := httptest.NewRecorder()
 
-	// Call the run script handler
 	server.router.ServeHTTP(w, req)
 
-	// Check response
-	if w.Code != http.StatusNotFound {
-		t.Errorf("Expected status 404, got %d", w.Code)
-	}
-
-	var response APIResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-
-	if response.Success {
-		t.Error("Expected failed response for non-existent script")
-	}
+	assertNotFoundResponse(t, w)
 }
 
 func TestWebServer_LogsEndpoint(t *testing.T) {
@@ -347,166 +381,53 @@ func TestWebServer_GetScriptLogs(t *testing.T) {
 }
 
 func TestWebServer_GetSpecificScript(t *testing.T) {
-	// Create test dependencies with a script
-	config := &service.ServiceConfig{
-		Scripts: []service.ScriptConfig{
-			{
-				Name:        "test-script",
-				Path:        "./test.sh",
-				Interval:    60,
-				Enabled:     true,
-				MaxLogLines: 100,
-				Timeout:     30,
-			},
-		},
-	}
+	server := createTestServerWithScripts([]service.ScriptConfig{
+		createTestScript("test-script", true),
+	})
 
-	scriptManager := service.NewScriptManager(config)
-
-	server := NewWebServer(nil, 8080)
-	server.SetScriptManager(scriptManager)
-
-	// Create test request
 	req := httptest.NewRequest("GET", "/api/scripts/test-script", nil)
 	w := httptest.NewRecorder()
 
-	// Call the handler
 	server.router.ServeHTTP(w, req)
 
-	// Check response
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
-
-	var response APIResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-
-	if !response.Success {
-		t.Error("Expected successful response")
-	}
+	assertSuccessResponse(t, w)
 }
 
 func TestWebServer_GetSpecificScript_NotFound(t *testing.T) {
-	// Create test dependencies with no scripts
-	config := &service.ServiceConfig{
-		Scripts: []service.ScriptConfig{},
-	}
+	server := createTestServerWithScripts([]service.ScriptConfig{})
 
-	scriptManager := service.NewScriptManager(config)
-
-	server := NewWebServer(nil, 8080)
-	server.SetScriptManager(scriptManager)
-
-	// Create test request for non-existent script
 	req := httptest.NewRequest("GET", "/api/scripts/non-existent", nil)
 	w := httptest.NewRecorder()
 
-	// Call the handler
 	server.router.ServeHTTP(w, req)
 
-	// Check response
-	if w.Code != http.StatusNotFound {
-		t.Errorf("Expected status 404, got %d", w.Code)
-	}
-
-	var response APIResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-
-	if response.Success {
-		t.Error("Expected failed response for non-existent script")
-	}
+	assertNotFoundResponse(t, w)
 }
 
 func TestWebServer_EnableScript(t *testing.T) {
-	// Create test dependencies with a disabled script
-	config := &service.ServiceConfig{
-		Scripts: []service.ScriptConfig{
-			{
-				Name:        "test-script",
-				Path:        "./test.sh",
-				Interval:    60,
-				Enabled:     false,
-				MaxLogLines: 100,
-				Timeout:     30,
-			},
-		},
-	}
+	server := createTestServerWithScripts([]service.ScriptConfig{
+		createTestScript("test-script", false),
+	})
 
-	scriptManager := service.NewScriptManager(config)
-
-	server := NewWebServer(nil, 8080)
-	server.SetScriptManager(scriptManager)
-
-	// Create test request
 	req := httptest.NewRequest("POST", "/api/scripts/test-script/enable", nil)
 	w := httptest.NewRecorder()
 
-	// Call the handler
 	server.router.ServeHTTP(w, req)
 
-	// Check response
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
-
-	var response APIResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-
-	if !response.Success {
-		t.Error("Expected successful response")
-	}
+	assertSuccessResponse(t, w)
 }
 
 func TestWebServer_DisableScript(t *testing.T) {
-	// Create test dependencies with an enabled script
-	config := &service.ServiceConfig{
-		Scripts: []service.ScriptConfig{
-			{
-				Name:        "test-script",
-				Path:        "./test.sh",
-				Interval:    60,
-				Enabled:     true,
-				MaxLogLines: 100,
-				Timeout:     30,
-			},
-		},
-	}
+	server := createTestServerWithScripts([]service.ScriptConfig{
+		createTestScript("test-script", true),
+	})
 
-	scriptManager := service.NewScriptManager(config)
-
-	server := NewWebServer(nil, 8080)
-	server.SetScriptManager(scriptManager)
-
-	// Create test request
 	req := httptest.NewRequest("POST", "/api/scripts/test-script/disable", nil)
 	w := httptest.NewRecorder()
 
-	// Call the handler
 	server.router.ServeHTTP(w, req)
 
-	// Check response
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
-
-	var response APIResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-
-	if !response.Success {
-		t.Error("Expected successful response")
-	}
+	assertSuccessResponse(t, w)
 }
 
 func TestWebServer_StaticFiles(t *testing.T) {
@@ -700,17 +621,8 @@ func TestWebServer_UpdateScript(t *testing.T) {
 }
 
 func TestWebServer_UpdateScript_NotFound(t *testing.T) {
-	// Create test dependencies with no scripts
-	config := &service.ServiceConfig{
-		Scripts: []service.ScriptConfig{},
-	}
+	server := createTestServerWithScripts([]service.ScriptConfig{})
 
-	scriptManager := service.NewScriptManager(config)
-
-	server := NewWebServer(nil, 8080)
-	server.SetScriptManager(scriptManager)
-
-	// Create test request for non-existent script
 	updateData := `{
 		"path": "./test.sh",
 		"interval": 60,
@@ -723,100 +635,33 @@ func TestWebServer_UpdateScript_NotFound(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
-	// Call the update script handler
 	server.router.ServeHTTP(w, req)
 
-	// Check response
-	if w.Code != http.StatusNotFound {
-		t.Errorf("Expected status 404, got %d", w.Code)
-	}
-
-	var response APIResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-
-	if response.Success {
-		t.Error("Expected failed response for non-existent script")
-	}
+	assertNotFoundResponse(t, w)
 }
 
 func TestWebServer_DeleteScript(t *testing.T) {
-	// Create test dependencies with a script
-	config := &service.ServiceConfig{
-		Scripts: []service.ScriptConfig{
-			{
-				Name:        "test-script",
-				Path:        "./test.sh",
-				Interval:    60,
-				Enabled:     true,
-				MaxLogLines: 100,
-				Timeout:     30,
-			},
-		},
-	}
+	server := createTestServerWithScripts([]service.ScriptConfig{
+		createTestScript("test-script", true),
+	})
 
-	scriptManager := service.NewScriptManager(config)
-
-	server := NewWebServer(nil, 8080)
-	server.SetScriptManager(scriptManager)
-
-	// Create test request
 	req := httptest.NewRequest("DELETE", "/api/scripts/test-script", nil)
 	w := httptest.NewRecorder()
 
-	// Call the delete script handler
 	server.router.ServeHTTP(w, req)
 
-	// Check response
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
-
-	var response APIResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-
-	if !response.Success {
-		t.Error("Expected successful response")
-	}
+	assertSuccessResponse(t, w)
 }
 
 func TestWebServer_DeleteScript_NotFound(t *testing.T) {
-	// Create test dependencies with no scripts
-	config := &service.ServiceConfig{
-		Scripts: []service.ScriptConfig{},
-	}
+	server := createTestServerWithScripts([]service.ScriptConfig{})
 
-	scriptManager := service.NewScriptManager(config)
-
-	server := NewWebServer(nil, 8080)
-	server.SetScriptManager(scriptManager)
-
-	// Create test request for non-existent script
 	req := httptest.NewRequest("DELETE", "/api/scripts/nonexistent", nil)
 	w := httptest.NewRecorder()
 
-	// Call the delete script handler
 	server.router.ServeHTTP(w, req)
 
-	// Check response
-	if w.Code != http.StatusNotFound {
-		t.Errorf("Expected status 404, got %d", w.Code)
-	}
-
-	var response APIResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-
-	if response.Success {
-		t.Error("Expected failed response for non-existent script")
-	}
+	assertNotFoundResponse(t, w)
 }
 
 func TestWebServer_WebSocketRouteSetup(t *testing.T) {
