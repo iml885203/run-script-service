@@ -8,32 +8,30 @@ The run-script-service CLI provides comprehensive management for multiple script
 # Build the application
 go build -o run-script-service main.go
 
-# Make scripts executable
-chmod +x run-script-service service_control.sh
+# Make binary executable
+chmod +x run-script-service
 ```
 
 ## Core Commands
 
 ### Service Management
 ```bash
-# Start service (default mode - no web interface)
-./run-script-service run
+# Daemon service control
+./run-script-service daemon start          # Start service in background
+./run-script-service daemon stop           # Stop background service
+./run-script-service daemon status         # Check service status
+./run-script-service daemon restart        # Restart service
+./run-script-service daemon logs           # View service logs
 
-# Start service with web interface
-./run-script-service run --web
+# Direct execution (foreground)
+./run-script-service run                   # Run service in foreground
 
-# Set execution interval for all scripts
-./run-script-service set-interval <interval>
+# Configuration
+./run-script-service set-interval <interval>     # Set execution interval
+./run-script-service show-config                 # Show current configuration
+./run-script-service set-web-port <port>         # Set web server port
+
 # Examples: 30s, 5m, 1h, 3600 (plain seconds)
-
-# Show current configuration
-./run-script-service show-config
-
-# Generate systemd service file
-./run-script-service generate-service
-
-# Set web server port
-./run-script-service set-web-port <port>
 ```
 
 ### Script Management
@@ -131,12 +129,12 @@ chmod +x test1.sh
 ./run-script-service set-web-port 8080
 
 # Start service with web interface
-./run-script-service run --web
+./run-script-service run
 
 # Access web interface at http://localhost:8080
 ```
 
-## Web API Endpoints (when --web mode is used)
+## Web API Endpoints
 
 ### Script Management API
 - `GET /api/scripts` - List all scripts
@@ -164,7 +162,7 @@ run-script-service-develop/
 ├── logs/                       # Script-specific logs
 │   ├── script1.log
 │   └── script2.log
-└── web/static/                 # Web interface files (when using --web)
+└── web/static/                 # Web interface files
 ```
 
 ## Configuration File Format
@@ -188,7 +186,7 @@ The `service_config.json` contains:
 
 ## Important Notes
 - Script paths must point to executable files, not direct commands
-- Use `--web` flag to enable web interface and API endpoints
+- Web interface and API endpoints are enabled by default
 - WebSocket connections provide real-time monitoring of script execution
 - All interval times are in seconds internally
 - Log files are automatically rotated based on max_log_lines setting

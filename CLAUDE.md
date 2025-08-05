@@ -6,22 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Service Management
 ```bash
-# Install the systemd service
-./service_control.sh install
-
 # Service lifecycle commands
-./service_control.sh start      # Start the service
-./service_control.sh stop       # Stop the service
-./service_control.sh restart    # Restart the service
-./service_control.sh status     # Check service status
-./service_control.sh logs       # View real-time service logs
+./run-script-service daemon start      # Start the service in background
+./run-script-service daemon stop       # Stop the service
+./run-script-service daemon status     # Check service status
+./run-script-service daemon restart    # Restart the service
+./run-script-service daemon logs       # View service logs
 
 # Configuration
-./service_control.sh set-interval 30m    # Set execution interval (supports s/m/h suffixes)
-./service_control.sh show-config         # Display current configuration
-
-# Uninstall the service
-./service_control.sh uninstall
+./run-script-service set-interval 30m    # Set execution interval (supports s/m/h suffixes)
+./run-script-service show-config         # Display current configuration
 ```
 
 ### Manual Testing
@@ -36,25 +30,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 go build -o run-script-service main.go
 
 # Make scripts executable if needed
-chmod +x run.sh service_control.sh run-script-service
+chmod +x run.sh run-script-service
 ```
 
 ## Architecture
 
-This is a **systemd-based service manager** that executes shell scripts at configurable intervals. The architecture consists of:
+This is a **Go-based service manager** that executes shell scripts at configurable intervals. The architecture consists of:
 
 1. **Service Daemon** (`main.go` compiled to `run-script-service`):
-   - Runs continuously as a systemd service
-   - Executes `run.sh` at configured intervals (default: 1 hour)
+   - Runs continuously as a background process
+   - Executes scripts at configured intervals (default: 1 hour)
    - Implements automatic log rotation (keeps last 100 lines)
    - Handles graceful shutdown via SIGTERM/SIGINT signals
    - Stores configuration in `service_config.json`
+   - Includes built-in web interface for monitoring and control
 
-2. **Control Interface** (`service_control.sh`):
-   - Provides user-friendly commands for service management
-   - Handles systemd integration (install/uninstall/start/stop)
+2. **Integrated CLI** (built into `run-script-service`):
+   - Provides daemon management commands (start/stop/status/restart/logs)
+   - Handles background process management with PID files
    - Manages configuration updates
-   - No external dependencies - uses standard Linux tools
+   - No external dependencies - single Go binary
 
 3. **Executable Scripts**:
    - `run.sh` - Main script executed by the service (currently runs Claude CLI operations)
@@ -66,7 +61,26 @@ This is a **systemd-based service manager** that executes shell scripts at confi
    - **Signal-based graceful shutdown** - properly handles service termination
    - **JSON configuration persistence** - survives service restarts
    - **Structured logging** with timestamps and exit codes
-   - **Systemd integration** for reliability and automatic restart on failure
+   - **Built-in web interface** - real-time monitoring and control via HTTP
    - **Cross-platform compatibility** - single binary deployment
 
-The service runs as user 'logan' and requires sudo for systemd operations. All file paths are absolute to ensure consistent execution regardless of working directory.
+The service runs as a background process and can be managed via the integrated CLI commands. PID files are used for reliable process management. All file paths are absolute to ensure consistent execution regardless of working directory.
+
+## New Usage Pattern (No External Scripts)
+
+```bash
+# Start service in background
+./run-script-service daemon start
+
+# Check status
+./run-script-service daemon status
+
+# View service logs
+./run-script-service daemon logs
+
+# Stop service
+./run-script-service daemon stop
+
+# Restart service
+./run-script-service daemon restart
+```

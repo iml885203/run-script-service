@@ -1,62 +1,76 @@
 # Run Script Service
 
-A high-performance, configurable systemd service built in Go that executes scripts at regular intervals with automatic logging and log rotation.
+A high-performance, configurable Go-based service that executes multiple scripts at configurable intervals with built-in web interface, automatic logging, and daemon management.
 
 ## Features
 
-- **Configurable Intervals**: Set execution frequency in seconds, minutes, or hours
-- **Automatic Logging**: All script execution results are logged to `run.log`
-- **Log Rotation**: Automatically keeps only the last 100 lines in the log file
-- **Systemd Integration**: Full systemd service support with start/stop/restart capabilities
-- **Dynamic Service Generation**: Automatically generates systemd service files with correct paths
-- **Easy Management**: Simple control script for all operations
+- **Daemon Management**: Built-in background process management with PID files
+- **Web Interface**: Real-time monitoring and control via HTTP (http://localhost:8080)
+- **Multiple Scripts**: Support for multiple scripts with individual configurations
+- **Configurable Intervals**: Set execution frequency in seconds, minutes, or hours per script
+- **Automatic Logging**: All script execution results are logged with rotation
+- **Cross-Platform**: Single Go binary, no external dependencies
+- **RESTful API**: Web API for programmatic control
 
 ## Quick Start
 
-1. **Create your script from the example:**
+1. **Build the service:**
    ```bash
-   cp run.sh.example run.sh
-   chmod +x run.sh
-   # Edit run.sh with your custom commands
+   go build -o run-script-service main.go
+   chmod +x run-script-service
    ```
 
-2. **Install the service:**
+2. **Add a script to execute:**
    ```bash
-   ./service_control.sh install    # Automatically generates service file with correct paths
+   # Create a test script
+   echo '#!/bin/bash\necho "Hello from script: $(date)"' > test.sh
+   chmod +x test.sh
+
+   # Add it to the service
+   ./run-script-service add-script --name=test --path=./test.sh --interval=30s
    ```
 
-3. **Set execution interval (optional):**
+3. **Start the service in background:**
    ```bash
-   ./service_control.sh set-interval 1h    # Run every hour (default)
-   ./service_control.sh set-interval 30m   # Run every 30 minutes
-   ./service_control.sh set-interval 120   # Run every 120 seconds
+   ./run-script-service daemon start
    ```
 
-4. **Start the service:**
+4. **Check status and access web interface:**
    ```bash
-   ./service_control.sh start
+   ./run-script-service daemon status
+   # Web interface: http://localhost:8080
    ```
 
 ## Usage
 
-### Service Management
+### Daemon Management
 
 | Command | Description |
 |---------|-------------|
-| `./service_control.sh install` | Install and enable the systemd service |
-| `./service_control.sh uninstall` | Stop, disable, and remove the service |
-| `./service_control.sh start` | Start the service |
-| `./service_control.sh stop` | Stop the service |
-| `./service_control.sh restart` | Restart the service |
-| `./service_control.sh status` | Show service status |
-| `./service_control.sh logs` | Show real-time service logs |
+| `./run-script-service daemon start` | Start the service in background |
+| `./run-script-service daemon stop` | Stop the background service |
+| `./run-script-service daemon status` | Show service status |
+| `./run-script-service daemon restart` | Restart the service |
+| `./run-script-service daemon logs` | Show service logs |
+
+### Script Management
+
+| Command | Description |
+|---------|-------------|
+| `./run-script-service add-script --name=<name> --path=<path> --interval=<time>` | Add a new script |
+| `./run-script-service list-scripts` | List all configured scripts |
+| `./run-script-service enable-script <name>` | Enable a script |
+| `./run-script-service disable-script <name>` | Disable a script |
+| `./run-script-service remove-script <name>` | Remove a script |
+| `./run-script-service run-script <name>` | Run a script once |
 
 ### Configuration
 
 | Command | Description |
 |---------|-------------|
-| `./service_control.sh set-interval <time>` | Set execution interval |
-| `./service_control.sh show-config` | Display current configuration |
+| `./run-script-service show-config` | Display current configuration |
+| `./run-script-service set-web-port <port>` | Set web server port |
+| `./run-script-service logs --script=<name>` | View script execution logs |
 
 ### Interval Format Examples
 
@@ -71,50 +85,95 @@ A high-performance, configurable systemd service built in Go that executes scrip
 run-script-service/
 ├── main.go                   # Main service daemon (Go)
 ├── go.mod                    # Go module definition
-├── run-script-service        # Compiled binary (auto-generated)
-├── run.sh.example            # Example script template
-├── run.sh                    # Your script to be executed (create from example)
-├── run-script.service        # Systemd service file (auto-generated)
-├── service_control.sh        # Control script
+├── run-script-service        # Compiled binary
 ├── service_config.json       # Configuration file (auto-generated)
-├── run.log                   # Execution log (auto-generated)
-├── plans/                    # Development plans (see Development section)
+├── daemon.log                # Service daemon logs
+├── run.log                   # Legacy script execution log
+├── logs/                     # Individual script logs
+│   ├── script1.log
+│   └── script2.log
+├── web/                      # Web interface
+│   ├── server.go            # Web server
+│   ├── static/              # Static web files
+│   └── ...
+├── service/                  # Core service components
+│   ├── config.go            # Configuration management
+│   ├── script_manager.go    # Script execution management
+│   └── ...
+├── plans/                    # Development plans
 └── README.md                 # This file
 ```
 
 ## Log Format
 
-The `run.log` file contains timestamped entries for each script execution:
-
+### Service Logs (`daemon.log`)
+Service startup, shutdown, and web interface logs:
 ```
-[2024-01-15 14:30:00] Exit code: 0
-STDOUT: Script executed successfully
---------------------------------------------------
-[2024-01-15 15:30:00] Exit code: 0
-STDOUT: Script executed successfully
---------------------------------------------------
+Multi-script service with web interface started
+Running scripts: [test1 test2]
+Web interface available at http://localhost:8080
+System metrics broadcasting started
 ```
 
-## Customization
-
-### Modifying the Script
-
-Edit `run.sh` to customize what gets executed:
-
-```bash
-#!/bin/bash
-# Your custom commands here
-echo "$(date): Running my custom task"
-# Add your commands below
+### Script Logs (`logs/<script-name>.log`)
+Individual script execution logs with JSON format:
+```json
+{"timestamp":"2024-01-15T14:30:00Z","script":"test1","exit_code":0,"duration":150,"stdout":"Hello World","stderr":""}
+{"timestamp":"2024-01-15T14:30:30Z","script":"test1","exit_code":0,"duration":142,"stdout":"Hello World","stderr":""}
 ```
 
-### Configuration File
+## Web Interface
 
-The service automatically creates `service_config.json` to store settings:
+Access the web interface at `http://localhost:8080` for:
+
+- **Dashboard**: View running scripts and system metrics
+- **Script Management**: Add, edit, enable/disable scripts
+- **Log Viewer**: Real-time log monitoring
+- **Configuration**: Adjust settings via web UI
+
+### API Endpoints
+
+- `GET /api/scripts` - List all scripts
+- `POST /api/scripts` - Add new script
+- `PUT /api/scripts/{name}` - Update script
+- `DELETE /api/scripts/{name}` - Remove script
+- `POST /api/scripts/{name}/run` - Execute script once
+- `GET /api/logs/{name}` - Get script logs
+
+## Configuration
+
+### Script Configuration
+
+Each script has individual settings:
 
 ```json
 {
-  "interval": 3600
+  "name": "backup",
+  "path": "/path/to/backup.sh",
+  "interval": 3600,
+  "enabled": true,
+  "max_log_lines": 100,
+  "timeout": 300
+}
+```
+
+### Service Configuration (`service_config.json`)
+
+Global service settings:
+
+```json
+{
+  "web_port": 8080,
+  "scripts": [
+    {
+      "name": "test1",
+      "path": "./test1.sh",
+      "interval": 300,
+      "enabled": true,
+      "max_log_lines": 100,
+      "timeout": 0
+    }
+  ]
 }
 ```
 
@@ -122,40 +181,46 @@ The service automatically creates `service_config.json` to store settings:
 
 ### Check Service Status
 ```bash
-./service_control.sh status
+./run-script-service daemon status
 ```
 
-### View Recent Logs
+### View Service Logs
 ```bash
-./service_control.sh logs
+./run-script-service daemon logs
 ```
 
-### Manual Test
+### View Script Logs
 ```bash
-# Test the script manually
-./run.sh
+./run-script-service logs --script=<script-name>
+```
 
-# Build the binary (if needed)
+### Manual Testing
+```bash
+# Build the binary
 go build -o run-script-service main.go
 
-# Generate systemd service file manually
-./run-script-service generate-service
+# Test a script manually
+./run-script-service run-script <script-name>
 
-# Test the service daemon manually
+# Run service in foreground (for debugging)
 ./run-script-service run
+
+# Check configuration
+./run-script-service show-config
 ```
 
 ### Common Issues
 
 1. **Permission denied**: Ensure scripts are executable with `chmod +x`
-2. **Service won't start**: Check the systemd logs with `./service_control.sh logs`
-3. **Script not found**: Verify `run.sh` exists and is in the correct directory
+2. **Service won't start**: Check daemon logs with `./run-script-service daemon logs`
+3. **Script not found**: Verify script path in configuration with `./run-script-service list-scripts`
+4. **Web interface not accessible**: Check if port 8080 is available or change with `./run-script-service set-web-port <port>`
 
 ## Requirements
 
 - Go 1.21+ (for building from source)
-- systemd (Linux)
-- sudo access for service installation
+- No external dependencies (pure Go)
+- Cross-platform compatible (Linux, macOS, Windows)
 
 ## Development
 

@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
-	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -28,23 +28,15 @@ func handleCommand(args []string, scriptPath, logPath, configPath string, maxLin
 	svc := service.NewService(scriptPath, logPath, configPath, maxLines)
 
 	if len(args) < 2 {
-		return CommandResult{shouldRunService: true}, nil
+		return CommandResult{shouldRunService: true, webMode: true}, nil
 	}
 
 	command := args[1]
 
 	switch command {
 	case "run":
-		// Check for web flag
-		webMode := false
-		for _, arg := range args[2:] {
-			if arg == "--web" {
-				webMode = true
-				break
-			}
-		}
-		result := CommandResult{shouldRunService: true}
-		result.webMode = webMode
+		// Always enable web mode by default
+		result := CommandResult{shouldRunService: true, webMode: true}
 		return result, nil
 	case "set-interval":
 		if len(args) != 3 {
@@ -63,13 +55,6 @@ func handleCommand(args []string, scriptPath, logPath, configPath string, maxLin
 		return CommandResult{shouldRunService: false}, nil
 	case "show-config":
 		svc.ShowConfig()
-		return CommandResult{shouldRunService: false}, nil
-	case "generate-service":
-		if err := generateServiceFile(); err != nil {
-			return CommandResult{shouldRunService: false},
-				fmt.Errorf("error generating service file: %v", err)
-		}
-		fmt.Println("Service file generated successfully")
 		return CommandResult{shouldRunService: false}, nil
 	case "add-script":
 		return handleAddScript(args[2:], configPath)
@@ -109,9 +94,15 @@ func handleCommand(args []string, scriptPath, logPath, configPath string, maxLin
 				fmt.Errorf("usage: ./run-script-service set-web-port <port>")
 		}
 		return handleSetWebPort(args[2], configPath)
+	case "daemon":
+		if len(args) < 3 {
+			return CommandResult{shouldRunService: false},
+				fmt.Errorf("usage: ./run-script-service daemon <start|stop|status|restart|logs>")
+		}
+		return handleDaemonCommand(args[2], configPath)
 	default:
-		availableCommands := "run, set-interval, show-config, generate-service, add-script, " +
-			"list-scripts, enable-script, disable-script, remove-script, run-script, logs, clear-logs, set-web-port"
+		availableCommands := "run, set-interval, show-config, add-script, " +
+			"list-scripts, enable-script, disable-script, remove-script, run-script, logs, clear-logs, set-web-port, daemon"
 		return CommandResult{shouldRunService: false},
 			fmt.Errorf("unknown command: %s\navailable commands: %s", command, availableCommands)
 	}
@@ -267,50 +258,6 @@ func parseInterval(intervalStr string) (int, error) {
 		}
 		return result, nil
 	}
-}
-
-// generateServiceFile creates a systemd service file with current directory paths
-func generateServiceFile() error {
-	// Get current working directory
-	workDir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get working directory: %v", err)
-	}
-
-	// Get current user
-	currentUser, err := user.Current()
-	if err != nil {
-		return fmt.Errorf("failed to get current user: %v", err)
-	}
-
-	// Get absolute path of the binary
-	binaryPath := filepath.Join(workDir, "run-script-service")
-
-	// Service file template
-	serviceContent := fmt.Sprintf(`[Unit]
-Description=Run Script Service
-After=network.target
-
-[Service]
-Type=simple
-User=%s
-WorkingDirectory=%s
-ExecStart=%s run
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-`, currentUser.Username, workDir, binaryPath)
-
-	// Write service file
-	serviceFilePath := filepath.Join(workDir, "run-script.service")
-	err = os.WriteFile(serviceFilePath, []byte(serviceContent), 0600)
-	if err != nil {
-		return fmt.Errorf("failed to write service file: %v", err)
-	}
-
-	return nil
 }
 
 // parseScriptFlags parses command line flags for script management
@@ -820,4 +767,234 @@ func runMultiScriptServiceWithWeb(configPath string) {
 	cancel()
 
 	fmt.Println("Service stopped")
+}
+
+// PID file management functions
+func getPidFilePath() string {
+	dir, err := os.Executable()
+	if err != nil {
+		dir, _ = os.Getwd()
+	} else {
+		dir = filepath.Dir(dir)
+	}
+	return filepath.Join(dir, "run-script-service.pid")
+}
+
+func writePidFile(pid int) error {
+	pidFile := getPidFilePath()
+	return os.WriteFile(pidFile, []byte(fmt.Sprintf("%d", pid)), 0644)
+}
+
+func readPidFile() (int, error) {
+	pidFile := getPidFilePath()
+	data, err := os.ReadFile(pidFile)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(strings.TrimSpace(string(data)))
+}
+
+func removePidFile() error {
+	pidFile := getPidFilePath()
+	return os.Remove(pidFile)
+}
+
+func isProcessRunning(pid int) bool {
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	err = process.Signal(syscall.Signal(0))
+	return err == nil
+}
+
+// handleDaemonCommand handles daemon subcommands (start/stop/status/restart/logs)
+func handleDaemonCommand(subCommand, configPath string) (CommandResult, error) {
+	switch subCommand {
+	case "start":
+		return handleDaemonStart(configPath)
+	case "stop":
+		return handleDaemonStop()
+	case "status":
+		return handleDaemonStatus()
+	case "restart":
+		return handleDaemonRestart(configPath)
+	case "logs":
+		return handleDaemonLogs()
+	default:
+		return CommandResult{shouldRunService: false},
+			fmt.Errorf("unknown daemon subcommand: %s\navailable subcommands: start, stop, status, restart, logs", subCommand)
+	}
+}
+
+// handleDaemonStart starts the service as a background daemon
+func handleDaemonStart(configPath string) (CommandResult, error) {
+	// Check if already running
+	if pid, err := readPidFile(); err == nil && isProcessRunning(pid) {
+		return CommandResult{shouldRunService: false},
+			fmt.Errorf("service is already running (PID: %d)", pid)
+	}
+
+	// Get executable path
+	execPath, err := os.Executable()
+	if err != nil {
+		return CommandResult{shouldRunService: false},
+			fmt.Errorf("failed to get executable path: %v", err)
+	}
+
+	// Get working directory
+	workDir := filepath.Dir(execPath)
+
+	// Create log file for daemon output
+	logFile := filepath.Join(workDir, "daemon.log")
+	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return CommandResult{shouldRunService: false},
+			fmt.Errorf("failed to create log file: %v", err)
+	}
+	defer file.Close()
+
+	// Start the daemon process
+	cmd := exec.Command(execPath, "run")
+	cmd.Dir = workDir
+	cmd.Stdout = file
+	cmd.Stderr = file
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setsid: true, // Create new session
+	}
+
+	err = cmd.Start()
+	if err != nil {
+		return CommandResult{shouldRunService: false},
+			fmt.Errorf("failed to start daemon: %v", err)
+	}
+
+	// Write PID file
+	err = writePidFile(cmd.Process.Pid)
+	if err != nil {
+		cmd.Process.Kill()
+		return CommandResult{shouldRunService: false},
+			fmt.Errorf("failed to write PID file: %v", err)
+	}
+
+	fmt.Printf("Service started successfully (PID: %d)\n", cmd.Process.Pid)
+	fmt.Printf("Web interface available at http://localhost:8080\n")
+	fmt.Printf("Logs: %s\n", logFile)
+
+	return CommandResult{shouldRunService: false}, nil
+}
+
+// handleDaemonStop stops the running daemon
+func handleDaemonStop() (CommandResult, error) {
+	pid, err := readPidFile()
+	if err != nil {
+		if os.IsNotExist(err) {
+			return CommandResult{shouldRunService: false}, fmt.Errorf("service is not running")
+		}
+		return CommandResult{shouldRunService: false}, fmt.Errorf("failed to read PID file: %v", err)
+	}
+
+	if !isProcessRunning(pid) {
+		removePidFile()
+		return CommandResult{shouldRunService: false}, fmt.Errorf("service is not running")
+	}
+
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return CommandResult{shouldRunService: false}, fmt.Errorf("failed to find process: %v", err)
+	}
+
+	// Send SIGTERM for graceful shutdown
+	err = process.Signal(syscall.SIGTERM)
+	if err != nil {
+		return CommandResult{shouldRunService: false}, fmt.Errorf("failed to stop service: %v", err)
+	}
+
+	// Wait a bit for graceful shutdown
+	time.Sleep(2 * time.Second)
+
+	// Check if still running, force kill if necessary
+	if isProcessRunning(pid) {
+		err = process.Kill()
+		if err != nil {
+			return CommandResult{shouldRunService: false}, fmt.Errorf("failed to force kill service: %v", err)
+		}
+		fmt.Println("Service force killed")
+	} else {
+		fmt.Println("Service stopped gracefully")
+	}
+
+	// Remove PID file
+	removePidFile()
+
+	return CommandResult{shouldRunService: false}, nil
+}
+
+// handleDaemonStatus shows the status of the daemon
+func handleDaemonStatus() (CommandResult, error) {
+	pid, err := readPidFile()
+	if err != nil {
+		if os.IsNotExist(err) {
+			fmt.Println("Service is not running")
+			return CommandResult{shouldRunService: false}, nil
+		}
+		return CommandResult{shouldRunService: false}, fmt.Errorf("failed to read PID file: %v", err)
+	}
+
+	if isProcessRunning(pid) {
+		fmt.Printf("Service is running (PID: %d)\n", pid)
+		fmt.Println("Web interface: http://localhost:8080")
+	} else {
+		fmt.Println("Service is not running (stale PID file)")
+		removePidFile()
+	}
+
+	return CommandResult{shouldRunService: false}, nil
+}
+
+// handleDaemonRestart restarts the daemon
+func handleDaemonRestart(configPath string) (CommandResult, error) {
+	// Stop if running
+	_, err := handleDaemonStop()
+	if err != nil && !strings.Contains(err.Error(), "not running") {
+		return CommandResult{shouldRunService: false}, err
+	}
+
+	// Wait a moment
+	time.Sleep(1 * time.Second)
+
+	// Start again
+	return handleDaemonStart(configPath)
+}
+
+// handleDaemonLogs shows the daemon service logs
+func handleDaemonLogs() (CommandResult, error) {
+	dir, err := os.Executable()
+	if err != nil {
+		dir, _ = os.Getwd()
+	} else {
+		dir = filepath.Dir(dir)
+	}
+
+	logFile := filepath.Join(dir, "daemon.log")
+
+	// Check if log file exists
+	if _, err := os.Stat(logFile); os.IsNotExist(err) {
+		fmt.Println("No daemon logs found. Start the service first with: ./run-script-service daemon start")
+		return CommandResult{shouldRunService: false}, nil
+	}
+
+	// Read and display the log file
+	content, err := os.ReadFile(logFile)
+	if err != nil {
+		return CommandResult{shouldRunService: false}, fmt.Errorf("failed to read daemon logs: %v", err)
+	}
+
+	if len(content) == 0 {
+		fmt.Println("Daemon log file is empty")
+	} else {
+		fmt.Print(string(content))
+	}
+
+	return CommandResult{shouldRunService: false}, nil
 }
