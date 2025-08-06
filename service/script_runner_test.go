@@ -334,3 +334,85 @@ func TestScriptRunner_WithEventBroadcaster_FailedScript(t *testing.T) {
 		t.Errorf("Expected exit code 1, got %d", failedEvent.ExitCode)
 	}
 }
+
+func TestScriptRunner_IsExecuting(t *testing.T) {
+	config := ScriptConfig{
+		Name:        "test1",
+		Path:        "sleep",
+		Interval:    60,
+		Enabled:     true,
+		MaxLogLines: 100,
+		Timeout:     5,
+	}
+
+	logPath := filepath.Join(t.TempDir(), "test.log")
+	runner := NewScriptRunner(config, logPath)
+
+	if runner.IsExecuting() {
+		t.Error("Expected runner to not be executing initially")
+	}
+
+	ctx := context.Background()
+
+	// Run a script that sleeps for a short time
+	go func() {
+		runner.RunOnce(ctx, "0.1") // Sleep for 100ms
+	}()
+
+	// Give it a moment to start executing
+	time.Sleep(10 * time.Millisecond)
+
+	if !runner.IsExecuting() {
+		t.Error("Expected runner to be executing during script run")
+	}
+
+	// Wait for completion
+	time.Sleep(200 * time.Millisecond)
+
+	if runner.IsExecuting() {
+		t.Error("Expected runner to not be executing after script completion")
+	}
+}
+
+func TestScriptRunner_SetRestartPending(t *testing.T) {
+	config := ScriptConfig{
+		Name:        "test1",
+		Path:        "./test1.sh",
+		Interval:    60,
+		Enabled:     true,
+		MaxLogLines: 100,
+		Timeout:     30,
+	}
+
+	logPath := filepath.Join(t.TempDir(), "test.log")
+	runner := NewScriptRunner(config, logPath)
+
+	// Initially no restart should be pending
+	if runner.HasRestartPending() {
+		t.Error("Expected no restart pending initially")
+	}
+
+	newConfig := ScriptConfig{
+		Name:        "test1",
+		Path:        "./test1_new.sh",
+		Interval:    120,
+		Enabled:     true,
+		MaxLogLines: 200,
+		Timeout:     60,
+	}
+
+	runner.SetRestartPending(newConfig)
+
+	if !runner.HasRestartPending() {
+		t.Error("Expected restart to be pending after setting")
+	}
+
+	pendingConfig := runner.GetRestartPendingConfig()
+	if pendingConfig == nil {
+		t.Fatal("Expected pending config to be available")
+	}
+
+	if pendingConfig.Interval != 120 {
+		t.Errorf("Expected pending interval 120, got %d", pendingConfig.Interval)
+	}
+}

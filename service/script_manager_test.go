@@ -414,3 +414,134 @@ func TestScriptManager_RemoveScript_StopsRunningScript(t *testing.T) {
 		t.Errorf("Expected 0 scripts in config after removal, got %d", len(manager.config.Scripts))
 	}
 }
+
+func TestScriptManager_DetectChanges(t *testing.T) {
+	manager := NewScriptManager(&ServiceConfig{})
+
+	oldConfig := ScriptConfig{
+		Name:        "test",
+		Path:        "./test.sh",
+		Interval:    60,
+		Enabled:     true,
+		MaxLogLines: 100,
+		Timeout:     30,
+	}
+
+	// Test interval change
+	newConfig := oldConfig
+	newConfig.Interval = 120
+
+	changes := manager.detectChanges(oldConfig, newConfig)
+
+	if len(changes) != 1 {
+		t.Errorf("Expected 1 change, got %d", len(changes))
+	}
+
+	if changes[0].Field != "interval" {
+		t.Errorf("Expected interval change, got %s", changes[0].Field)
+	}
+
+	if changes[0].OldValue != 60 {
+		t.Errorf("Expected old interval 60, got %v", changes[0].OldValue)
+	}
+
+	if changes[0].NewValue != 120 {
+		t.Errorf("Expected new interval 120, got %v", changes[0].NewValue)
+	}
+
+	if !changes[0].RequiresRestart {
+		t.Error("Expected interval change to require restart")
+	}
+}
+
+func TestScriptManager_DetectChanges_Multiple(t *testing.T) {
+	manager := NewScriptManager(&ServiceConfig{})
+
+	oldConfig := ScriptConfig{
+		Name:        "test",
+		Path:        "./test.sh",
+		Interval:    60,
+		Enabled:     true,
+		MaxLogLines: 100,
+		Timeout:     30,
+	}
+
+	newConfig := ScriptConfig{
+		Name:        "test",
+		Path:        "./test_new.sh",
+		Interval:    120,
+		Enabled:     false,
+		MaxLogLines: 200,
+		Timeout:     60,
+	}
+
+	changes := manager.detectChanges(oldConfig, newConfig)
+
+	expectedChanges := 5 // path, interval, enabled, max_log_lines, timeout
+	if len(changes) != expectedChanges {
+		t.Errorf("Expected %d changes, got %d", expectedChanges, len(changes))
+	}
+
+	// Check that all expected fields are present
+	fields := make(map[string]bool)
+	for _, change := range changes {
+		fields[change.Field] = true
+	}
+
+	expectedFields := []string{"path", "interval", "enabled", "max_log_lines", "timeout"}
+	for _, field := range expectedFields {
+		if !fields[field] {
+			t.Errorf("Expected change for field %s", field)
+		}
+	}
+}
+
+func TestScriptManager_UpdateScript_WithImmediateApplication(t *testing.T) {
+	config := &ServiceConfig{
+		Scripts: []ScriptConfig{
+			{
+				Name:        "test1",
+				Path:        "./test1.sh",
+				Interval:    60,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     30,
+			},
+		},
+		WebPort: 8080,
+	}
+
+	manager := NewScriptManager(config)
+
+	// Test updating non-running script (should just update config)
+	updatedScript := ScriptConfig{
+		Name:        "test1",
+		Path:        "./test1_new.sh",
+		Interval:    120,
+		Enabled:     true,
+		MaxLogLines: 200,
+		Timeout:     60,
+	}
+
+	err := manager.UpdateScriptWithImmediateApplication("test1", updatedScript)
+	if err != nil {
+		t.Fatalf("Expected no error updating script, got: %v", err)
+	}
+
+	// Verify configuration was updated
+	found := false
+	for _, script := range manager.config.Scripts {
+		if script.Name == "test1" {
+			found = true
+			if script.Interval != 120 {
+				t.Errorf("Expected interval 120, got %d", script.Interval)
+			}
+			if script.Path != "./test1_new.sh" {
+				t.Errorf("Expected path ./test1_new.sh, got %s", script.Path)
+			}
+		}
+	}
+	if !found {
+		t.Error("Script test1 not found in configuration after update")
+	}
+}

@@ -7,6 +7,14 @@ import (
 	"sync"
 )
 
+// ConfigChange represents a configuration change
+type ConfigChange struct {
+	Field           string
+	OldValue        interface{}
+	NewValue        interface{}
+	RequiresRestart bool
+}
+
 // ScriptManager manages multiple script runners
 type ScriptManager struct {
 	scripts    map[string]*ScriptRunner
@@ -263,5 +271,118 @@ func (sm *ScriptManager) RemoveScript(name string) error {
 	}
 
 	sm.config.Scripts = newScripts
+	return nil
+}
+
+// detectChanges detects differences between old and new script configurations
+func (sm *ScriptManager) detectChanges(old, new ScriptConfig) []ConfigChange {
+	var changes []ConfigChange
+
+	if old.Interval != new.Interval {
+		changes = append(changes, ConfigChange{
+			Field:           "interval",
+			OldValue:        old.Interval,
+			NewValue:        new.Interval,
+			RequiresRestart: true,
+		})
+	}
+
+	if old.Enabled != new.Enabled {
+		changes = append(changes, ConfigChange{
+			Field:           "enabled",
+			OldValue:        old.Enabled,
+			NewValue:        new.Enabled,
+			RequiresRestart: true,
+		})
+	}
+
+	if old.Path != new.Path {
+		changes = append(changes, ConfigChange{
+			Field:           "path",
+			OldValue:        old.Path,
+			NewValue:        new.Path,
+			RequiresRestart: true,
+		})
+	}
+
+	if old.MaxLogLines != new.MaxLogLines {
+		changes = append(changes, ConfigChange{
+			Field:           "max_log_lines",
+			OldValue:        old.MaxLogLines,
+			NewValue:        new.MaxLogLines,
+			RequiresRestart: false,
+		})
+	}
+
+	if old.Timeout != new.Timeout {
+		changes = append(changes, ConfigChange{
+			Field:           "timeout",
+			OldValue:        old.Timeout,
+			NewValue:        new.Timeout,
+			RequiresRestart: false,
+		})
+	}
+
+	return changes
+}
+
+// UpdateScriptWithImmediateApplication updates a script and applies changes immediately to running scripts
+func (sm *ScriptManager) UpdateScriptWithImmediateApplication(name string, updatedConfig ScriptConfig) error {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	// Find the current configuration
+	var oldConfig *ScriptConfig
+	for i, sc := range sm.config.Scripts {
+		if sc.Name == name {
+			oldConfig = &sc
+			// Update configuration first
+			updatedConfig.Name = name
+			sm.config.Scripts[i] = updatedConfig
+			break
+		}
+	}
+
+	if oldConfig == nil {
+		return fmt.Errorf("script %s not found in configuration", name)
+	}
+
+	// Detect changes
+	changes := sm.detectChanges(*oldConfig, updatedConfig)
+
+	// Apply changes immediately if script is running
+	if runner, exists := sm.scripts[name]; exists {
+		return sm.applyConfigChanges(name, runner, *oldConfig, updatedConfig, changes)
+	}
+
+	// Script not running, configuration update is sufficient
+	return nil
+}
+
+// applyConfigChanges applies configuration changes to a running script
+func (sm *ScriptManager) applyConfigChanges(name string, runner *ScriptRunner, oldConfig, newConfig ScriptConfig, changes []ConfigChange) error {
+	// For now, implement basic logic - this will be enhanced in subsequent steps
+	for _, change := range changes {
+		switch change.Field {
+		case "enabled":
+			if newConfig.Enabled && !oldConfig.Enabled {
+				// Script was disabled, now enabled - but it's already running, so no action needed
+				return nil
+			} else if !newConfig.Enabled && oldConfig.Enabled {
+				// Script was enabled, now disabled - stop it
+				runner.Stop()
+				delete(sm.scripts, name)
+				return nil
+			}
+		case "interval", "path":
+			// Changes that require restart - for now, just note that restart is needed
+			// In a full implementation, this would trigger graceful restart
+			return fmt.Errorf("configuration change (%s) requires restart - not yet implemented", change.Field)
+		case "timeout", "max_log_lines":
+			// These changes can be applied without restart
+			// For now, just log that they would be applied
+			continue
+		}
+	}
 	return nil
 }
