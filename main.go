@@ -829,6 +829,12 @@ func handleDaemonStart(configPath string) (CommandResult, error) {
 	// Get working directory
 	workDir := filepath.Dir(execPath)
 
+	// Auto-build frontend if needed
+	if err := ensureFrontendBuilt(workDir); err != nil {
+		fmt.Printf("Warning: Frontend build failed: %v\n", err)
+		fmt.Println("Continuing with existing build...")
+	}
+
 	// Create log file for daemon output
 	logFile := filepath.Join(workDir, "daemon.log")
 	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
@@ -981,4 +987,85 @@ func handleDaemonLogs() (CommandResult, error) {
 	}
 
 	return CommandResult{shouldRunService: false}, nil
+}
+
+// ensureFrontendBuilt checks if frontend needs building and builds it if necessary
+func ensureFrontendBuilt(workDir string) error {
+	frontendDir := filepath.Join(workDir, "web", "frontend")
+	distDir := filepath.Join(frontendDir, "dist")
+
+	// Check if frontend project exists
+	if _, err := os.Stat(filepath.Join(frontendDir, "package.json")); os.IsNotExist(err) {
+		return fmt.Errorf("frontend project not found at %s", frontendDir)
+	}
+
+	// Check if dist directory exists and has files
+	if info, err := os.Stat(distDir); os.IsNotExist(err) || !info.IsDir() {
+		fmt.Println("Frontend dist directory not found, building frontend...")
+		return buildFrontend(frontendDir)
+	}
+
+	// Check if dist directory is empty
+	files, err := os.ReadDir(distDir)
+	if err != nil {
+		return fmt.Errorf("failed to read dist directory: %v", err)
+	}
+
+	if len(files) == 0 {
+		fmt.Println("Frontend dist directory is empty, building frontend...")
+		return buildFrontend(frontendDir)
+	}
+
+	// Check if package.json is newer than dist (basic staleness check)
+	packageJsonPath := filepath.Join(frontendDir, "package.json")
+	packageInfo, err := os.Stat(packageJsonPath)
+	if err != nil {
+		return fmt.Errorf("failed to stat package.json: %v", err)
+	}
+
+	distInfo, err := os.Stat(distDir)
+	if err != nil {
+		return fmt.Errorf("failed to stat dist directory: %v", err)
+	}
+
+	if packageInfo.ModTime().After(distInfo.ModTime()) {
+		fmt.Println("Frontend source appears newer than build, rebuilding frontend...")
+		return buildFrontend(frontendDir)
+	}
+
+	fmt.Println("Frontend build appears up to date")
+	return nil
+}
+
+// buildFrontend builds the frontend using pnpm/vite
+func buildFrontend(frontendDir string) error {
+	fmt.Printf("Building frontend in %s...\n", frontendDir)
+
+	// Check if node_modules exists, install dependencies if not
+	nodeModulesDir := filepath.Join(frontendDir, "node_modules")
+	if _, err := os.Stat(nodeModulesDir); os.IsNotExist(err) {
+		fmt.Println("Installing frontend dependencies...")
+		if err := runCommand("pnpm", []string{"install"}, frontendDir); err != nil {
+			return fmt.Errorf("pnpm install failed: %v", err)
+		}
+	}
+
+	// Run the build command
+	fmt.Println("Running frontend build...")
+	if err := runCommand("pnpm", []string{"build"}, frontendDir); err != nil {
+		return fmt.Errorf("pnpm build failed: %v", err)
+	}
+
+	fmt.Println("Frontend build completed successfully")
+	return nil
+}
+
+// runCommand executes a command in the specified directory
+func runCommand(command string, args []string, workingDir string) error {
+	cmd := exec.Command(command, args...)
+	cmd.Dir = workingDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
 }

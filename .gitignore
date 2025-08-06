@@ -8,6 +8,10 @@ run-script-service
 # Runtime configuration (contains user-specific settings)
 service_config.json
 
+# PID files (runtime process tracking)
+*.pid
+run-script-service.pid
+
 # Auto-generated systemd service file (user and path specific)
 run-script.service
 
@@ -34,3 +38,9 @@ Thumbs.db
 run-*.sh
 run.sh
 !run.sh.example
+
+# Frontend build output
+web/frontend/node_modules/
+web/frontend/dist/
+web/frontend/test-results/
+web/frontend/playwright-report/

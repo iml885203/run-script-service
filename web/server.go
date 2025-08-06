@@ -3,10 +3,15 @@ package web
 
 import (
 	"context"
+	"embed"
 	"fmt"
+	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -14,6 +19,9 @@ import (
 
 	"run-script-service/service"
 )
+
+//go:embed frontend/dist/*
+var frontendFS embed.FS
 
 // WebServer represents the HTTP API server
 type WebServer struct {
@@ -31,6 +39,14 @@ type APIResponse struct {
 	Success bool        `json:"success"`
 	Data    interface{} `json:"data,omitempty"`
 	Error   string      `json:"error,omitempty"`
+}
+
+// LogEntry represents a structured log entry for the frontend
+type LogEntry struct {
+	Timestamp string `json:"timestamp"`
+	Message   string `json:"message"`
+	Level     string `json:"level"` // "info", "warning", "error"
+	Script    string `json:"script,omitempty"`
 }
 
 // NewWebServer creates a new web server instance
@@ -99,11 +115,57 @@ func (ws *WebServer) StartSystemMetricsBroadcasting(ctx context.Context, interva
 
 // setupRoutes configures all API routes
 func (ws *WebServer) setupRoutes() {
-	// Static file routes
-	ws.router.Static("/static", "./web/static")
-	ws.router.GET("/", func(c *gin.Context) {
-		c.File("./web/static/index.html")
-	})
+	// Create a sub filesystem for the dist directory
+	distFS, err := fs.Sub(frontendFS, "frontend/dist")
+	if err != nil {
+		fmt.Printf("DEBUG: embed fs.Sub failed: %v, using fallback\n", err)
+		// Fallback to file system if embed fails (development mode)
+		ws.router.Static("/static", "./web/frontend/dist")
+		ws.router.GET("/", func(c *gin.Context) {
+			c.File("./web/frontend/dist/index.html")
+		})
+	} else {
+		fmt.Println("DEBUG: Using embedded filesystem")
+		// Use embedded filesystem for static files
+		ws.router.StaticFS("/static", http.FS(distFS))
+
+		// Root route serves index.html from embedded FS
+		ws.router.GET("/", func(c *gin.Context) {
+			indexFile, err := distFS.Open("index.html")
+			if err != nil {
+				fmt.Printf("DEBUG: Failed to open embedded index.html: %v\n", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load frontend"})
+				return
+			}
+			defer indexFile.Close()
+
+			c.Header("Content-Type", "text/html")
+			http.ServeContent(c.Writer, c.Request, "index.html", time.Now(), indexFile.(io.ReadSeeker))
+		})
+
+		// Serve index.html for SPA routes (NoRoute handler)
+		ws.router.NoRoute(func(c *gin.Context) {
+			path := c.Request.URL.Path
+
+			// If it's an API route, let it 404
+			if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/ws") {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
+				return
+			}
+
+			// For all other routes, serve index.html (Vue.js SPA)
+			indexFile, err := distFS.Open("index.html")
+			if err != nil {
+				fmt.Printf("DEBUG: Failed to open embedded index.html in NoRoute: %v\n", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load frontend"})
+				return
+			}
+			defer indexFile.Close()
+
+			c.Header("Content-Type", "text/html")
+			http.ServeContent(c.Writer, c.Request, "index.html", time.Now(), indexFile.(io.ReadSeeker))
+		})
+	}
 
 	// WebSocket endpoint
 	ws.router.GET("/ws", func(c *gin.Context) {
@@ -138,9 +200,36 @@ func (ws *WebServer) setupRoutes() {
 
 // handleStatus returns system status information
 func (ws *WebServer) handleStatus(c *gin.Context) {
+	uptime := "Unknown"
+	runningScripts := 0
+	totalScripts := 0
+
+	// Get script counts if script manager is available
+	if ws.scriptManager != nil {
+		config := ws.scriptManager.GetConfig()
+		totalScripts = len(config.Scripts)
+
+		// Count running/enabled scripts
+		for _, script := range config.Scripts {
+			if script.Enabled && ws.scriptManager.IsScriptRunning(script.Name) {
+				runningScripts++
+			}
+		}
+	}
+
+	// Calculate uptime if system monitor is available
+	if ws.systemMonitor != nil {
+		uptimeStr := ws.systemMonitor.GetUptime()
+		if uptimeStr != "" {
+			uptime = uptimeStr
+		}
+	}
+
 	statusData := map[string]interface{}{
-		"status": "running",
-		"port":   ws.port,
+		"status":         "running",
+		"uptime":         uptime,
+		"runningScripts": runningScripts,
+		"totalScripts":   totalScripts,
 	}
 
 	c.JSON(http.StatusOK, APIResponse{
@@ -492,61 +581,32 @@ func (ws *WebServer) handleDisableScript(c *gin.Context) {
 	ws.handleScriptToggle(c, false)
 }
 
-// handleGetLogs returns raw log content (simplified approach)
+// handleGetLogs returns structured log entries as expected by frontend
 func (ws *WebServer) handleGetLogs(c *gin.Context) {
 	scriptName := c.Query("script")
+	limit := c.DefaultQuery("limit", "50")
 
-	// If no script specified, return empty content
+	// Parse limit
+	maxEntries := 50
+	if parsedLimit, err := strconv.Atoi(limit); err == nil && parsedLimit > 0 {
+		maxEntries = parsedLimit
+	}
+
+	// If no script specified, return aggregated logs from all scripts
 	if scriptName == "" {
+		allLogs := ws.getAggregatedLogs(maxEntries)
 		c.JSON(http.StatusOK, APIResponse{
 			Success: true,
-			Data: map[string]interface{}{
-				"content": "",
-				"script":  "",
-			},
+			Data:    allLogs,
 		})
 		return
 	}
 
-	// Get log file path
-	dir, err := os.Executable()
-	if err != nil {
-		dir, _ = os.Getwd()
-	} else {
-		dir = filepath.Dir(dir)
-	}
-
-	logFile := filepath.Join(dir, fmt.Sprintf("%s.log", scriptName))
-
-	// Check if log file exists
-	if _, err := os.Stat(logFile); os.IsNotExist(err) {
-		c.JSON(http.StatusOK, APIResponse{
-			Success: true,
-			Data: map[string]interface{}{
-				"content": "",
-				"script":  scriptName,
-				"message": "No log file found",
-			},
-		})
-		return
-	}
-
-	// Read raw log file content
-	content, err := os.ReadFile(logFile)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, APIResponse{
-			Success: false,
-			Error:   fmt.Sprintf("Failed to read log file: %v", err),
-		})
-		return
-	}
-
+	// Get logs for specific script
+	scriptLogs := ws.getScriptLogs(scriptName, maxEntries)
 	c.JSON(http.StatusOK, APIResponse{
 		Success: true,
-		Data: map[string]interface{}{
-			"content": string(content),
-			"script":  scriptName,
-		},
+		Data:    scriptLogs,
 	})
 }
 
@@ -695,6 +755,14 @@ func (ws *WebServer) handleGetRawLogs(c *gin.Context) {
 	})
 }
 
+// ConfigResponse represents the configuration format expected by the frontend
+type ConfigResponse struct {
+	WebPort      int    `json:"webPort"`
+	Interval     string `json:"interval"`
+	LogRetention int    `json:"logRetention"`
+	AutoRefresh  bool   `json:"autoRefresh"`
+}
+
 // handleGetConfig returns system configuration
 func (ws *WebServer) handleGetConfig(c *gin.Context) {
 	if ws.scriptManager == nil {
@@ -707,9 +775,17 @@ func (ws *WebServer) handleGetConfig(c *gin.Context) {
 
 	config := ws.scriptManager.GetConfig()
 
+	// Convert to frontend-expected format
+	response := ConfigResponse{
+		WebPort:      config.WebPort,
+		Interval:     "1h", // default interval as string
+		LogRetention: 100,  // default log retention
+		AutoRefresh:  true, // default auto-refresh setting
+	}
+
 	c.JSON(http.StatusOK, APIResponse{
 		Success: true,
-		Data:    config,
+		Data:    response,
 	})
 }
 
@@ -735,8 +811,26 @@ func (ws *WebServer) handleUpdateConfig(c *gin.Context) {
 	// Get current configuration
 	config := ws.scriptManager.GetConfig()
 
-	// Update web port if provided
-	if webPort, ok := updateData["web_port"]; ok {
+	// Update web port if provided (handle both camelCase and snake_case)
+	if webPort, ok := updateData["webPort"]; ok {
+		if port, isFloat := webPort.(float64); isFloat {
+			if port >= 1 && port <= 65535 {
+				config.WebPort = int(port)
+			} else {
+				c.JSON(http.StatusBadRequest, APIResponse{
+					Success: false,
+					Error:   "Web port must be between 1 and 65535",
+				})
+				return
+			}
+		} else {
+			c.JSON(http.StatusBadRequest, APIResponse{
+				Success: false,
+				Error:   "Web port must be a number",
+			})
+			return
+		}
+	} else if webPort, ok := updateData["web_port"]; ok {
 		if port, isFloat := webPort.(float64); isFloat {
 			if port >= 1 && port <= 65535 {
 				config.WebPort = int(port)
@@ -778,4 +872,99 @@ func (ws *WebServer) handleUpdateConfig(c *gin.Context) {
 func (ws *WebServer) Start() error {
 	addr := fmt.Sprintf(":%d", ws.port)
 	return ws.router.Run(addr)
+}
+
+// getAggregatedLogs returns logs from all scripts in LogEntry format
+func (ws *WebServer) getAggregatedLogs(maxEntries int) []LogEntry {
+	// Initialize with non-nil slice to ensure JSON serializes as [] not null
+	allLogs := make([]LogEntry, 0)
+
+	if ws.scriptManager == nil {
+		return allLogs
+	}
+
+	// Get all configured scripts
+	config := ws.scriptManager.GetConfig()
+	for _, script := range config.Scripts {
+		scriptLogs := ws.getScriptLogs(script.Name, maxEntries)
+		allLogs = append(allLogs, scriptLogs...)
+	}
+
+	// If we have more logs than requested, truncate to most recent
+	if len(allLogs) > maxEntries {
+		allLogs = allLogs[len(allLogs)-maxEntries:]
+	}
+
+	return allLogs
+}
+
+// getScriptLogs returns logs for a specific script in LogEntry format
+func (ws *WebServer) getScriptLogs(scriptName string, maxEntries int) []LogEntry {
+	// Initialize with non-nil slice to ensure JSON serializes as [] not null
+	logs := make([]LogEntry, 0)
+
+	// Get log file path
+	dir, err := os.Executable()
+	if err != nil {
+		dir, _ = os.Getwd()
+	} else {
+		dir = filepath.Dir(dir)
+	}
+
+	logFile := filepath.Join(dir, fmt.Sprintf("%s.log", scriptName))
+
+	// Check if log file exists
+	if _, err := os.Stat(logFile); os.IsNotExist(err) {
+		return logs // Return empty array
+	}
+
+	// Read log file content
+	content, err := os.ReadFile(logFile)
+	if err != nil {
+		return logs // Return empty array on error
+	}
+
+	// Parse log content into LogEntry objects
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// Simple log parsing - assume format: timestamp level message
+		// For now, create basic LogEntry objects from raw log lines
+		logEntry := LogEntry{
+			Timestamp: time.Now().Format(time.RFC3339), // Default timestamp
+			Message:   line,
+			Level:     "info", // Default level
+			Script:    scriptName,
+		}
+
+		// Try to extract timestamp and level from line if possible
+		if len(line) > 19 && line[10] == 'T' { // ISO timestamp format
+			if timestampEnd := strings.Index(line[20:], " "); timestampEnd > 0 {
+				logEntry.Timestamp = line[:20+timestampEnd]
+				remaining := strings.TrimSpace(line[20+timestampEnd:])
+
+				// Check for level indicators
+				if strings.Contains(strings.ToLower(remaining), "error") {
+					logEntry.Level = "error"
+				} else if strings.Contains(strings.ToLower(remaining), "warn") {
+					logEntry.Level = "warning"
+				}
+
+				logEntry.Message = remaining
+			}
+		}
+
+		logs = append(logs, logEntry)
+	}
+
+	// Limit to maxEntries (most recent)
+	if len(logs) > maxEntries {
+		logs = logs[len(logs)-maxEntries:]
+	}
+
+	return logs
 }

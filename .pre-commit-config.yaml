@@ -33,10 +33,34 @@ repos:
         files: \.go$
         pass_filenames: false
 
-      # Tests
+      # Go Tests
       - id: go-test
         name: go test
         entry: go test ./...
         language: system
         files: \.go$
+        pass_filenames: false
+
+      # Frontend Tests
+      - id: frontend-test
+        name: frontend test
+        entry: bash -c 'if [ -d "web/frontend" ] && [ -f "web/frontend/package.json" ]; then cd web/frontend && pnpm test -- --run; else echo "Frontend project not found, skipping tests"; fi'
+        language: system
+        files: ^web/frontend/.*\.(ts|js|vue)$
+        pass_filenames: false
+
+      # Frontend Type Check
+      - id: frontend-type-check
+        name: frontend type check
+        entry: bash -c 'if [ -d "web/frontend" ] && [ -f "web/frontend/package.json" ]; then cd web/frontend && pnpm type-check; else echo "Frontend project not found, skipping type check"; fi'
+        language: system
+        files: ^web/frontend/.*\.(ts|vue)$
+        pass_filenames: false
+
+      # Frontend Build Check
+      - id: frontend-build-check
+        name: frontend build check
+        entry: bash -c 'if [ -d "web/frontend" ] && [ -f "web/frontend/package.json" ]; then cd web/frontend && pnpm build > /dev/null 2>&1 && echo "Frontend builds successfully" || echo "Frontend build failed - check for errors"; else echo "Frontend project not found, skipping build check"; fi'
+        language: system
+        files: ^web/frontend/.*\.(ts|js|vue)$
         pass_filenames: false

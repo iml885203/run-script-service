@@ -1,0 +1,41 @@
+{
+  "name": "run-script-service-frontend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "preinstall": "npx only-allow pnpm",
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:unit": "vitest tests/unit",
+    "test:ui": "vitest --ui",
+    "test:e2e": "playwright test --config=tests/e2e/playwright-config.cjs",
+    "test:e2e:ui": "playwright test --config=tests/e2e/playwright-config.cjs --ui",
+    "test:e2e:debug": "playwright test --config=tests/e2e/playwright-config.cjs --debug",
+    "type-check": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@vueuse/core": "^10.7.0",
+    "vue": "^3.4.0",
+    "vue-router": "^4.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.2",
+    "@types/node": "^20.19.9",
+    "@vitejs/plugin-vue": "^4.5.0",
+    "@vue/test-utils": "^2.4.0",
+    "jsdom": "^23.0.0",
+    "only-allow": "^1.2.1",
+    "playwright": "^1.40.0",
+    "sass": "^1.69.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "vitest": "^1.1.0",
+    "vue-tsc": "^3.0.5"
+  },
+  "packageManager": "pnpm@8.15.0",
+  "engines": {
+    "pnpm": ">=8.0.0"
+  }
+}
