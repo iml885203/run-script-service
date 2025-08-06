@@ -26,15 +26,15 @@ var frontendFS embed.FS
 
 // WebServer represents the HTTP API server
 type WebServer struct {
-	router        *gin.Engine
-	service       *service.Service
-	scriptManager *service.ScriptManager
-	fileManager   *service.FileManager
-	wsHub         *WebSocketHub
-	systemMonitor *service.SystemMonitor
-	authHandler   *auth.AuthHandler
+	router         *gin.Engine
+	service        *service.Service
+	scriptManager  *service.ScriptManager
+	fileManager    *service.FileManager
+	wsHub          *WebSocketHub
+	systemMonitor  *service.SystemMonitor
+	authHandler    *auth.AuthHandler
 	authMiddleware *auth.AuthMiddleware
-	port          int
+	port           int
 }
 
 // APIResponse represents the standard API response format
@@ -167,7 +167,7 @@ func (ws *WebServer) setupRoutes() {
 			http.ServeContent(c.Writer, c.Request, "index.html", time.Now(), indexFile.(io.ReadSeeker))
 		})
 
-		// Serve index.html for SPA routes (NoRoute handler) - protected  
+		// Serve index.html for SPA routes (NoRoute handler) - protected
 		ws.router.NoRoute(func(c *gin.Context) {
 			path := c.Request.URL.Path
 

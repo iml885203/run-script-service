@@ -3,7 +3,7 @@ import { useAuth } from '@/composables/useAuth'
 
 export async function authGuard(
   to: RouteLocationNormalized,
-  from: RouteLocationNormalized,
+  _from: RouteLocationNormalized,
   next: NavigationGuardNext
 ) {
   const { isAuthenticated, initializeAuth } = useAuth()

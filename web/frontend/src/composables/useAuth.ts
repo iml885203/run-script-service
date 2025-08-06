@@ -1,4 +1,4 @@
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { authService, type AuthStatus } from '@/services/authService'
 
 const authStatus = ref<AuthStatus>({ authenticated: false })

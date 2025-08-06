@@ -89,7 +89,7 @@ func (e *Executor) streamOutput(reader io.Reader, streamType string, logWriter *
         line := scanner.Text()
         timestamp := time.Now()
         logWriter.WriteStreamLine(timestamp, streamType, line)
-        
+
         // Optional: Send to web interface via WebSocket
         e.notifyWebSocket(streamType, line)
     }
@@ -135,15 +135,15 @@ type LogLine struct {
 export function useStreamingLogs(scriptName: string) {
   const logLines = ref<LogLine[]>([])
   const isStreaming = ref(false)
-  
+
   const subscribe = () => {
     // Subscribe to real-time log stream
   }
-  
+
   const unsubscribe = () => {
     // Unsubscribe from stream
   }
-  
+
   return { logLines, isStreaming, subscribe, unsubscribe }
 }
 ```

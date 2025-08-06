@@ -5,7 +5,7 @@
         <h1>🔐 Authentication Required</h1>
         <p>Please enter the secret key to access the dashboard</p>
       </div>
-      
+
       <form @submit.prevent="handleLogin" class="login-form">
         <div class="form-group">
           <label for="secretKey">Secret Key</label>
@@ -19,13 +19,13 @@
             class="form-control"
           />
         </div>
-        
+
         <div v-if="errorMessage" class="error-message">
           {{ errorMessage }}
         </div>
-        
-        <button 
-          type="submit" 
+
+        <button
+          type="submit"
           :disabled="isLoading || !secretKey.trim()"
           class="login-button"
         >
@@ -33,7 +33,7 @@
           <span v-else>Sign In</span>
         </button>
       </form>
-      
+
       <div class="login-footer">
         <p class="help-text">
           If you don't have a secret key, check the service logs for the generated key
@@ -66,11 +66,11 @@ const handleLogin = async () => {
 
   try {
     const success = await login(secretKey.value)
-    
+
     if (success) {
       // Clear the secret key from memory
       secretKey.value = ''
-      
+
       // Redirect to dashboard
       router.push('/')
     } else {

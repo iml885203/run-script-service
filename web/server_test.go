@@ -70,6 +70,51 @@ func createTestScript(name string, enabled bool) service.ScriptConfig {
 	}
 }
 
+// Helper function to authenticate a request by adding session cookie
+func addAuthCookie(req *http.Request, server *WebServer) error {
+	// Create a session using the auth handler
+	token, err := server.authHandler.GetSessionManager().CreateSession("test-user")
+	if err != nil {
+		return err
+	}
+
+	// Add session cookie to request
+	req.AddCookie(&http.Cookie{
+		Name:  "session",
+		Value: token,
+	})
+
+	return nil
+}
+
+// Helper function to create an authenticated request
+func createAuthenticatedRequest(method, url, body string, server *WebServer) (*http.Request, error) {
+	var req *http.Request
+	var err error
+
+	if body == "" {
+		req, err = http.NewRequest(method, url, nil)
+	} else {
+		req, err = http.NewRequest(method, url, strings.NewReader(body))
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	// Add authentication cookie
+	err = addAuthCookie(req, server)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 func TestWebServer_New(t *testing.T) {
 	// Create test service and log manager
 
@@ -128,8 +173,11 @@ func TestWebServer_StatusEndpoint(t *testing.T) {
 
 	server := NewWebServer(nil, 8080, "test-secret")
 
-	// Create test request
-	req := httptest.NewRequest("GET", "/api/status", nil)
+	// Create authenticated test request
+	req, err := createAuthenticatedRequest("GET", "/api/status", "", server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
 	w := httptest.NewRecorder()
 
 	// Call the status handler
@@ -141,7 +189,7 @@ func TestWebServer_StatusEndpoint(t *testing.T) {
 	}
 
 	var response APIResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	err = json.Unmarshal(w.Body.Bytes(), &response)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
@@ -171,8 +219,11 @@ func TestWebServer_ScriptsEndpoint(t *testing.T) {
 	server := NewWebServer(nil, 8080, "test-secret")
 	server.SetScriptManager(scriptManager)
 
-	// Create test request
-	req := httptest.NewRequest("GET", "/api/scripts", nil)
+	// Create authenticated test request
+	req, err := createAuthenticatedRequest("GET", "/api/scripts", "", server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
 	w := httptest.NewRecorder()
 
 	// Call the scripts handler
@@ -184,7 +235,7 @@ func TestWebServer_ScriptsEndpoint(t *testing.T) {
 	}
 
 	var response APIResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	err = json.Unmarshal(w.Body.Bytes(), &response)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
@@ -225,8 +276,11 @@ func TestWebServer_PostScript(t *testing.T) {
 		"timeout": 60
 	}`
 
-	req := httptest.NewRequest("POST", "/api/scripts", strings.NewReader(scriptData))
-	req.Header.Set("Content-Type", "application/json")
+	// Create authenticated test request
+	req, err := createAuthenticatedRequest("POST", "/api/scripts", scriptData, server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
 	w := httptest.NewRecorder()
 
 	// Call the post script handler
@@ -238,7 +292,7 @@ func TestWebServer_PostScript(t *testing.T) {
 	}
 
 	var response APIResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	err = json.Unmarshal(w.Body.Bytes(), &response)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
@@ -268,8 +322,11 @@ func TestWebServer_RunScript(t *testing.T) {
 	server := NewWebServer(nil, 8080, "test-secret")
 	server.SetScriptManager(scriptManager)
 
-	// Create test request
-	req := httptest.NewRequest("POST", "/api/scripts/test-script/run", nil)
+	// Create authenticated test request
+	req, err := createAuthenticatedRequest("POST", "/api/scripts/test-script/run", "", server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
 	w := httptest.NewRecorder()
 
 	// Call the run script handler
@@ -281,7 +338,7 @@ func TestWebServer_RunScript(t *testing.T) {
 	}
 
 	var response APIResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	err = json.Unmarshal(w.Body.Bytes(), &response)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
@@ -294,7 +351,11 @@ func TestWebServer_RunScript(t *testing.T) {
 func TestWebServer_RunScript_NotFound(t *testing.T) {
 	server := createTestServerWithScripts([]service.ScriptConfig{})
 
-	req := httptest.NewRequest("POST", "/api/scripts/non-existent/run", nil)
+	// Create authenticated test request
+	req, err := createAuthenticatedRequest("POST", "/api/scripts/non-existent/run", "", server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
 	w := httptest.NewRecorder()
 
 	server.router.ServeHTTP(w, req)
@@ -305,8 +366,11 @@ func TestWebServer_RunScript_NotFound(t *testing.T) {
 func TestWebServer_LogsEndpoint(t *testing.T) {
 	server := NewWebServer(nil, 8080, "test-secret")
 
-	// Create test request
-	req := httptest.NewRequest("GET", "/api/logs", nil)
+	// Create authenticated test request
+	req, err := createAuthenticatedRequest("GET", "/api/logs", "", server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
 	w := httptest.NewRecorder()
 
 	// Call the logs handler
@@ -318,7 +382,7 @@ func TestWebServer_LogsEndpoint(t *testing.T) {
 	}
 
 	var response APIResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	err = json.Unmarshal(w.Body.Bytes(), &response)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
@@ -343,8 +407,11 @@ func TestWebServer_LogsEndpoint(t *testing.T) {
 func TestWebServer_LogsEndpoint_ExpectedFormat(t *testing.T) {
 	server := NewWebServer(nil, 8080, "test-secret")
 
-	// Create test request
-	req := httptest.NewRequest("GET", "/api/logs", nil)
+	// Create authenticated test request
+	req, err := createAuthenticatedRequest("GET", "/api/logs", "", server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
 	w := httptest.NewRecorder()
 
 	// Call the logs handler
@@ -356,7 +423,7 @@ func TestWebServer_LogsEndpoint_ExpectedFormat(t *testing.T) {
 	}
 
 	var response APIResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	err = json.Unmarshal(w.Body.Bytes(), &response)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
@@ -407,8 +474,11 @@ func TestWebServer_LogsEndpoint_ExpectedFormat(t *testing.T) {
 func TestWebServer_GetScriptLogs(t *testing.T) {
 	server := NewWebServer(nil, 8080, "test-secret")
 
-	// Create test request for specific script
-	req := httptest.NewRequest("GET", "/api/logs/test-script", nil)
+	// Create authenticated test request for specific script
+	req, err := createAuthenticatedRequest("GET", "/api/logs/test-script", "", server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
 	w := httptest.NewRecorder()
 
 	// Call the script logs handler
@@ -420,7 +490,7 @@ func TestWebServer_GetScriptLogs(t *testing.T) {
 	}
 
 	var response APIResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	err = json.Unmarshal(w.Body.Bytes(), &response)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
@@ -450,7 +520,10 @@ func TestWebServer_GetSpecificScript(t *testing.T) {
 		createTestScript("test-script", true),
 	})
 
-	req := httptest.NewRequest("GET", "/api/scripts/test-script", nil)
+	req, err := createAuthenticatedRequest("GET", "/api/scripts/test-script", "", server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
 	w := httptest.NewRecorder()
 
 	server.router.ServeHTTP(w, req)
@@ -461,7 +534,10 @@ func TestWebServer_GetSpecificScript(t *testing.T) {
 func TestWebServer_GetSpecificScript_NotFound(t *testing.T) {
 	server := createTestServerWithScripts([]service.ScriptConfig{})
 
-	req := httptest.NewRequest("GET", "/api/scripts/non-existent", nil)
+	req, err := createAuthenticatedRequest("GET", "/api/scripts/non-existent", "", server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
 	w := httptest.NewRecorder()
 
 	server.router.ServeHTTP(w, req)
@@ -474,7 +550,10 @@ func TestWebServer_EnableScript(t *testing.T) {
 		createTestScript("test-script", false),
 	})
 
-	req := httptest.NewRequest("POST", "/api/scripts/test-script/enable", nil)
+	req, err := createAuthenticatedRequest("POST", "/api/scripts/test-script/enable", "", server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
 	w := httptest.NewRecorder()
 
 	server.router.ServeHTTP(w, req)
@@ -487,7 +566,10 @@ func TestWebServer_DisableScript(t *testing.T) {
 		createTestScript("test-script", true),
 	})
 
-	req := httptest.NewRequest("POST", "/api/scripts/test-script/disable", nil)
+	req, err := createAuthenticatedRequest("POST", "/api/scripts/test-script/disable", "", server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
 	w := httptest.NewRecorder()
 
 	server.router.ServeHTTP(w, req)
@@ -570,8 +652,10 @@ func TestWebServer_UpdateConfig(t *testing.T) {
 		"web_port": 9090
 	}`
 
-	req := httptest.NewRequest("PUT", "/api/config", strings.NewReader(configData))
-	req.Header.Set("Content-Type", "application/json")
+	req, err := createAuthenticatedRequest("PUT", "/api/config", configData, server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
 	w := httptest.NewRecorder()
 
 	// Call the update config handler
@@ -583,7 +667,7 @@ func TestWebServer_UpdateConfig(t *testing.T) {
 	}
 
 	var response APIResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	err = json.Unmarshal(w.Body.Bytes(), &response)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
@@ -610,8 +694,10 @@ func TestWebServer_UpdateConfig_InvalidJSON(t *testing.T) {
 	server.SetScriptManager(scriptManager)
 
 	// Create test request with invalid JSON
-	req := httptest.NewRequest("PUT", "/api/config", strings.NewReader("invalid json"))
-	req.Header.Set("Content-Type", "application/json")
+	req, err := createAuthenticatedRequest("PUT", "/api/config", "invalid json", server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
 	w := httptest.NewRecorder()
 
 	// Call the update config handler
@@ -623,7 +709,7 @@ func TestWebServer_UpdateConfig_InvalidJSON(t *testing.T) {
 	}
 
 	var response APIResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	err = json.Unmarshal(w.Body.Bytes(), &response)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
@@ -662,8 +748,10 @@ func TestWebServer_UpdateScript(t *testing.T) {
 		"timeout": 60
 	}`
 
-	req := httptest.NewRequest("PUT", "/api/scripts/test-script", strings.NewReader(updateData))
-	req.Header.Set("Content-Type", "application/json")
+	req, err := createAuthenticatedRequest("PUT", "/api/scripts/test-script", updateData, server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
 	w := httptest.NewRecorder()
 
 	// Call the update script handler
@@ -675,7 +763,7 @@ func TestWebServer_UpdateScript(t *testing.T) {
 	}
 
 	var response APIResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	err = json.Unmarshal(w.Body.Bytes(), &response)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
@@ -696,8 +784,10 @@ func TestWebServer_UpdateScript_NotFound(t *testing.T) {
 		"timeout": 30
 	}`
 
-	req := httptest.NewRequest("PUT", "/api/scripts/nonexistent", strings.NewReader(updateData))
-	req.Header.Set("Content-Type", "application/json")
+	req, err := createAuthenticatedRequest("PUT", "/api/scripts/nonexistent", updateData, server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
 	w := httptest.NewRecorder()
 
 	server.router.ServeHTTP(w, req)
@@ -710,7 +800,10 @@ func TestWebServer_DeleteScript(t *testing.T) {
 		createTestScript("test-script", true),
 	})
 
-	req := httptest.NewRequest("DELETE", "/api/scripts/test-script", nil)
+	req, err := createAuthenticatedRequest("DELETE", "/api/scripts/test-script", "", server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
 	w := httptest.NewRecorder()
 
 	server.router.ServeHTTP(w, req)
@@ -721,7 +814,10 @@ func TestWebServer_DeleteScript(t *testing.T) {
 func TestWebServer_DeleteScript_NotFound(t *testing.T) {
 	server := createTestServerWithScripts([]service.ScriptConfig{})
 
-	req := httptest.NewRequest("DELETE", "/api/scripts/nonexistent", nil)
+	req, err := createAuthenticatedRequest("DELETE", "/api/scripts/nonexistent", "", server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
 	w := httptest.NewRecorder()
 
 	server.router.ServeHTTP(w, req)
@@ -733,8 +829,11 @@ func TestWebServer_WebSocketRouteSetup(t *testing.T) {
 	// Create test dependencies
 	server := NewWebServer(nil, 8080, "test-secret")
 
-	// Test that WebSocket route is configured but returns 404 since we haven't implemented the handler yet
-	req := httptest.NewRequest("GET", "/ws", nil)
+	// Test that WebSocket route is configured but requires authentication
+	req, err := createAuthenticatedRequest("GET", "/ws", "", server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
 	w := httptest.NewRecorder()
 
 	server.router.ServeHTTP(w, req)

@@ -16,7 +16,7 @@ func TestNewAuthHandler(t *testing.T) {
 	if handler == nil {
 		t.Fatal("expected handler to be created")
 	}
-	
+
 	if handler.GetSessionManager() == nil {
 		t.Fatal("expected session manager to be initialized")
 	}
