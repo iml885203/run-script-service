@@ -220,6 +220,7 @@ func (ws *WebServer) setupRoutes() {
 	// Script management endpoints
 	protected.GET("/scripts", ws.handleGetScripts)
 	protected.POST("/scripts", ws.handlePostScript)
+	protected.POST("/scripts/template", ws.handlePostScriptTemplate)
 	protected.GET("/scripts/:name", ws.handleGetScript)
 	protected.PUT("/scripts/:name", ws.handleUpdateScript)
 	protected.DELETE("/scripts/:name", ws.handleDeleteScript)
@@ -377,6 +378,117 @@ func (ws *WebServer) handlePostScript(c *gin.Context) {
 			"timeout":       scriptConfig.Timeout,
 		},
 	})
+}
+
+// handlePostScriptTemplate creates a new script from a template
+func (ws *WebServer) handlePostScriptTemplate(c *gin.Context) {
+	if ws.scriptManager == nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   "Script manager not initialized",
+		})
+		return
+	}
+
+	var template service.ScriptTemplate
+	if err := c.ShouldBindJSON(&template); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Invalid request body: %v", err),
+		})
+		return
+	}
+
+	// Create script generator
+	scriptGenerator := service.NewScriptGenerator()
+
+	// Generate script from template
+	generatedScript, err := scriptGenerator.GenerateScript(&template)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Script generation failed: %v", err),
+		})
+		return
+	}
+
+	// Convert generated script to ScriptConfig for script manager
+	scriptConfig := service.ScriptConfig{
+		Name:        generatedScript.Name,
+		Path:        generatedScript.Path,
+		Interval:    convertIntervalToSeconds(generatedScript.Config.Interval),
+		Enabled:     true,
+		MaxLogLines: generatedScript.Config.MaxLogLines,
+		Timeout:     generatedScript.Config.Timeout,
+	}
+
+	// Set defaults for optional fields
+	if scriptConfig.Interval <= 0 {
+		scriptConfig.Interval = 3600 // Default to 1 hour
+	}
+	if scriptConfig.MaxLogLines <= 0 {
+		scriptConfig.MaxLogLines = 100
+	}
+
+	// Write the generated script to file
+	if err := writeScriptToFile(generatedScript.Path, generatedScript.Content); err != nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Failed to write script file: %v", err),
+		})
+		return
+	}
+
+	// Add the script to the manager
+	if err := ws.scriptManager.AddScript(scriptConfig); err != nil {
+		c.JSON(http.StatusConflict, APIResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Success: true,
+		Data: map[string]interface{}{
+			"name":         generatedScript.Name,
+			"path":         generatedScript.Path,
+			"type":         template.Type,
+			"project_path": template.ProjectPath,
+			"config":       generatedScript.Config,
+		},
+	})
+}
+
+// Helper function to convert interval string to seconds
+func convertIntervalToSeconds(interval string) int {
+	// Simple conversion for common intervals
+	switch interval {
+	case "5m":
+		return 300
+	case "30m":
+		return 1800
+	case "1h":
+		return 3600
+	case "6h":
+		return 21600
+	case "24h":
+		return 86400
+	default:
+		return 3600 // Default to 1 hour
+	}
+}
+
+// Helper function to write script content to file
+func writeScriptToFile(path, content string) error {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.WriteString(content)
+	return err
 }
 
 // handleRunScript executes a script once

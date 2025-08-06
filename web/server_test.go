@@ -958,3 +958,117 @@ func TestWebServer_GitProjects_NonExistentDirectory(t *testing.T) {
 		t.Error("Expected failed response for non-existent directory")
 	}
 }
+
+// TestWebServer_PostScriptWithTemplate tests enhanced script creation using ScriptTemplate
+func TestWebServer_PostScriptWithTemplate(t *testing.T) {
+	// Create test dependencies with empty config
+	config := &service.ServiceConfig{
+		Scripts: []service.ScriptConfig{},
+	}
+	scriptManager := service.NewScriptManager(config)
+	server := NewWebServer(nil, 8080, "test-secret")
+	server.SetScriptManager(scriptManager)
+
+	// Test Claude Code script creation
+	claudeScriptData := `{
+		"name": "claude-test-script",
+		"type": "claude-code",
+		"project_path": "/tmp/test-project",
+		"prompts": ["implement feature X", "write tests for feature X"],
+		"config": {
+			"interval": "1h",
+			"timeout": 300,
+			"max_log_lines": 100
+		}
+	}`
+
+	req, err := createAuthenticatedRequest("POST", "/api/scripts/template", claudeScriptData, server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Errorf("Expected successful response, got error: %v", response.Error)
+	}
+
+	// Verify the script was created with generated content
+	if response.Data == nil {
+		t.Error("Expected response data for created script")
+	}
+}
+
+// TestWebServer_PostScriptWithTemplate_PureScript tests pure script creation using ScriptTemplate
+func TestWebServer_PostScriptWithTemplate_PureScript(t *testing.T) {
+	// Create test dependencies with empty config
+	config := &service.ServiceConfig{
+		Scripts: []service.ScriptConfig{},
+	}
+	scriptManager := service.NewScriptManager(config)
+	server := NewWebServer(nil, 8080, "test-secret")
+	server.SetScriptManager(scriptManager)
+
+	// Test Pure script creation
+	pureScriptData := `{
+		"name": "pure-test-script",
+		"type": "pure",
+		"content": "#!/bin/bash\necho \"Hello World\"",
+		"config": {
+			"interval": "30m",
+			"timeout": 120,
+			"max_log_lines": 50
+		}
+	}`
+
+	req, err := createAuthenticatedRequest("POST", "/api/scripts/template", pureScriptData, server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Errorf("Expected successful response, got error: %v", response.Error)
+	}
+
+	// Verify the script was created with generated content
+	if response.Data == nil {
+		t.Error("Expected response data for created script")
+	}
+
+	// Verify response contains expected fields for pure script
+	data, ok := response.Data.(map[string]interface{})
+	if !ok {
+		t.Error("Expected response data to be a map")
+	} else {
+		if data["type"] != "pure" {
+			t.Errorf("Expected type 'pure', got %v", data["type"])
+		}
+		if data["name"] != "pure-test-script" {
+			t.Errorf("Expected name 'pure-test-script', got %v", data["name"])
+		}
+	}
+}
