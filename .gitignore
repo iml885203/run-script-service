@@ -39,6 +39,9 @@ run-*.sh
 run.sh
 !run.sh.example
 
+# Test scripts (should not be committed)
+test*.sh
+
 # Frontend build output
 web/frontend/node_modules/
 web/frontend/dist/
