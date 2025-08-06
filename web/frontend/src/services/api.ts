@@ -82,4 +82,12 @@ export class ApiService {
       body: JSON.stringify(config),
     })
   }
+
+  static async getGitProjects(directory?: string): Promise<{ projects: any[] }> {
+    const endpoint = directory
+      ? `/git-projects?dir=${encodeURIComponent(directory)}`
+      : '/git-projects'
+
+    return this.request<{ projects: any[] }>(endpoint)
+  }
 }
