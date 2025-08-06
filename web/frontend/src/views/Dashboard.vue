@@ -3,9 +3,9 @@
     <div class="dashboard-header">
       <h2>System Dashboard</h2>
       <!-- Real-time connection status indicator -->
-      <div class="connection-status" :class="{ 
-        'connected': wsIsConnected, 
-        'disconnected': !wsIsConnected 
+      <div class="connection-status" :class="{
+        'connected': wsIsConnected,
+        'disconnected': !wsIsConnected
       }">
         <span class="status-dot"></span>
         {{ wsIsConnected ? 'Live' : 'Offline' }}

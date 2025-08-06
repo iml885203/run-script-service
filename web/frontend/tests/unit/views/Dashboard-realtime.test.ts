@@ -93,7 +93,7 @@ describe('Dashboard Real-time Updates', () => {
     // Setup WebSocket mock
     connectFn = vi.fn()
     onMessageFn = vi.fn()
-    
+
     mockWebSocket.mockReturnValue({
       isConnected: ref(false),
       error: ref(null),
@@ -108,11 +108,11 @@ describe('Dashboard Real-time Updates', () => {
 
     // Setup system metrics mock
     mockSystemMetrics.mockReturnValue({
-      metrics: ref({ 
-        status: 'running', 
-        uptime: '1 hour', 
-        runningScripts: 2, 
-        totalScripts: 3 
+      metrics: ref({
+        status: 'running',
+        uptime: '1 hour',
+        runningScripts: 2,
+        totalScripts: 3
       }),
       loading: ref(false),
       error: ref(null),
@@ -176,11 +176,11 @@ describe('Dashboard Real-time Updates', () => {
   })
 
   it('should update system metrics display when receiving real-time data', async () => {
-    const metricsRef = ref({ 
-      status: 'running', 
-      uptime: '1 hour', 
-      runningScripts: 2, 
-      totalScripts: 3 
+    const metricsRef = ref({
+      status: 'running',
+      uptime: '1 hour',
+      runningScripts: 2,
+      totalScripts: 3
     })
 
     mockSystemMetrics.mockReturnValue({
@@ -208,7 +208,7 @@ describe('Dashboard Real-time Updates', () => {
     const systemMetricsCall = onMessageFn.mock.calls.find(
       call => call[0] === 'system_metrics'
     )
-    
+
     if (!systemMetricsCall) {
       throw new Error('system_metrics handler not registered')
     }
@@ -267,7 +267,7 @@ describe('Dashboard Real-time Updates', () => {
     const scriptStatusCall = onMessageFn.mock.calls.find(
       call => call[0] === 'script_status'
     )
-    
+
     if (!scriptStatusCall) {
       throw new Error('script_status handler not registered')
     }
@@ -297,7 +297,7 @@ describe('Dashboard Real-time Updates', () => {
 
   it('should show real-time connection status indicator', async () => {
     const connectedRef = ref(false)
-    
+
     mockWebSocket.mockReturnValue({
       isConnected: connectedRef,
       error: ref(null),
@@ -329,7 +329,7 @@ describe('Dashboard Real-time Updates', () => {
 
   it('should handle WebSocket connection errors gracefully', async () => {
     const errorRef = ref(null)
-    
+
     mockWebSocket.mockReturnValue({
       isConnected: ref(false),
       error: errorRef,
@@ -358,10 +358,10 @@ describe('Dashboard Real-time Updates', () => {
   })
 
   it('should display live system resource metrics (CPU, memory, disk)', async () => {
-    const metricsRef = ref({ 
-      status: 'running', 
-      uptime: '1 hour', 
-      runningScripts: 2, 
+    const metricsRef = ref({
+      status: 'running',
+      uptime: '1 hour',
+      runningScripts: 2,
       totalScripts: 3,
       cpu_percent: 45.2,
       memory_percent: 67.8,
@@ -390,7 +390,7 @@ describe('Dashboard Real-time Updates', () => {
 
   it('should cleanup WebSocket connections on unmount', () => {
     const disconnectFn = vi.fn()
-    
+
     mockWebSocket.mockReturnValue({
       isConnected: ref(true),
       error: ref(null),
