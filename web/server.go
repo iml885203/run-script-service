@@ -236,6 +236,9 @@ func (ws *WebServer) setupRoutes() {
 	// Configuration endpoints
 	protected.GET("/config", ws.handleGetConfig)
 	protected.PUT("/config", ws.handleUpdateConfig)
+
+	// Git project discovery endpoints
+	protected.GET("/git-projects", ws.handleGetGitProjects)
 }
 
 // handleStatus returns system status information
@@ -1007,4 +1010,31 @@ func (ws *WebServer) getScriptLogs(scriptName string, maxEntries int) []LogEntry
 	}
 
 	return logs
+}
+
+// handleGetGitProjects discovers and returns Git projects in a specified directory
+func (ws *WebServer) handleGetGitProjects(c *gin.Context) {
+	// Get directory parameter from query
+	dir := c.DefaultQuery("dir", os.Getenv("HOME"))
+	if dir == "" {
+		dir = os.Getenv("HOME") // Fallback to home directory
+	}
+
+	// Create Git discovery service
+	gitService := service.NewGitDiscoveryService()
+	projects, err := gitService.DiscoverGitProjects(dir)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Failed to discover Git projects: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Success: true,
+		Data: map[string]interface{}{
+			"projects": projects,
+		},
+	})
 }

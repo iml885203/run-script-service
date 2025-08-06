@@ -875,3 +875,86 @@ func TestWebServer_StartSystemMetricsBroadcasting(t *testing.T) {
 		t.Errorf("Expected no error starting system metrics broadcasting, got: %v", err)
 	}
 }
+
+func TestWebServer_GitProjects(t *testing.T) {
+	// Create temporary directory structure with Git projects
+	tempDir := t.TempDir()
+
+	// Create test Git project 1
+	project1 := tempDir + "/project1"
+	os.MkdirAll(project1+"/.git", 0755)
+
+	// Create test Git project 2
+	project2 := tempDir + "/project2"
+	os.MkdirAll(project2+"/.git", 0755)
+
+	// Create non-Git directory
+	nonGitDir := tempDir + "/not-git"
+	os.MkdirAll(nonGitDir, 0755)
+
+	server := createTestServerWithScripts([]service.ScriptConfig{})
+
+	// Test GET /api/git-projects with test directory
+	req, err := createAuthenticatedRequest("GET", "/api/git-projects?dir="+tempDir, "", server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response APIResponse
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Errorf("Expected successful response, got: %s", response.Error)
+	}
+
+	// Verify response contains projects
+	projectsData, ok := response.Data.(map[string]interface{})
+	if !ok {
+		t.Fatal("Expected response data to be a map")
+	}
+
+	projects, ok := projectsData["projects"].([]interface{})
+	if !ok {
+		t.Fatal("Expected projects to be an array")
+	}
+
+	if len(projects) != 2 {
+		t.Errorf("Expected 2 projects, got %d", len(projects))
+	}
+}
+
+func TestWebServer_GitProjects_NonExistentDirectory(t *testing.T) {
+	server := createTestServerWithScripts([]service.ScriptConfig{})
+
+	req, err := createAuthenticatedRequest("GET", "/api/git-projects?dir=/non/existent/path", "", server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status 500, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if response.Success {
+		t.Error("Expected failed response for non-existent directory")
+	}
+}

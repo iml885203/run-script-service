@@ -3,7 +3,7 @@
 <html>
 	<head>
 		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-		<title>run-script-service: Go Coverage Report</title>
+		<title>auth: Go Coverage Report</title>
 		<style>
 			body {
 				background: black;
@@ -55,39 +55,47 @@
 			<div id="nav">
 				<select id="files">
 
-				<option value="file0">run-script-service/main.go (39.5%)</option>
+				<option value="file0">run-script-service/auth/handler.go (85.2%)</option>
 
-				<option value="file1">run-script-service/mocks/filesystem.go (26.7%)</option>
+				<option value="file1">run-script-service/auth/middleware.go (73.7%)</option>
 
-				<option value="file2">run-script-service/service/config.go (51.3%)</option>
+				<option value="file2">run-script-service/auth/session.go (93.5%)</option>
 
-				<option value="file3">run-script-service/service/event.go (100.0%)</option>
+				<option value="file3">run-script-service/main.go (38.6%)</option>
 
-				<option value="file4">run-script-service/service/executor.go (77.3%)</option>
+				<option value="file4">run-script-service/mocks/filesystem.go (26.7%)</option>
 
-				<option value="file5">run-script-service/service/file_manager.go (85.1%)</option>
+				<option value="file5">run-script-service/service/config.go (51.3%)</option>
 
-				<option value="file6">run-script-service/service/log_manager.go (33.0%)</option>
+				<option value="file6">run-script-service/service/event.go (100.0%)</option>
 
-				<option value="file7">run-script-service/service/monitor.go (70.4%)</option>
+				<option value="file7">run-script-service/service/executor.go (77.3%)</option>
 
-				<option value="file8">run-script-service/service/script_manager.go (58.2%)</option>
+				<option value="file8">run-script-service/service/file_manager.go (85.1%)</option>
 
-				<option value="file9">run-script-service/service/script_runner.go (72.8%)</option>
+				<option value="file9">run-script-service/service/git_discovery.go (88.2%)</option>
 
-				<option value="file10">run-script-service/service/service.go (89.5%)</option>
+				<option value="file10">run-script-service/service/log_manager.go (33.0%)</option>
 
-				<option value="file11">run-script-service/web/event_bridge.go (100.0%)</option>
+				<option value="file11">run-script-service/service/monitor.go (70.4%)</option>
 
-				<option value="file12">run-script-service/web/frontend_setup.go (82.6%)</option>
+				<option value="file12">run-script-service/service/script_manager.go (58.2%)</option>
 
-				<option value="file13">run-script-service/web/handlers_files.go (77.8%)</option>
+				<option value="file13">run-script-service/service/script_runner.go (72.8%)</option>
 
-				<option value="file14">run-script-service/web/server.go (49.5%)</option>
+				<option value="file14">run-script-service/service/service.go (89.5%)</option>
 
-				<option value="file15">run-script-service/web/vue_build_manager.go (13.6%)</option>
+				<option value="file15">run-script-service/web/event_bridge.go (100.0%)</option>
 
-				<option value="file16">run-script-service/web/websocket.go (16.9%)</option>
+				<option value="file16">run-script-service/web/frontend_setup.go (82.6%)</option>
+
+				<option value="file17">run-script-service/web/handlers_files.go (78.3%)</option>
+
+				<option value="file18">run-script-service/web/server.go (47.8%)</option>
+
+				<option value="file19">run-script-service/web/vue_build_manager.go (13.6%)</option>
+
+				<option value="file20">run-script-service/web/websocket.go (16.9%)</option>
 
 				</select>
 			</div>
@@ -101,11 +109,316 @@
 		</div>
 		<div id="content">
 
-		<pre class="file" id="file0" style="display: none">// Package main provides the run-script-service daemon executable.
+		<pre class="file" id="file0" style="display: none">package auth
+
+import (
+        "net/http"
+        "time"
+
+        "github.com/gin-gonic/gin"
+)
+
+// AuthHandler handles authentication-related HTTP requests
+type AuthHandler struct {
+        sessionManager *SessionManager
+        secretKey      string
+}
+
+// LoginRequest represents the login request payload
+type LoginRequest struct {
+        SecretKey string `json:"secretKey" binding:"required"`
+}
+
+// NewAuthHandler creates a new authentication handler
+func NewAuthHandler(secretKey string) *AuthHandler <span class="cov8" title="1">{
+        sessionManager := NewSessionManagerWithTimeout(24 * time.Hour) // 24-hour session timeout
+        return &amp;AuthHandler{
+                sessionManager: sessionManager,
+                secretKey:      secretKey,
+        }
+}</span>
+
+// GetSessionManager returns the session manager instance
+func (ah *AuthHandler) GetSessionManager() *SessionManager <span class="cov8" title="1">{
+        return ah.sessionManager
+}</span>
+
+// Login handles the login endpoint
+func (ah *AuthHandler) Login(c *gin.Context) <span class="cov8" title="1">{
+        var req LoginRequest
+        if err := c.ShouldBindJSON(&amp;req); err != nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, gin.H{
+                        "success": false,
+                        "error":   "Invalid request body",
+                })
+                return
+        }</span>
+
+        // Verify secret key
+        <span class="cov8" title="1">if req.SecretKey != ah.secretKey </span><span class="cov8" title="1">{
+                c.JSON(http.StatusUnauthorized, gin.H{
+                        "success": false,
+                        "error":   "Invalid secret key",
+                })
+                return
+        }</span>
+
+        // Create session (using "authenticated" as user ID since we only have secret-based auth)
+        <span class="cov8" title="1">sessionToken, err := ah.sessionManager.CreateSession("authenticated")
+        if err != nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, gin.H{
+                        "success": false,
+                        "error":   "Failed to create session",
+                })
+                return
+        }</span>
+
+        // Set session cookie
+        <span class="cov8" title="1">c.SetCookie(
+                "session",                   // name
+                sessionToken,                // value
+                int(24*time.Hour.Seconds()), // max age (24 hours)
+                "/",                         // path
+                "",                          // domain
+                false,                       // secure (set to true in production with HTTPS)
+                true,                        // httpOnly
+        )
+
+        c.JSON(http.StatusOK, gin.H{
+                "success": true,
+                "message": "Login successful",
+        })</span>
+}
+
+// Logout handles the logout endpoint
+func (ah *AuthHandler) Logout(c *gin.Context) <span class="cov8" title="1">{
+        // Get session cookie
+        sessionCookie, err := c.Request.Cookie("session")
+        if err == nil </span><span class="cov8" title="1">{
+                // Destroy the session
+                ah.sessionManager.DestroySession(sessionCookie.Value)
+        }</span>
+
+        // Clear the session cookie
+        <span class="cov8" title="1">c.SetCookie(
+                "session",
+                "",
+                -1,    // max age (expired)
+                "/",   // path
+                "",    // domain
+                false, // secure
+                true,  // httpOnly
+        )
+
+        c.JSON(http.StatusOK, gin.H{
+                "success": true,
+                "message": "Logout successful",
+        })</span>
+}
+
+// AuthStatus returns the current authentication status
+func (ah *AuthHandler) AuthStatus(c *gin.Context) <span class="cov8" title="1">{
+        // Check if session cookie exists
+        sessionCookie, err := c.Request.Cookie("session")
+        if err != nil </span><span class="cov8" title="1">{
+                c.JSON(http.StatusOK, gin.H{
+                        "success": true,
+                        "data": gin.H{
+                                "authenticated": false,
+                        },
+                })
+                return
+        }</span>
+
+        // Validate session
+        <span class="cov8" title="1">_, valid := ah.sessionManager.ValidateSession(sessionCookie.Value)
+
+        c.JSON(http.StatusOK, gin.H{
+                "success": true,
+                "data": gin.H{
+                        "authenticated": valid,
+                },
+        })</span>
+}
+</pre>
+
+		<pre class="file" id="file1" style="display: none">package auth
+
+import (
+        "net/http"
+
+        "github.com/gin-gonic/gin"
+)
+
+// AuthMiddleware provides authentication middleware for HTTP requests
+type AuthMiddleware struct {
+        sessionManager *SessionManager
+}
+
+// NewAuthMiddleware creates a new authentication middleware
+func NewAuthMiddleware(sessionManager *SessionManager) *AuthMiddleware <span class="cov8" title="1">{
+        return &amp;AuthMiddleware{
+                sessionManager: sessionManager,
+        }
+}</span>
+
+// IsAuthenticated checks if the current request is authenticated
+func (am *AuthMiddleware) IsAuthenticated(c *gin.Context) bool <span class="cov0" title="0">{
+        // Get session cookie
+        sessionCookie, err := c.Request.Cookie("session")
+        if err != nil </span><span class="cov0" title="0">{
+                return false
+        }</span>
+
+        // Validate session
+        <span class="cov0" title="0">_, valid := am.sessionManager.ValidateSession(sessionCookie.Value)
+        return valid</span>
+}
+
+// RequireAuth returns a Gin middleware that requires authentication
+func (am *AuthMiddleware) RequireAuth() gin.HandlerFunc <span class="cov8" title="1">{
+        return func(c *gin.Context) </span><span class="cov8" title="1">{
+                // Get session cookie
+                sessionCookie, err := c.Request.Cookie("session")
+                if err != nil </span><span class="cov8" title="1">{
+                        c.JSON(http.StatusUnauthorized, gin.H{
+                                "success": false,
+                                "error":   "Authentication required",
+                        })
+                        c.Abort()
+                        return
+                }</span>
+
+                // Validate session
+                <span class="cov8" title="1">userID, valid := am.sessionManager.ValidateSession(sessionCookie.Value)
+                if !valid </span><span class="cov8" title="1">{
+                        c.JSON(http.StatusUnauthorized, gin.H{
+                                "success": false,
+                                "error":   "Invalid or expired session",
+                        })
+                        c.Abort()
+                        return
+                }</span>
+
+                // Set user ID in context for handlers to use
+                <span class="cov8" title="1">c.Set("userID", userID)
+                c.Next()</span>
+        }
+}
+</pre>
+
+		<pre class="file" id="file2" style="display: none">// Package auth provides authentication and session management
+package auth
+
+import (
+        "crypto/rand"
+        "encoding/hex"
+        "fmt"
+        "sync"
+        "time"
+)
+
+// Session represents an authentication session
+type Session struct {
+        UserID    string
+        CreatedAt time.Time
+        ExpiresAt time.Time
+}
+
+// SessionManager manages authentication sessions
+type SessionManager struct {
+        sessions map[string]*Session
+        timeout  time.Duration
+        mutex    sync.RWMutex
+}
+
+// NewSessionManager creates a new session manager with default 24 hour timeout
+func NewSessionManager() *SessionManager <span class="cov8" title="1">{
+        return NewSessionManagerWithTimeout(24 * time.Hour)
+}</span>
+
+// NewSessionManagerWithTimeout creates a new session manager with custom timeout
+func NewSessionManagerWithTimeout(timeout time.Duration) *SessionManager <span class="cov8" title="1">{
+        return &amp;SessionManager{
+                sessions: make(map[string]*Session),
+                timeout:  timeout,
+        }
+}</span>
+
+// CreateSession creates a new session and returns the session token
+func (sm *SessionManager) CreateSession(userID string) (string, error) <span class="cov8" title="1">{
+        // Generate cryptographically secure session token
+        token, err := generateSessionToken()
+        if err != nil </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("failed to generate session token: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">sm.mutex.Lock()
+        defer sm.mutex.Unlock()
+
+        // Create session
+        session := &amp;Session{
+                UserID:    userID,
+                CreatedAt: time.Now(),
+                ExpiresAt: time.Now().Add(sm.timeout),
+        }
+
+        sm.sessions[token] = session
+
+        return token, nil</span>
+}
+
+// ValidateSession validates a session token and returns the user ID if valid
+func (sm *SessionManager) ValidateSession(token string) (string, bool) <span class="cov8" title="1">{
+        sm.mutex.RLock()
+        defer sm.mutex.RUnlock()
+
+        session, exists := sm.sessions[token]
+        if !exists </span><span class="cov8" title="1">{
+                return "", false
+        }</span>
+
+        // Check if session has expired
+        <span class="cov8" title="1">if time.Now().After(session.ExpiresAt) </span><span class="cov8" title="1">{
+                // Clean up expired session
+                go func() </span><span class="cov8" title="1">{
+                        sm.mutex.Lock()
+                        defer sm.mutex.Unlock()
+                        delete(sm.sessions, token)
+                }</span>()
+                <span class="cov8" title="1">return "", false</span>
+        }
+
+        <span class="cov8" title="1">return session.UserID, true</span>
+}
+
+// DestroySession removes a session
+func (sm *SessionManager) DestroySession(token string) error <span class="cov8" title="1">{
+        sm.mutex.Lock()
+        defer sm.mutex.Unlock()
+
+        delete(sm.sessions, token)
+        return nil
+}</span>
+
+// generateSessionToken generates a cryptographically secure random session token
+func generateSessionToken() (string, error) <span class="cov8" title="1">{
+        bytes := make([]byte, 32) // 256 bits
+        _, err := rand.Read(bytes)
+        if err != nil </span><span class="cov0" title="0">{
+                return "", err
+        }</span>
+        <span class="cov8" title="1">return hex.EncodeToString(bytes), nil</span>
+}
+</pre>
+
+		<pre class="file" id="file3" style="display: none">// Package main provides the run-script-service daemon executable.
 package main
 
 import (
         "context"
+        "crypto/rand"
+        "encoding/hex"
         "fmt"
         "os"
         "os/exec"
@@ -804,8 +1117,19 @@ func runMultiScriptServiceWithWeb(configPath string) <span class="cov0" title="0
         // Create system monitor
         systemMonitor := service.NewSystemMonitor()
 
+        // Get secret key from environment or generate one
+        secretKey := os.Getenv("WEB_SECRET_KEY")
+        if secretKey == "" </span><span class="cov0" title="0">{
+                // Generate a random secret key and warn about it
+                secretKey = generateRandomKey()
+                fmt.Printf("WARNING: No WEB_SECRET_KEY environment variable set!\n")
+                fmt.Printf("Generated random secret key: %s\n", secretKey)
+                fmt.Printf("Set WEB_SECRET_KEY environment variable to use a persistent key.\n")
+                fmt.Printf("For production, use: export WEB_SECRET_KEY=your-secure-secret-here\n\n")
+        }</span>
+
         // Create web server (simplified, no LogManager dependency)
-        webServer := web.NewWebServer(nil, config.WebPort)
+        <span class="cov0" title="0">webServer := web.NewWebServer(nil, config.WebPort, secretKey)
         webServer.SetScriptManager(scriptManager)
         webServer.SetFileManager(fileManager)
         webServer.SetSystemMonitor(systemMonitor)
@@ -1172,9 +1496,20 @@ func runCommand(command string, args []string, workingDir string) error <span cl
 
         return cmd.Run()
 }</span>
+
+// generateRandomKey generates a cryptographically secure random key
+func generateRandomKey() string <span class="cov0" title="0">{
+        bytes := make([]byte, 32) // 256-bit key
+        _, err := rand.Read(bytes)
+        if err != nil </span><span class="cov0" title="0">{
+                // Fallback to time-based key if crypto/rand fails
+                return fmt.Sprintf("fallback-key-%d", time.Now().UnixNano())
+        }</span>
+        <span class="cov0" title="0">return hex.EncodeToString(bytes)</span>
+}
 </pre>
 
-		<pre class="file" id="file1" style="display: none">// Package mocks provides mock implementations for testing purposes.
+		<pre class="file" id="file4" style="display: none">// Package mocks provides mock implementations for testing purposes.
 package mocks
 
 import (
@@ -1297,7 +1632,7 @@ func (m *MockTime) After(d time.Duration) &lt;-chan time.Time <span class="cov8"
 }</span>
 </pre>
 
-		<pre class="file" id="file2" style="display: none">// Package service provides core functionality for the run-script-service daemon.
+		<pre class="file" id="file5" style="display: none">// Package service provides core functionality for the run-script-service daemon.
 package service
 
 import (
@@ -1495,7 +1830,7 @@ func SaveServiceConfig(configPath string, config *ServiceConfig) error <span cla
 }
 </pre>
 
-		<pre class="file" id="file3" style="display: none">package service
+		<pre class="file" id="file6" style="display: none">package service
 
 import (
         "sync"
@@ -1586,7 +1921,7 @@ func (eb *EventBroadcaster) Broadcast(event *ScriptStatusEvent) <span class="cov
 }
 </pre>
 
-		<pre class="file" id="file4" style="display: none">// Package service provides core functionality for the run-script-service daemon.
+		<pre class="file" id="file7" style="display: none">// Package service provides core functionality for the run-script-service daemon.
 package service
 
 import (
@@ -1796,7 +2131,7 @@ func (e *Executor) TrimLog() error <span class="cov8" title="1">{
 }
 </pre>
 
-		<pre class="file" id="file5" style="display: none">// Package service provides file management functionality
+		<pre class="file" id="file8" style="display: none">// Package service provides file management functionality
 package service
 
 import (
@@ -2045,7 +2380,71 @@ func (fm *FileManager) ListFiles(dirPath string) ([]fs.FileInfo, error) <span cl
 }
 </pre>
 
-		<pre class="file" id="file6" style="display: none">// Package service provides core functionality for the run-script-service daemon
+		<pre class="file" id="file9" style="display: none">package service
+
+import (
+        "fmt"
+        "os"
+        "path/filepath"
+)
+
+// GitProject represents a discovered Git project
+type GitProject struct {
+        Name        string `json:"name"`
+        Path        string `json:"path"`
+        Description string `json:"description,omitempty"`
+        LastCommit  string `json:"last_commit,omitempty"`
+}
+
+// GitDiscoveryService handles Git project discovery in directories
+type GitDiscoveryService struct {
+}
+
+// NewGitDiscoveryService creates a new Git discovery service
+func NewGitDiscoveryService() *GitDiscoveryService <span class="cov8" title="1">{
+        return &amp;GitDiscoveryService{}
+}</span>
+
+// DiscoverGitProjects scans a directory for Git projects
+func (gds *GitDiscoveryService) DiscoverGitProjects(rootDir string) ([]GitProject, error) <span class="cov8" title="1">{
+        if _, err := os.Stat(rootDir); os.IsNotExist(err) </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("directory does not exist: %s", rootDir)
+        }</span>
+
+        <span class="cov8" title="1">var projects []GitProject
+
+        err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error </span><span class="cov8" title="1">{
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil // Skip inaccessible directories
+                }</span>
+
+                // Check if this is a .git directory
+                <span class="cov8" title="1">if info.IsDir() &amp;&amp; info.Name() == ".git" </span><span class="cov8" title="1">{
+                        // The parent directory is a Git project
+                        projectPath := filepath.Dir(path)
+                        projectName := filepath.Base(projectPath)
+
+                        project := GitProject{
+                                Name: projectName,
+                                Path: projectPath,
+                        }
+
+                        projects = append(projects, project)
+                        return filepath.SkipDir // Skip walking inside .git directory
+                }</span>
+
+                <span class="cov8" title="1">return nil</span>
+        })
+
+        <span class="cov8" title="1">if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">return projects, nil</span>
+}
+</pre>
+
+		<pre class="file" id="file10" style="display: none">// Package service provides core functionality for the run-script-service daemon
 package service
 
 import (
@@ -2337,7 +2736,7 @@ func (sl *ScriptLogger) ClearEntries() error <span class="cov0" title="0">{
 }
 </pre>
 
-		<pre class="file" id="file7" style="display: none">package service
+		<pre class="file" id="file11" style="display: none">package service
 
 import (
         "context"
@@ -2501,7 +2900,7 @@ func (sm *SystemMonitor) StartPeriodicBroadcasting(ctx context.Context, interval
 }
 </pre>
 
-		<pre class="file" id="file8" style="display: none">// Package service provides core functionality for the run-script-service daemon.
+		<pre class="file" id="file12" style="display: none">// Package service provides core functionality for the run-script-service daemon.
 package service
 
 import (
@@ -2770,7 +3169,7 @@ func (sm *ScriptManager) RemoveScript(name string) error <span class="cov8" titl
 }
 </pre>
 
-		<pre class="file" id="file9" style="display: none">// Package service provides core functionality for the run-script-service daemon.
+		<pre class="file" id="file13" style="display: none">// Package service provides core functionality for the run-script-service daemon.
 package service
 
 import (
@@ -3044,7 +3443,7 @@ func (sr *ScriptRunner) GetConfig() ScriptConfig <span class="cov0" title="0">{
 }</span>
 </pre>
 
-		<pre class="file" id="file10" style="display: none">// Package service provides core functionality for the run-script-service daemon.
+		<pre class="file" id="file14" style="display: none">// Package service provides core functionality for the run-script-service daemon.
 package service
 
 import (
@@ -3160,7 +3559,7 @@ func formatDuration(seconds int) string <span class="cov8" title="1">{
 }
 </pre>
 
-		<pre class="file" id="file11" style="display: none">package web
+		<pre class="file" id="file15" style="display: none">package web
 
 import (
         "run-script-service/service"
@@ -3221,7 +3620,7 @@ func (eb *EventBridge) Close() <span class="cov8" title="1">{
 }
 </pre>
 
-		<pre class="file" id="file12" style="display: none">package web
+		<pre class="file" id="file16" style="display: none">package web
 
 import (
         "encoding/json"
@@ -3455,7 +3854,7 @@ export default {
 }</span>
 </pre>
 
-		<pre class="file" id="file13" style="display: none">// Package web provides file operation handlers for the HTTP API server
+		<pre class="file" id="file17" style="display: none">// Package web provides file operation handlers for the HTTP API server
 package web
 
 import (
@@ -3488,23 +3887,25 @@ type ValidationResponse struct {
 // SetFileManager sets the file manager for the web server
 func (ws *WebServer) SetFileManager(fm *service.FileManager) <span class="cov8" title="1">{
         ws.fileManager = fm
-
-        // Setup file routes now that file manager is available
-        api := ws.router.Group("/api")
-        ws.setupFileRoutes(api)
+        ws.setupFileRoutes()
 }</span>
 
-// setupFileRoutes configures file operation API routes
-func (ws *WebServer) setupFileRoutes(api *gin.RouterGroup) <span class="cov8" title="1">{
-        if ws.fileManager == nil </span><span class="cov0" title="0">{
+// setupFileRoutes configures file operation API routes with authentication
+func (ws *WebServer) setupFileRoutes() <span class="cov8" title="1">{
+        if ws.fileManager == nil || ws.authMiddleware == nil </span><span class="cov0" title="0">{
                 return
         }</span>
 
-        // File operation endpoints
-        <span class="cov8" title="1">api.GET("/files/*path", ws.handleGetFile)
-        api.PUT("/files/*path", ws.handlePutFile)
-        api.POST("/files/validate", ws.handleValidateFile)
-        api.GET("/files-list/*path", ws.handleListFiles)</span>
+        // Create protected file routes group
+        <span class="cov8" title="1">api := ws.router.Group("/api")
+        protected := api.Group("/")
+        protected.Use(ws.authMiddleware.RequireAuth())
+
+        // File operation endpoints (protected)
+        protected.GET("/files/*path", ws.handleGetFile)
+        protected.PUT("/files/*path", ws.handlePutFile)
+        protected.POST("/files/validate", ws.handleValidateFile)
+        protected.GET("/files-list/*path", ws.handleListFiles)</span>
 }
 
 // handleGetFile reads and returns a file's content
@@ -3702,7 +4103,7 @@ func (ws *WebServer) handleListFiles(c *gin.Context) <span class="cov8" title="1
 }
 </pre>
 
-		<pre class="file" id="file14" style="display: none">// Package web provides HTTP API server functionality
+		<pre class="file" id="file18" style="display: none">// Package web provides HTTP API server functionality
 package web
 
 import (
@@ -3721,6 +4122,7 @@ import (
         "github.com/gin-contrib/cors"
         "github.com/gin-gonic/gin"
 
+        "run-script-service/auth"
         "run-script-service/service"
 )
 
@@ -3729,13 +4131,15 @@ var frontendFS embed.FS
 
 // WebServer represents the HTTP API server
 type WebServer struct {
-        router        *gin.Engine
-        service       *service.Service
-        scriptManager *service.ScriptManager
-        fileManager   *service.FileManager
-        wsHub         *WebSocketHub
-        systemMonitor *service.SystemMonitor
-        port          int
+        router         *gin.Engine
+        service        *service.Service
+        scriptManager  *service.ScriptManager
+        fileManager    *service.FileManager
+        wsHub          *WebSocketHub
+        systemMonitor  *service.SystemMonitor
+        authHandler    *auth.AuthHandler
+        authMiddleware *auth.AuthMiddleware
+        port           int
 }
 
 // APIResponse represents the standard API response format
@@ -3754,7 +4158,7 @@ type LogEntry struct {
 }
 
 // NewWebServer creates a new web server instance
-func NewWebServer(svc *service.Service, port int) *WebServer <span class="cov8" title="1">{
+func NewWebServer(svc *service.Service, port int, secretKey string) *WebServer <span class="cov8" title="1">{
         // Set Gin to release mode for production
         gin.SetMode(gin.ReleaseMode)
 
@@ -3769,11 +4173,17 @@ func NewWebServer(svc *service.Service, port int) *WebServer <span class="cov8" 
         wsHub := NewWebSocketHub()
         go wsHub.Run()
 
+        // Initialize authentication
+        authHandler := auth.NewAuthHandler(secretKey)
+        authMiddleware := auth.NewAuthMiddleware(authHandler.GetSessionManager())
+
         server := &amp;WebServer{
-                router:  router,
-                service: svc,
-                wsHub:   wsHub,
-                port:    port,
+                router:         router,
+                service:        svc,
+                wsHub:          wsHub,
+                authHandler:    authHandler,
+                authMiddleware: authMiddleware,
+                port:           port,
         }
 
         // Setup routes
@@ -3830,24 +4240,39 @@ func (ws *WebServer) setupRoutes() <span class="cov8" title="1">{
                 }</span>)
         } else<span class="cov8" title="1"> {
                 fmt.Println("DEBUG: Using embedded filesystem")
-                // Use embedded filesystem for static files
-                ws.router.StaticFS("/static", http.FS(distFS))
+                // Use embedded filesystem for static files (protected)
+                staticGroup := ws.router.Group("/static", ws.authMiddleware.RequireAuth())
+                staticGroup.StaticFS("/", http.FS(distFS))
 
-                // Root route serves index.html from embedded FS
-                ws.router.GET("/", func(c *gin.Context) </span><span class="cov8" title="1">{
+                // Login route (unprotected)
+                ws.router.GET("/login", func(c *gin.Context) </span><span class="cov0" title="0">{
                         indexFile, err := distFS.Open("index.html")
                         if err != nil </span><span class="cov0" title="0">{
                                 fmt.Printf("DEBUG: Failed to open embedded index.html: %v\n", err)
                                 c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load frontend"})
                                 return
                         }</span>
-                        <span class="cov8" title="1">defer indexFile.Close()
+                        <span class="cov0" title="0">defer indexFile.Close()
 
                         c.Header("Content-Type", "text/html")
                         http.ServeContent(c.Writer, c.Request, "index.html", time.Now(), indexFile.(io.ReadSeeker))</span>
                 })
 
-                // Serve index.html for SPA routes (NoRoute handler)
+                // Root route serves index.html from embedded FS (protected)
+                <span class="cov8" title="1">ws.router.GET("/", ws.authMiddleware.RequireAuth(), func(c *gin.Context) </span><span class="cov0" title="0">{
+                        indexFile, err := distFS.Open("index.html")
+                        if err != nil </span><span class="cov0" title="0">{
+                                fmt.Printf("DEBUG: Failed to open embedded index.html: %v\n", err)
+                                c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load frontend"})
+                                return
+                        }</span>
+                        <span class="cov0" title="0">defer indexFile.Close()
+
+                        c.Header("Content-Type", "text/html")
+                        http.ServeContent(c.Writer, c.Request, "index.html", time.Now(), indexFile.(io.ReadSeeker))</span>
+                })
+
+                // Serve index.html for SPA routes (NoRoute handler) - protected
                 <span class="cov8" title="1">ws.router.NoRoute(func(c *gin.Context) </span><span class="cov8" title="1">{
                         path := c.Request.URL.Path
 
@@ -3857,49 +4282,68 @@ func (ws *WebServer) setupRoutes() <span class="cov8" title="1">{
                                 return
                         }</span>
 
+                        // Check authentication for SPA routes
+                        <span class="cov0" title="0">if !ws.authMiddleware.IsAuthenticated(c) </span><span class="cov0" title="0">{
+                                c.Redirect(http.StatusFound, "/login")
+                                return
+                        }</span>
+
                         // For all other routes, serve index.html (Vue.js SPA)
-                        <span class="cov8" title="1">indexFile, err := distFS.Open("index.html")
+                        <span class="cov0" title="0">indexFile, err := distFS.Open("index.html")
                         if err != nil </span><span class="cov0" title="0">{
                                 fmt.Printf("DEBUG: Failed to open embedded index.html in NoRoute: %v\n", err)
                                 c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load frontend"})
                                 return
                         }</span>
-                        <span class="cov8" title="1">defer indexFile.Close()
+                        <span class="cov0" title="0">defer indexFile.Close()
 
                         c.Header("Content-Type", "text/html")
                         http.ServeContent(c.Writer, c.Request, "index.html", time.Now(), indexFile.(io.ReadSeeker))</span>
                 })
         }
 
-        // WebSocket endpoint
-        <span class="cov8" title="1">ws.router.GET("/ws", func(c *gin.Context) </span><span class="cov8" title="1">{
+        // WebSocket endpoint (protected)
+        <span class="cov8" title="1">ws.router.GET("/ws", ws.authMiddleware.RequireAuth(), func(c *gin.Context) </span><span class="cov8" title="1">{
                 HandleWebSocket(ws.wsHub, c)
         }</span>)
 
         <span class="cov8" title="1">api := ws.router.Group("/api")
 
+        // Authentication routes (unprotected)
+        auth := api.Group("/auth")
+        auth.POST("/login", ws.authHandler.Login)
+        auth.POST("/logout", ws.authHandler.Logout)
+        auth.GET("/status", ws.authHandler.AuthStatus)
+
+        // Protected routes (require authentication)
+        protected := api.Group("/")
+        protected.Use(ws.authMiddleware.RequireAuth())
+
         // System status endpoint
-        api.GET("/status", ws.handleStatus)
+        protected.GET("/status", ws.handleStatus)
 
         // Script management endpoints
-        api.GET("/scripts", ws.handleGetScripts)
-        api.POST("/scripts", ws.handlePostScript)
-        api.GET("/scripts/:name", ws.handleGetScript)
-        api.PUT("/scripts/:name", ws.handleUpdateScript)
-        api.DELETE("/scripts/:name", ws.handleDeleteScript)
-        api.POST("/scripts/:name/run", ws.handleRunScript)
-        api.POST("/scripts/:name/enable", ws.handleEnableScript)
-        api.POST("/scripts/:name/disable", ws.handleDisableScript)
+        protected.GET("/scripts", ws.handleGetScripts)
+        protected.POST("/scripts", ws.handlePostScript)
+        protected.GET("/scripts/:name", ws.handleGetScript)
+        protected.PUT("/scripts/:name", ws.handleUpdateScript)
+        protected.DELETE("/scripts/:name", ws.handleDeleteScript)
+        protected.POST("/scripts/:name/run", ws.handleRunScript)
+        protected.POST("/scripts/:name/enable", ws.handleEnableScript)
+        protected.POST("/scripts/:name/disable", ws.handleDisableScript)
 
         // Log management endpoints
-        api.GET("/logs", ws.handleGetLogs)
-        api.GET("/logs/:script", ws.handleGetScriptLogs)
-        api.GET("/logs/raw/:script", ws.handleGetRawLogs) // New simple endpoint
-        api.DELETE("/logs/:script", ws.handleClearScriptLogs)
+        protected.GET("/logs", ws.handleGetLogs)
+        protected.GET("/logs/:script", ws.handleGetScriptLogs)
+        protected.GET("/logs/raw/:script", ws.handleGetRawLogs) // New simple endpoint
+        protected.DELETE("/logs/:script", ws.handleClearScriptLogs)
 
         // Configuration endpoints
-        api.GET("/config", ws.handleGetConfig)
-        api.PUT("/config", ws.handleUpdateConfig)</span>
+        protected.GET("/config", ws.handleGetConfig)
+        protected.PUT("/config", ws.handleUpdateConfig)
+
+        // Git project discovery endpoints
+        protected.GET("/git-projects", ws.handleGetGitProjects)</span>
 }
 
 // handleStatus returns system status information
@@ -4672,9 +5116,36 @@ func (ws *WebServer) getScriptLogs(scriptName string, maxEntries int) []LogEntry
 
         <span class="cov0" title="0">return logs</span>
 }
+
+// handleGetGitProjects discovers and returns Git projects in a specified directory
+func (ws *WebServer) handleGetGitProjects(c *gin.Context) <span class="cov8" title="1">{
+        // Get directory parameter from query
+        dir := c.DefaultQuery("dir", os.Getenv("HOME"))
+        if dir == "" </span><span class="cov0" title="0">{
+                dir = os.Getenv("HOME") // Fallback to home directory
+        }</span>
+
+        // Create Git discovery service
+        <span class="cov8" title="1">gitService := service.NewGitDiscoveryService()
+        projects, err := gitService.DiscoverGitProjects(dir)
+        if err != nil </span><span class="cov8" title="1">{
+                c.JSON(http.StatusInternalServerError, APIResponse{
+                        Success: false,
+                        Error:   fmt.Sprintf("Failed to discover Git projects: %v", err),
+                })
+                return
+        }</span>
+
+        <span class="cov8" title="1">c.JSON(http.StatusOK, APIResponse{
+                Success: true,
+                Data: map[string]interface{}{
+                        "projects": projects,
+                },
+        })</span>
+}
 </pre>
 
-		<pre class="file" id="file15" style="display: none">package web
+		<pre class="file" id="file19" style="display: none">package web
 
 import (
         "fmt"
@@ -4787,7 +5258,7 @@ func (vbm *VueBuildManager) CheckFrontendExists() bool <span class="cov0" title=
 }
 </pre>
 
-		<pre class="file" id="file16" style="display: none">package web
+		<pre class="file" id="file20" style="display: none">package web
 
 import (
         "encoding/json"
