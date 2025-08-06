@@ -115,10 +115,14 @@ graph TB
 
 ## Quick Start
 
-1. **Build the service:**
+1. **Install dependencies and build the service:**
    ```bash
-   go build -o run-script-service main.go
-   chmod +x run-script-service
+   # One-command setup (requires Node.js 18+ and pnpm)
+   make quickstart
+
+   # Alternative: Manual steps
+   # cd web/frontend && pnpm install && cd ../..
+   # make build-all
    ```
 
 2. **Add a script to execute:**
@@ -373,9 +377,14 @@ go build -o run-script-service main.go
 
 ## Requirements
 
+### Quick Start Requirements
+- **Node.js 18+** (for frontend build process)
+- **pnpm 8+** (package manager - enforced, npm not allowed)
+- **Go 1.21+** (for building the service)
+
 ### Backend (Go Service)
 - Go 1.21+ (for building from source)
-- No external dependencies (pure Go)
+- No runtime dependencies (pure Go binary)
 - Cross-platform compatible (Linux, macOS, Windows)
 
 ### Frontend Development (Optional - for UI development)

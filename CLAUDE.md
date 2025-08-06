@@ -142,3 +142,40 @@ The service runs as a background process and can be managed via the integrated C
 # Restart service
 ./run-script-service daemon restart
 ```
+
+## Frontend Development
+
+### Requirements
+- Node.js 18+
+- pnpm 8+ (enforced - npm commands will be rejected)
+- Modern browser with ES2020+ support
+
+### Frontend Structure
+```
+web/frontend/
+├── src/
+│   ├── views/          # Page components (Dashboard, Scripts, Logs, Settings)
+│   ├── components/     # Reusable Vue components
+│   ├── composables/    # Vue Composition API logic
+│   ├── services/       # API service layer
+│   ├── types/          # TypeScript type definitions
+│   └── router/         # Vue Router configuration
+├── tests/
+│   ├── unit/           # Unit tests with Vitest
+│   └── integration/    # Integration tests
+├── package.json        # pnpm configuration
+├── vite.config.ts      # Vite build configuration
+├── vitest.config.ts    # Vitest test configuration
+└── tsconfig.json       # TypeScript configuration
+```
+
+### Frontend Development Commands
+```bash
+cd web/frontend
+pnpm dev                # Development server (http://localhost:5173)
+pnpm build              # Production build
+pnpm preview            # Preview production build
+pnpm test               # Run all tests
+pnpm test:watch         # Run tests in watch mode
+pnpm type-check         # TypeScript type checking
+```
