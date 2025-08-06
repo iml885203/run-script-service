@@ -157,9 +157,8 @@ func (ws *WebServer) setupRoutes() {
 		})
 	} else {
 		fmt.Println("DEBUG: Using embedded filesystem")
-		// Use embedded filesystem for static files (protected)
-		staticGroup := ws.router.Group("/static", ws.authMiddleware.RequireAuth())
-		staticGroup.StaticFS("/", http.FS(distFS))
+		// Use embedded filesystem for static files (public)
+		ws.router.StaticFS("/static", http.FS(distFS))
 
 		// Login route (unprotected)
 		ws.router.GET("/login", func(c *gin.Context) {

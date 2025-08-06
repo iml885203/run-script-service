@@ -58,7 +58,9 @@ class AuthService {
       })
 
       if (response.ok) {
-        return await response.json()
+        const result = await response.json()
+        // Extract data field from backend response
+        return result.data || { authenticated: false }
       } else {
         return { authenticated: false }
       }

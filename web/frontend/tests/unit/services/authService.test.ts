@@ -86,9 +86,10 @@ describe('authService', () => {
   describe('checkAuthStatus', () => {
     it('should return authentication status on success', async () => {
       const mockStatus = { authenticated: true, user: 'test-user' }
+      const mockResponse = { data: mockStatus, success: true }
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => mockStatus
+        json: async () => mockResponse
       })
 
       const result = await authService.checkAuthStatus()
