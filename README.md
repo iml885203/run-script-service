@@ -463,7 +463,7 @@ The `plans/` directory contains detailed implementation plans for upcoming featu
 | ~~06-web-ui-basic.md~~ | Basic Web UI | ✅ Completed - Web UI available |
 | ~~07-web-editing.md~~ | Web Editing Features | ✅ Completed - Management interface implemented |
 | ~~08-real-time-monitoring.md~~ | Real-time System Monitoring | ✅ Completed - WebSocket real-time updates with 32/32 E2E tests passing |
-| ~~[09-vue-frontend-migration.md](plans/09-vue-frontend-migration.md)~~ | Vue.js Frontend Migration | ✅ Completed - Modern Vue.js 3 + TypeScript frontend with pnpm |
+| ~~09-vue-frontend-migration.md~~ | Vue.js Frontend Migration | ✅ Completed - Modern Vue.js 3 + TypeScript frontend with pnpm |
 | ~~[10-tdd-frontend-fixes.md](plans/10-tdd-frontend-fixes.md)~~ | TDD Frontend Data Display Fixes | ✅ Completed - 100% E2E test pass rate achieved |
 
 ### Development Workflow
