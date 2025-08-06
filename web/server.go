@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -120,6 +121,27 @@ func (ws *WebServer) StartSystemMetricsBroadcasting(ctx context.Context, interva
 	go ws.systemMonitor.StartPeriodicBroadcasting(ctx, interval, publisher)
 
 	return nil
+}
+
+// BroadcastConfigUpdate broadcasts configuration update events to all connected WebSocket clients
+func (ws *WebServer) BroadcastConfigUpdate(event service.ConfigUpdateEvent) {
+	if ws.wsHub == nil {
+		return
+	}
+
+	data := map[string]interface{}{
+		"script_name": event.ScriptName,
+		"status":      event.Status,
+		"changes":     event.Changes,
+		"applied":     event.Applied,
+		"scheduled":   event.Scheduled,
+		"message":     event.Message,
+		"timestamp":   event.Timestamp,
+	}
+
+	if err := ws.wsHub.BroadcastMessage("config_update", data); err != nil {
+		log.Printf("Failed to broadcast config update: %v", err)
+	}
 }
 
 // setupRoutes configures all API routes
@@ -618,20 +640,54 @@ func (ws *WebServer) handleUpdateScript(c *gin.Context) {
 		updateData.MaxLogLines = 100 // Default to 100 lines
 	}
 
-	// Update the script
-	if err := ws.scriptManager.UpdateScript(scriptName, updateData); err != nil {
+	// Update the script with detailed feedback
+	updateResult := ws.scriptManager.UpdateScriptWithFeedback(scriptName, updateData)
+
+	if !updateResult.Success {
+		// Broadcast failure event
+		ws.BroadcastConfigUpdate(service.ConfigUpdateEvent{
+			Type:       "config_update",
+			ScriptName: scriptName,
+			Status:     "failed",
+			Changes:    []service.ConfigChangeInfo{},
+			Applied:    false,
+			Scheduled:  false,
+			Message:    updateResult.Message,
+			Timestamp:  time.Now().Format(time.RFC3339),
+		})
+
 		c.JSON(http.StatusNotFound, APIResponse{
 			Success: false,
-			Error:   err.Error(),
+			Error:   updateResult.Message,
 		})
 		return
 	}
 
+	// Broadcast successful update event
+	status := "applied"
+	if updateResult.Scheduled {
+		status = "scheduled"
+	}
+
+	ws.BroadcastConfigUpdate(service.ConfigUpdateEvent{
+		Type:       "config_update",
+		ScriptName: scriptName,
+		Status:     status,
+		Changes:    updateResult.Changes,
+		Applied:    updateResult.Applied,
+		Scheduled:  updateResult.Scheduled,
+		Message:    updateResult.Message,
+		Timestamp:  time.Now().Format(time.RFC3339),
+	})
+
 	c.JSON(http.StatusOK, APIResponse{
 		Success: true,
 		Data: map[string]interface{}{
-			"message":       fmt.Sprintf("Script %s updated successfully", scriptName),
+			"message":       updateResult.Message,
 			"script":        scriptName,
+			"applied":       updateResult.Applied,
+			"scheduled":     updateResult.Scheduled,
+			"changes":       updateResult.Changes,
 			"name":          updateData.Name,
 			"path":          updateData.Path,
 			"interval":      updateData.Interval,

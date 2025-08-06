@@ -19,6 +19,37 @@ type ScriptConfig struct {
 	Timeout     int    `json:"timeout"` // seconds, 0 means no limit
 }
 
+// UpdateResponse represents the detailed response for script updates
+type UpdateResponse struct {
+	Success       bool               `json:"success"`
+	Message       string             `json:"message"`
+	Applied       bool               `json:"applied"`
+	Scheduled     bool               `json:"scheduled"`
+	Changes       []ConfigChangeInfo `json:"changes"`
+	NextExecution *string            `json:"next_execution,omitempty"`
+}
+
+// ConfigChangeInfo represents information about a specific configuration change
+type ConfigChangeInfo struct {
+	Field    string      `json:"field"`
+	OldValue interface{} `json:"old_value"`
+	NewValue interface{} `json:"new_value"`
+	Applied  bool        `json:"applied"`
+	Reason   string      `json:"reason,omitempty"`
+}
+
+// ConfigUpdateEvent represents a configuration update event for WebSocket broadcasting
+type ConfigUpdateEvent struct {
+	Type       string             `json:"type"` // "config_update"
+	ScriptName string             `json:"script_name"`
+	Status     string             `json:"status"` // "applied", "scheduled", "failed"
+	Changes    []ConfigChangeInfo `json:"changes"`
+	Applied    bool               `json:"applied"`
+	Scheduled  bool               `json:"scheduled"`
+	Message    string             `json:"message"`
+	Timestamp  string             `json:"timestamp"`
+}
+
 // ServiceConfig represents the overall service configuration
 type ServiceConfig struct {
 	Scripts []ScriptConfig `json:"scripts"`

@@ -386,3 +386,111 @@ func (sm *ScriptManager) applyConfigChanges(name string, runner *ScriptRunner, o
 	}
 	return nil
 }
+
+// UpdateScriptWithFeedback updates a script and returns detailed feedback about the changes
+func (sm *ScriptManager) UpdateScriptWithFeedback(name string, updatedConfig ScriptConfig) UpdateResponse {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	// Find the current configuration
+	var oldConfig *ScriptConfig
+	for i, sc := range sm.config.Scripts {
+		if sc.Name == name {
+			oldConfig = &sc
+			// Update configuration first
+			updatedConfig.Name = name
+			sm.config.Scripts[i] = updatedConfig
+			break
+		}
+	}
+
+	if oldConfig == nil {
+		return UpdateResponse{
+			Success:   false,
+			Message:   fmt.Sprintf("Script %s not found in configuration", name),
+			Applied:   false,
+			Scheduled: false,
+			Changes:   []ConfigChangeInfo{},
+		}
+	}
+
+	// Detect changes
+	changes := sm.detectChanges(*oldConfig, updatedConfig)
+
+	// Convert ConfigChange to ConfigChangeInfo
+	changeInfos := make([]ConfigChangeInfo, len(changes))
+	allApplied := true
+	anyScheduled := false
+
+	for i, change := range changes {
+		applied := false
+		reason := ""
+
+		// Determine if change can be applied immediately
+		if runner, exists := sm.scripts[name]; exists {
+			if runner.IsExecuting() {
+				// Script is executing, schedule for later
+				applied = false
+				anyScheduled = true
+				reason = "Script is currently executing, change will be applied after completion"
+				runner.SetRestartPending(updatedConfig)
+			} else {
+				// Script is idle, apply immediately based on change type
+				switch change.Field {
+				case "timeout", "max_log_lines":
+					// These can be applied without restart
+					applied = true
+					reason = "Applied immediately"
+				case "enabled":
+					if updatedConfig.Enabled && !oldConfig.Enabled {
+						// Re-enabling - already running, no action needed
+						applied = true
+						reason = "Script already running"
+					} else if !updatedConfig.Enabled && oldConfig.Enabled {
+						// Disabling - stop the script
+						runner.Stop()
+						delete(sm.scripts, name)
+						applied = true
+						reason = "Script stopped successfully"
+					}
+				case "interval", "path":
+					// These require restart
+					applied = false
+					anyScheduled = true
+					reason = "Requires graceful restart, scheduled for next execution cycle"
+					runner.SetRestartPending(updatedConfig)
+				}
+			}
+		} else {
+			// Script not running, all changes are effectively "applied"
+			applied = true
+			reason = "Script not currently running, configuration updated"
+		}
+
+		if !applied {
+			allApplied = false
+		}
+
+		changeInfos[i] = ConfigChangeInfo{
+			Field:    change.Field,
+			OldValue: change.OldValue,
+			NewValue: change.NewValue,
+			Applied:  applied,
+			Reason:   reason,
+		}
+	}
+
+	// Determine overall status
+	message := fmt.Sprintf("Script %s updated successfully", name)
+	if anyScheduled {
+		message += " (some changes scheduled for next execution cycle)"
+	}
+
+	return UpdateResponse{
+		Success:   true,
+		Message:   message,
+		Applied:   allApplied && !anyScheduled,
+		Scheduled: anyScheduled,
+		Changes:   changeInfos,
+	}
+}
