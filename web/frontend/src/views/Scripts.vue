@@ -66,6 +66,16 @@
         <h3>Add New Script</h3>
         <form @submit.prevent="handleAddScript">
           <div class="form-group">
+            <label for="name">Script Name:</label>
+            <input
+              v-model="newScript.name"
+              type="text"
+              id="name"
+              placeholder="my-script"
+              required
+            />
+          </div>
+          <div class="form-group">
             <label for="path">Script Path:</label>
             <input
               v-model="newScript.path"
@@ -132,6 +142,7 @@ const {
 
 const showAddForm = ref(false)
 const newScript = ref({
+  name: '',
   path: '',
   interval: 3600,
   enabled: true,
@@ -148,6 +159,7 @@ const handleAddScript = async () => {
     await addScript(newScript.value)
     showAddForm.value = false
     newScript.value = {
+      name: '',
       path: '',
       interval: 3600,
       enabled: true,
