@@ -51,8 +51,8 @@ build-frontend:
 	@echo "Frontend build completed successfully"
 
 test-frontend:
-	@echo "Running frontend tests..."
-	cd web/frontend && pnpm test -- --run
+	@echo "Running frontend unit tests..."
+	cd web/frontend && pnpm run test:unit -- --run --reporter=verbose
 	@echo "Frontend tests completed"
 
 embed-frontend: build-frontend
