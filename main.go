@@ -3,6 +3,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -701,8 +703,19 @@ func runMultiScriptServiceWithWeb(configPath string) {
 	// Create system monitor
 	systemMonitor := service.NewSystemMonitor()
 
+	// Get secret key from environment or generate one
+	secretKey := os.Getenv("WEB_SECRET_KEY")
+	if secretKey == "" {
+		// Generate a random secret key and warn about it
+		secretKey = generateRandomKey()
+		fmt.Printf("WARNING: No WEB_SECRET_KEY environment variable set!\n")
+		fmt.Printf("Generated random secret key: %s\n", secretKey)
+		fmt.Printf("Set WEB_SECRET_KEY environment variable to use a persistent key.\n")
+		fmt.Printf("For production, use: export WEB_SECRET_KEY=your-secure-secret-here\n\n")
+	}
+
 	// Create web server (simplified, no LogManager dependency)
-	webServer := web.NewWebServer(nil, config.WebPort)
+	webServer := web.NewWebServer(nil, config.WebPort, secretKey)
 	webServer.SetScriptManager(scriptManager)
 	webServer.SetFileManager(fileManager)
 	webServer.SetSystemMonitor(systemMonitor)
@@ -1068,4 +1081,15 @@ func runCommand(command string, args []string, workingDir string) error {
 	cmd.Stderr = os.Stderr
 
 	return cmd.Run()
+}
+
+// generateRandomKey generates a cryptographically secure random key
+func generateRandomKey() string {
+	bytes := make([]byte, 32) // 256-bit key
+	_, err := rand.Read(bytes)
+	if err != nil {
+		// Fallback to time-based key if crypto/rand fails
+		return fmt.Sprintf("fallback-key-%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(bytes)
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
+	"run-script-service/auth"
 	"run-script-service/service"
 )
 
@@ -31,6 +32,8 @@ type WebServer struct {
 	fileManager   *service.FileManager
 	wsHub         *WebSocketHub
 	systemMonitor *service.SystemMonitor
+	authHandler   *auth.AuthHandler
+	authMiddleware *auth.AuthMiddleware
 	port          int
 }
 
@@ -50,7 +53,7 @@ type LogEntry struct {
 }
 
 // NewWebServer creates a new web server instance
-func NewWebServer(svc *service.Service, port int) *WebServer {
+func NewWebServer(svc *service.Service, port int, secretKey string) *WebServer {
 	// Set Gin to release mode for production
 	gin.SetMode(gin.ReleaseMode)
 
@@ -65,11 +68,17 @@ func NewWebServer(svc *service.Service, port int) *WebServer {
 	wsHub := NewWebSocketHub()
 	go wsHub.Run()
 
+	// Initialize authentication
+	authHandler := auth.NewAuthHandler(secretKey)
+	authMiddleware := auth.NewAuthMiddleware(authHandler.GetSessionManager())
+
 	server := &WebServer{
-		router:  router,
-		service: svc,
-		wsHub:   wsHub,
-		port:    port,
+		router:         router,
+		service:        svc,
+		wsHub:          wsHub,
+		authHandler:    authHandler,
+		authMiddleware: authMiddleware,
+		port:           port,
 	}
 
 	// Setup routes
@@ -126,11 +135,12 @@ func (ws *WebServer) setupRoutes() {
 		})
 	} else {
 		fmt.Println("DEBUG: Using embedded filesystem")
-		// Use embedded filesystem for static files
-		ws.router.StaticFS("/static", http.FS(distFS))
+		// Use embedded filesystem for static files (protected)
+		staticGroup := ws.router.Group("/static", ws.authMiddleware.RequireAuth())
+		staticGroup.StaticFS("/", http.FS(distFS))
 
-		// Root route serves index.html from embedded FS
-		ws.router.GET("/", func(c *gin.Context) {
+		// Login route (unprotected)
+		ws.router.GET("/login", func(c *gin.Context) {
 			indexFile, err := distFS.Open("index.html")
 			if err != nil {
 				fmt.Printf("DEBUG: Failed to open embedded index.html: %v\n", err)
@@ -143,13 +153,33 @@ func (ws *WebServer) setupRoutes() {
 			http.ServeContent(c.Writer, c.Request, "index.html", time.Now(), indexFile.(io.ReadSeeker))
 		})
 
-		// Serve index.html for SPA routes (NoRoute handler)
+		// Root route serves index.html from embedded FS (protected)
+		ws.router.GET("/", ws.authMiddleware.RequireAuth(), func(c *gin.Context) {
+			indexFile, err := distFS.Open("index.html")
+			if err != nil {
+				fmt.Printf("DEBUG: Failed to open embedded index.html: %v\n", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load frontend"})
+				return
+			}
+			defer indexFile.Close()
+
+			c.Header("Content-Type", "text/html")
+			http.ServeContent(c.Writer, c.Request, "index.html", time.Now(), indexFile.(io.ReadSeeker))
+		})
+
+		// Serve index.html for SPA routes (NoRoute handler) - protected  
 		ws.router.NoRoute(func(c *gin.Context) {
 			path := c.Request.URL.Path
 
 			// If it's an API route, let it 404
 			if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/ws") {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
+				return
+			}
+
+			// Check authentication for SPA routes
+			if !ws.authMiddleware.IsAuthenticated(c) {
+				c.Redirect(http.StatusFound, "/login")
 				return
 			}
 
@@ -167,35 +197,45 @@ func (ws *WebServer) setupRoutes() {
 		})
 	}
 
-	// WebSocket endpoint
-	ws.router.GET("/ws", func(c *gin.Context) {
+	// WebSocket endpoint (protected)
+	ws.router.GET("/ws", ws.authMiddleware.RequireAuth(), func(c *gin.Context) {
 		HandleWebSocket(ws.wsHub, c)
 	})
 
 	api := ws.router.Group("/api")
 
+	// Authentication routes (unprotected)
+	auth := api.Group("/auth")
+	auth.POST("/login", ws.authHandler.Login)
+	auth.POST("/logout", ws.authHandler.Logout)
+	auth.GET("/status", ws.authHandler.AuthStatus)
+
+	// Protected routes (require authentication)
+	protected := api.Group("/")
+	protected.Use(ws.authMiddleware.RequireAuth())
+
 	// System status endpoint
-	api.GET("/status", ws.handleStatus)
+	protected.GET("/status", ws.handleStatus)
 
 	// Script management endpoints
-	api.GET("/scripts", ws.handleGetScripts)
-	api.POST("/scripts", ws.handlePostScript)
-	api.GET("/scripts/:name", ws.handleGetScript)
-	api.PUT("/scripts/:name", ws.handleUpdateScript)
-	api.DELETE("/scripts/:name", ws.handleDeleteScript)
-	api.POST("/scripts/:name/run", ws.handleRunScript)
-	api.POST("/scripts/:name/enable", ws.handleEnableScript)
-	api.POST("/scripts/:name/disable", ws.handleDisableScript)
+	protected.GET("/scripts", ws.handleGetScripts)
+	protected.POST("/scripts", ws.handlePostScript)
+	protected.GET("/scripts/:name", ws.handleGetScript)
+	protected.PUT("/scripts/:name", ws.handleUpdateScript)
+	protected.DELETE("/scripts/:name", ws.handleDeleteScript)
+	protected.POST("/scripts/:name/run", ws.handleRunScript)
+	protected.POST("/scripts/:name/enable", ws.handleEnableScript)
+	protected.POST("/scripts/:name/disable", ws.handleDisableScript)
 
 	// Log management endpoints
-	api.GET("/logs", ws.handleGetLogs)
-	api.GET("/logs/:script", ws.handleGetScriptLogs)
-	api.GET("/logs/raw/:script", ws.handleGetRawLogs) // New simple endpoint
-	api.DELETE("/logs/:script", ws.handleClearScriptLogs)
+	protected.GET("/logs", ws.handleGetLogs)
+	protected.GET("/logs/:script", ws.handleGetScriptLogs)
+	protected.GET("/logs/raw/:script", ws.handleGetRawLogs) // New simple endpoint
+	protected.DELETE("/logs/:script", ws.handleClearScriptLogs)
 
 	// Configuration endpoints
-	api.GET("/config", ws.handleGetConfig)
-	api.PUT("/config", ws.handleUpdateConfig)
+	protected.GET("/config", ws.handleGetConfig)
+	protected.PUT("/config", ws.handleUpdateConfig)
 }
 
 // handleStatus returns system status information

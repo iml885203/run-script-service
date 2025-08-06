@@ -41,7 +41,7 @@ func TestWebServer_FileOperations(t *testing.T) {
 	// Create test dependencies
 	fileManager := service.NewFileManager(tempDir)
 
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 	server.SetFileManager(fileManager)
 
 	// Create test file
@@ -308,7 +308,7 @@ func TestWebServer_FileOperations(t *testing.T) {
 
 func TestWebServer_FileOperations_NoFileManager(t *testing.T) {
 	// Create web server without file manager
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 	// Note: not setting file manager
 
 	t.Run("get file without file manager", func(t *testing.T) {

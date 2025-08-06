@@ -17,7 +17,7 @@ import (
 func createTestServerWithScripts(scripts []service.ScriptConfig) *WebServer {
 	config := &service.ServiceConfig{Scripts: scripts}
 	scriptManager := service.NewScriptManager(config)
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 	server.SetScriptManager(scriptManager)
 	return server
 }
@@ -73,7 +73,7 @@ func createTestScript(name string, enabled bool) service.ScriptConfig {
 func TestWebServer_New(t *testing.T) {
 	// Create test service and log manager
 
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 
 	if server == nil {
 		t.Fatal("NewWebServer should not return nil")
@@ -126,7 +126,7 @@ func TestAPIResponse_JSON(t *testing.T) {
 func TestWebServer_StatusEndpoint(t *testing.T) {
 	// Create test dependencies
 
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 
 	// Create test request
 	req := httptest.NewRequest("GET", "/api/status", nil)
@@ -168,7 +168,7 @@ func TestWebServer_ScriptsEndpoint(t *testing.T) {
 
 	scriptManager := service.NewScriptManager(config)
 
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 	server.SetScriptManager(scriptManager)
 
 	// Create test request
@@ -212,7 +212,7 @@ func TestWebServer_PostScript(t *testing.T) {
 
 	scriptManager := service.NewScriptManager(config)
 
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 	server.SetScriptManager(scriptManager)
 
 	// Create test request with script data
@@ -265,7 +265,7 @@ func TestWebServer_RunScript(t *testing.T) {
 
 	scriptManager := service.NewScriptManager(config)
 
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 	server.SetScriptManager(scriptManager)
 
 	// Create test request
@@ -303,7 +303,7 @@ func TestWebServer_RunScript_NotFound(t *testing.T) {
 }
 
 func TestWebServer_LogsEndpoint(t *testing.T) {
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 
 	// Create test request
 	req := httptest.NewRequest("GET", "/api/logs", nil)
@@ -341,7 +341,7 @@ func TestWebServer_LogsEndpoint(t *testing.T) {
 
 // TDD Test: Red Phase - Test for LogEntry array format expected by frontend
 func TestWebServer_LogsEndpoint_ExpectedFormat(t *testing.T) {
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 
 	// Create test request
 	req := httptest.NewRequest("GET", "/api/logs", nil)
@@ -405,7 +405,7 @@ func TestWebServer_LogsEndpoint_ExpectedFormat(t *testing.T) {
 }
 
 func TestWebServer_GetScriptLogs(t *testing.T) {
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 
 	// Create test request for specific script
 	req := httptest.NewRequest("GET", "/api/logs/test-script", nil)
@@ -497,7 +497,7 @@ func TestWebServer_DisableScript(t *testing.T) {
 
 func TestWebServer_StaticFiles(t *testing.T) {
 	// Create test dependencies
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 
 	// Test that static route returns 404 when files don't exist
 	req := httptest.NewRequest("GET", "/", nil)
@@ -517,7 +517,7 @@ func TestWebServer_StaticFiles(t *testing.T) {
 
 func TestWebServer_StaticFileRouting(t *testing.T) {
 	// Create test dependencies
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 
 	// Test static file routing
 	req := httptest.NewRequest("GET", "/static/css/main.css", nil)
@@ -562,7 +562,7 @@ func TestWebServer_UpdateConfig(t *testing.T) {
 
 	scriptManager := service.NewScriptManagerWithPath(config, configPath)
 
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 	server.SetScriptManager(scriptManager)
 
 	// Create test request with updated config data
@@ -606,7 +606,7 @@ func TestWebServer_UpdateConfig_InvalidJSON(t *testing.T) {
 
 	scriptManager := service.NewScriptManagerWithPath(config, configPath)
 
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 	server.SetScriptManager(scriptManager)
 
 	// Create test request with invalid JSON
@@ -650,7 +650,7 @@ func TestWebServer_UpdateScript(t *testing.T) {
 
 	scriptManager := service.NewScriptManager(config)
 
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 	server.SetScriptManager(scriptManager)
 
 	// Create test request with updated script data
@@ -731,7 +731,7 @@ func TestWebServer_DeleteScript_NotFound(t *testing.T) {
 
 func TestWebServer_WebSocketRouteSetup(t *testing.T) {
 	// Create test dependencies
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 
 	// Test that WebSocket route is configured but returns 404 since we haven't implemented the handler yet
 	req := httptest.NewRequest("GET", "/ws", nil)
@@ -748,7 +748,7 @@ func TestWebServer_WebSocketRouteSetup(t *testing.T) {
 }
 
 func TestWebServer_SystemMonitorIntegration(t *testing.T) {
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 
 	// Test that web server can be configured with system monitor
 	if server.systemMonitor != nil {
@@ -765,7 +765,7 @@ func TestWebServer_SystemMonitorIntegration(t *testing.T) {
 }
 
 func TestWebServer_StartSystemMetricsBroadcasting(t *testing.T) {
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 	monitor := service.NewSystemMonitor()
 	server.SetSystemMonitor(monitor)
 
