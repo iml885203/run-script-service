@@ -475,6 +475,7 @@ The `plans/` directory contains detailed implementation plans for upcoming featu
 | ~~09-vue-frontend-migration.md~~ | Vue.js Frontend Migration | ✅ Completed - Modern Vue.js 3 + TypeScript frontend with pnpm |
 | ~~[10-tdd-frontend-fixes.md](plans/10-tdd-frontend-fixes.md)~~ | TDD Frontend Data Display Fixes | ✅ Completed - 100% E2E test pass rate achieved |
 | ~~[authentication-plan.md](plans/authentication-plan.md)~~ | Web Interface Authentication | ✅ Completed - Secret key authentication with session management |
+| ~~[enhanced-script-creation-plan.md](plans/enhanced-script-creation-plan.md)~~ | Enhanced Script Creation Experience | ✅ Completed - Git project discovery, script type selection, template generation |
 
 ### Development Workflow
 
