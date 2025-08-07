@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -283,6 +284,118 @@ func TestExecutor_ExecuteWithResult(t *testing.T) {
 			// Check timestamp is set
 			if result.Timestamp.IsZero() {
 				t.Error("expected timestamp to be set")
+			}
+		})
+	}
+}
+
+func TestExecutor_ExecuteWithResultStreaming(t *testing.T) {
+	// Red phase - this test should fail because ExecuteWithResultStreaming method doesn't exist
+	tests := []struct {
+		name          string
+		scriptContent string
+		expectedExit  int
+		expectError   bool
+		expectStdout  bool
+		expectStderr  bool
+	}{
+		{
+			name:          "successful streaming script with result",
+			scriptContent: "#!/bin/bash\necho 'Hello streaming'\necho 'Second line'",
+			expectedExit:  0,
+			expectError:   false,
+			expectStdout:  true,
+			expectStderr:  false,
+		},
+		{
+			name:          "failing streaming script with result",
+			scriptContent: "#!/bin/bash\necho 'Starting'\necho 'Error message' >&2\nexit 1",
+			expectedExit:  1,
+			expectError:   true,
+			expectStdout:  true,
+			expectStderr:  true,
+		},
+		{
+			name:          "streaming script with mixed output",
+			scriptContent: "#!/bin/bash\necho 'stdout line 1'\necho 'stderr line 1' >&2\necho 'stdout line 2'\nexit 0",
+			expectedExit:  0,
+			expectError:   false,
+			expectStdout:  true,
+			expectStderr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			// Create temporary directory and script
+			tempDir, err := os.MkdirTemp("", "executor_with_result_streaming_test")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.RemoveAll(tempDir)
+
+			scriptPath := filepath.Join(tempDir, "test.sh")
+			logPath := filepath.Join(tempDir, "test.log")
+
+			// Write script file
+			err = os.WriteFile(scriptPath, []byte(tt.scriptContent), 0755)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Create executor with streaming log handler
+			executor := NewExecutor(scriptPath, logPath, 100)
+			logManager := NewLogManager(tempDir)
+			streamingHandler := NewStreamingLogHandler("test-script", logManager)
+			executor.SetLogHandler(streamingHandler)
+
+			// Execute with streaming and result - THIS WILL FAIL because method doesn't exist
+			ctx := context.Background()
+			result, execError := executor.ExecuteWithResultStreaming(ctx)
+
+			// Check error expectation
+			if (execError != nil) != tt.expectError {
+				t.Errorf("ExecuteWithResultStreaming() error = %v, expectError = %v", execError, tt.expectError)
+			}
+
+			// Check exit code
+			if result.ExitCode != tt.expectedExit {
+				t.Errorf("ExecuteWithResultStreaming() exit code = %v, expected = %v", result.ExitCode, tt.expectedExit)
+			}
+
+			// Check streaming was captured by log manager
+			logger := logManager.GetLogger("test-script")
+			entries := logger.GetEntries()
+
+			if len(entries) != 1 {
+				t.Errorf("Expected 1 log entry from streaming, got %d", len(entries))
+				return
+			}
+
+			entry := entries[0]
+
+			// Verify streaming captured output correctly
+			if tt.expectStdout && entry.Stdout == "" {
+				t.Error("Expected stdout to be captured via streaming")
+			}
+
+			if tt.expectStderr && entry.Stderr == "" {
+				t.Error("Expected stderr to be captured via streaming")
+			}
+
+			// Check that result also contains the output (backward compatibility)
+			if tt.expectStdout && result.Stdout == "" {
+				t.Error("Expected stdout in result")
+			}
+
+			if tt.expectStderr && result.Stderr == "" {
+				t.Error("Expected stderr in result")
+			}
+
+			// Check timestamp is set
+			if result.Timestamp.IsZero() {
+				t.Error("Expected timestamp to be set")
 			}
 		})
 	}
