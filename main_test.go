@@ -324,3 +324,358 @@ func TestRunMultiScriptServiceWithWeb_ConfigSetup(t *testing.T) {
 		}
 	})
 }
+
+func TestDaemonCommandHandling(t *testing.T) {
+	tests := []struct {
+		name        string
+		subCommand  string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "valid start command",
+			subCommand:  "start",
+			expectError: false,
+		},
+		{
+			name:        "valid stop command",
+			subCommand:  "stop",
+			expectError: false,
+		},
+		{
+			name:        "valid status command",
+			subCommand:  "status",
+			expectError: false,
+		},
+		{
+			name:        "valid restart command",
+			subCommand:  "restart",
+			expectError: false,
+		},
+		{
+			name:        "valid logs command",
+			subCommand:  "logs",
+			expectError: false,
+		},
+		{
+			name:        "invalid command",
+			subCommand:  "invalid",
+			expectError: true,
+			errorMsg:    "unknown daemon subcommand",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			configPath := filepath.Join(tempDir, "service_config.json")
+
+			// Create basic config file
+			configContent := `{"scripts": [], "web_port": 8080}`
+			if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+				t.Fatalf("Failed to create config file: %v", err)
+			}
+
+			result, err := handleDaemonCommand(tt.subCommand, configPath)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error for subCommand %q, but got none", tt.subCommand)
+				} else if tt.errorMsg != "" && !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("Expected error message to contain %q, got %q", tt.errorMsg, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error for subCommand %q: %v", tt.subCommand, err)
+				}
+			}
+
+			// All daemon commands should not run the service
+			if result.shouldRunService {
+				t.Errorf("Daemon commands should not run service, got shouldRunService=%v", result.shouldRunService)
+			}
+		})
+	}
+}
+
+func TestPIDFileManagement(t *testing.T) {
+	defer func() {
+		// Clean up any test PID file
+		removePidFile()
+	}()
+
+	t.Run("write and read PID file", func(t *testing.T) {
+		testPID := 12345
+
+		// Write PID file
+		err := writePidFile(testPID)
+		if err != nil {
+			t.Fatalf("Failed to write PID file: %v", err)
+		}
+
+		// Read PID file
+		readPID, err := readPidFile()
+		if err != nil {
+			t.Fatalf("Failed to read PID file: %v", err)
+		}
+
+		if readPID != testPID {
+			t.Errorf("Expected PID %d, got %d", testPID, readPID)
+		}
+	})
+
+	t.Run("remove PID file", func(t *testing.T) {
+		testPID := 67890
+
+		// Write PID file
+		err := writePidFile(testPID)
+		if err != nil {
+			t.Fatalf("Failed to write PID file: %v", err)
+		}
+
+		// Remove PID file
+		err = removePidFile()
+		if err != nil {
+			t.Errorf("Failed to remove PID file: %v", err)
+		}
+
+		// Try to read PID file - should fail
+		_, err = readPidFile()
+		if err == nil {
+			t.Error("Expected error when reading non-existent PID file")
+		}
+	})
+
+	t.Run("read non-existent PID file", func(t *testing.T) {
+		// Ensure no PID file exists
+		removePidFile()
+
+		_, err := readPidFile()
+		if err == nil {
+			t.Error("Expected error when reading non-existent PID file")
+		}
+	})
+}
+
+func TestProcessChecking(t *testing.T) {
+	t.Run("current process should be running", func(t *testing.T) {
+		currentPID := os.Getpid()
+
+		if !isProcessRunning(currentPID) {
+			t.Error("Current process should be detected as running")
+		}
+	})
+
+	t.Run("non-existent process should not be running", func(t *testing.T) {
+		// Use a very high PID that's unlikely to exist
+		nonExistentPID := 9999999
+
+		if isProcessRunning(nonExistentPID) {
+			t.Error("Non-existent process should not be detected as running")
+		}
+	})
+}
+
+func TestScriptManagement(t *testing.T) {
+	t.Run("handle enable script", func(t *testing.T) {
+		tempDir := t.TempDir()
+		configPath := filepath.Join(tempDir, "service_config.json")
+
+		// Create config with test script
+		configContent := `{
+			"scripts": [
+				{
+					"name": "test-script",
+					"path": "/tmp/test.sh",
+					"interval": 60,
+					"enabled": false,
+					"max_log_lines": 100,
+					"timeout": 0
+				}
+			],
+			"web_port": 8080
+		}`
+		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+			t.Fatalf("Failed to create config file: %v", err)
+		}
+
+		result, err := handleEnableScript("test-script", configPath)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if result.shouldRunService {
+			t.Error("Enable script command should not run service")
+		}
+	})
+
+	t.Run("handle disable script", func(t *testing.T) {
+		tempDir := t.TempDir()
+		configPath := filepath.Join(tempDir, "service_config.json")
+
+		// Create config with test script
+		configContent := `{
+			"scripts": [
+				{
+					"name": "test-script",
+					"path": "/tmp/test.sh",
+					"interval": 60,
+					"enabled": true,
+					"max_log_lines": 100,
+					"timeout": 0
+				}
+			],
+			"web_port": 8080
+		}`
+		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+			t.Fatalf("Failed to create config file: %v", err)
+		}
+
+		result, err := handleDisableScript("test-script", configPath)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if result.shouldRunService {
+			t.Error("Disable script command should not run service")
+		}
+	})
+
+	t.Run("handle non-existent script", func(t *testing.T) {
+		tempDir := t.TempDir()
+		configPath := filepath.Join(tempDir, "service_config.json")
+
+		// Create empty config
+		configContent := `{"scripts": [], "web_port": 8080}`
+		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+			t.Fatalf("Failed to create config file: %v", err)
+		}
+
+		_, err := handleEnableScript("nonexistent", configPath)
+		if err == nil {
+			t.Error("Expected error for non-existent script")
+		}
+	})
+
+	t.Run("handle remove script", func(t *testing.T) {
+		tempDir := t.TempDir()
+		configPath := filepath.Join(tempDir, "service_config.json")
+
+		// Create config with test script
+		configContent := `{
+			"scripts": [
+				{
+					"name": "test-script",
+					"path": "/tmp/test.sh",
+					"interval": 60,
+					"enabled": true,
+					"max_log_lines": 100,
+					"timeout": 0
+				}
+			],
+			"web_port": 8080
+		}`
+		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+			t.Fatalf("Failed to create config file: %v", err)
+		}
+
+		result, err := handleRemoveScript("test-script", configPath)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if result.shouldRunService {
+			t.Error("Remove script command should not run service")
+		}
+	})
+}
+
+func TestLogFlagParsing(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		expected map[string]string
+		hasError bool
+	}{
+		{
+			name: "no flags",
+			args: []string{},
+			expected: map[string]string{
+				"script": "",
+				"lines":  "",
+			},
+			hasError: false,
+		},
+		{
+			name: "script flag",
+			args: []string{"--script=test"},
+			expected: map[string]string{
+				"script": "test",
+				"lines":  "",
+			},
+			hasError: false,
+		},
+		{
+			name: "lines flag",
+			args: []string{"--lines=50"},
+			expected: map[string]string{
+				"script": "",
+				"lines":  "50",
+			},
+			hasError: false,
+		},
+		{
+			name: "both flags",
+			args: []string{"--script=test", "--lines=50"},
+			expected: map[string]string{
+				"script": "test",
+				"lines":  "50",
+			},
+			hasError: false,
+		},
+		{
+			name:     "invalid flag format",
+			args:     []string{"invalid"},
+			expected: nil,
+			hasError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseLogFlags(tt.args)
+
+			if tt.hasError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+				for key, expectedValue := range tt.expected {
+					if result[key] != expectedValue {
+						t.Errorf("Expected %s=%s, got %s=%s", key, expectedValue, key, result[key])
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestGenerateRandomKey(t *testing.T) {
+	key1 := generateRandomKey()
+	key2 := generateRandomKey()
+
+	if len(key1) == 0 {
+		t.Error("Generated key should not be empty")
+	}
+
+	if key1 == key2 {
+		t.Error("Generated keys should be different")
+	}
+
+	// Check that the key is hex encoded (should be valid hex string)
+	if len(key1)%2 != 0 {
+		t.Error("Generated key should be valid hex string (even length)")
+	}
+}
