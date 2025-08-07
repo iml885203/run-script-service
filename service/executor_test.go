@@ -193,3 +193,97 @@ func TestExecutor_LogError(t *testing.T) {
 		t.Error("expected error separator in log")
 	}
 }
+
+func TestExecutor_ExecuteWithResult(t *testing.T) {
+	tests := []struct {
+		name          string
+		scriptContent string
+		expectedExit  int
+		expectStdout  bool
+		expectStderr  bool
+	}{
+		{
+			name:          "successful script with result",
+			scriptContent: "#!/bin/bash\necho 'Hello from ExecuteWithResult'",
+			expectedExit:  0,
+			expectStdout:  true,
+			expectStderr:  false,
+		},
+		{
+			name:          "failing script with result",
+			scriptContent: "#!/bin/bash\nexit 2",
+			expectedExit:  2,
+			expectStdout:  false,
+			expectStderr:  false,
+		},
+		{
+			name:          "script with stderr result",
+			scriptContent: "#!/bin/bash\necho 'error output' >&2\nexit 0",
+			expectedExit:  0,
+			expectStdout:  false,
+			expectStderr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			// Create temporary directory and script
+			tempDir, err := os.MkdirTemp("", "executor_with_result_test")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.RemoveAll(tempDir)
+
+			scriptPath := filepath.Join(tempDir, "test.sh")
+			logPath := filepath.Join(tempDir, "test.log")
+
+			// Write script file
+			err = os.WriteFile(scriptPath, []byte(tt.scriptContent), 0755)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Create executor
+			executor := NewExecutor(scriptPath, logPath, 100)
+
+			// Execute script with result
+			result, err := executor.ExecuteWithResult(nil)
+
+			// Check error handling
+			if tt.expectedExit == 0 && err != nil {
+				t.Errorf("expected no error for successful script, got: %v", err)
+			}
+			
+			if tt.expectedExit != 0 && err == nil {
+				t.Error("expected error for failing script, got none")
+			}
+
+			// Check exit code
+			if result.ExitCode != tt.expectedExit {
+				t.Errorf("expected exit code %d, got %d", tt.expectedExit, result.ExitCode)
+			}
+
+			// Check stdout
+			if tt.expectStdout && result.Stdout == "" {
+				t.Error("expected stdout output, got empty string")
+			}
+			if !tt.expectStdout && result.Stdout != "" {
+				t.Errorf("expected no stdout, got: %s", result.Stdout)
+			}
+
+			// Check stderr
+			if tt.expectStderr && result.Stderr == "" {
+				t.Error("expected stderr output, got empty string")
+			}
+			if !tt.expectStderr && result.Stderr != "" {
+				t.Errorf("expected no stderr, got: %s", result.Stderr)
+			}
+
+			// Check timestamp is set
+			if result.Timestamp.IsZero() {
+				t.Error("expected timestamp to be set")
+			}
+		})
+	}
+}
