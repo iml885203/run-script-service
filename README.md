@@ -477,6 +477,7 @@ The `plans/` directory contains detailed implementation plans for upcoming featu
 | ~~[authentication-plan.md](plans/authentication-plan.md)~~ | Web Interface Authentication | ✅ Completed - Secret key authentication with session management |
 | ~~[enhanced-script-creation-plan.md](plans/enhanced-script-creation-plan.md)~~ | Enhanced Script Creation Experience | ✅ Completed - Git project discovery, script type selection, template generation |
 | ~~[real-time-config-updates-plan.md](plans/real-time-config-updates-plan.md)~~ | Real-time Script Configuration Updates | ✅ Completed - Immediate config application with WebSocket broadcasting |
+| ~~[config-management-enhancement.md](plans/config-management-enhancement.md)~~ | Hybrid Configuration System with .env Support | ✅ Completed - Environment variable loading with .env file support, priority handling |
 
 ### Development Workflow
 
