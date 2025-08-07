@@ -118,6 +118,18 @@ func (sm *ScriptManager) StopAll() {
 	}
 }
 
+// GetScripts returns all configured scripts
+func (sm *ScriptManager) GetScripts() ([]ScriptConfig, error) {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	// Return a copy to prevent external modification
+	scripts := make([]ScriptConfig, len(sm.config.Scripts))
+	copy(scripts, sm.config.Scripts)
+
+	return scripts, nil
+}
+
 // GetRunningScripts returns a list of currently running script names
 func (sm *ScriptManager) GetRunningScripts() []string {
 	sm.mutex.RLock()

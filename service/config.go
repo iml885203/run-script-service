@@ -13,6 +13,7 @@ import (
 // ScriptConfig represents configuration for a single script
 type ScriptConfig struct {
 	Name        string `json:"name"`
+	Filename    string `json:"filename,omitempty"` // For inline script management
 	Path        string `json:"path"`
 	Interval    int    `json:"interval"` // seconds
 	Enabled     bool   `json:"enabled"`

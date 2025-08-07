@@ -27,15 +27,16 @@ var frontendFS embed.FS
 
 // WebServer represents the HTTP API server
 type WebServer struct {
-	router         *gin.Engine
-	service        *service.Service
-	scriptManager  *service.ScriptManager
-	fileManager    *service.FileManager
-	wsHub          *WebSocketHub
-	systemMonitor  *service.SystemMonitor
-	authHandler    *auth.AuthHandler
-	authMiddleware *auth.AuthMiddleware
-	port           int
+	router            *gin.Engine
+	service           *service.Service
+	scriptManager     *service.ScriptManager
+	scriptFileManager *service.ScriptFileManager
+	fileManager       *service.FileManager
+	wsHub             *WebSocketHub
+	systemMonitor     *service.SystemMonitor
+	authHandler       *auth.AuthHandler
+	authMiddleware    *auth.AuthMiddleware
+	port              int
 }
 
 // APIResponse represents the standard API response format
@@ -91,6 +92,11 @@ func NewWebServer(svc *service.Service, port int, secretKey string) *WebServer {
 // SetScriptManager sets the script manager for the web server
 func (ws *WebServer) SetScriptManager(sm *service.ScriptManager) {
 	ws.scriptManager = sm
+}
+
+// SetScriptFileManager sets the script file manager for the web server
+func (ws *WebServer) SetScriptFileManager(sfm *service.ScriptFileManager) {
+	ws.scriptFileManager = sfm
 }
 
 // GetWebSocketHub returns the WebSocket hub for broadcasting messages
@@ -261,6 +267,9 @@ func (ws *WebServer) setupRoutes() {
 
 	// Git project discovery endpoints
 	protected.GET("/git-projects", ws.handleGetGitProjects)
+
+	// Script file management routes (if available)
+	ws.setupScriptFileRoutes()
 }
 
 // handleStatus returns system status information
