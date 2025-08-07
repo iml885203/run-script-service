@@ -36,6 +36,7 @@ type WebServer struct {
 	systemMonitor     *service.SystemMonitor
 	authHandler       *auth.AuthHandler
 	authMiddleware    *auth.AuthMiddleware
+	debugLogger       *service.DebugLogger
 	port              int
 }
 
@@ -80,6 +81,7 @@ func NewWebServer(svc *service.Service, port int, secretKey string) *WebServer {
 		wsHub:          wsHub,
 		authHandler:    authHandler,
 		authMiddleware: authMiddleware,
+		debugLogger:    service.NewDebugLogger(),
 		port:           port,
 	}
 
@@ -155,14 +157,14 @@ func (ws *WebServer) setupRoutes() {
 	// Create a sub filesystem for the dist directory
 	distFS, err := fs.Sub(frontendFS, "frontend/dist")
 	if err != nil {
-		fmt.Printf("DEBUG: embed fs.Sub failed: %v, using fallback\n", err)
+		ws.debugLogger.Debugf("embed fs.Sub failed: %v, using fallback", err)
 		// Fallback to file system if embed fails (development mode)
 		ws.router.Static("/static", "./web/frontend/dist")
 		ws.router.GET("/", func(c *gin.Context) {
 			c.File("./web/frontend/dist/index.html")
 		})
 	} else {
-		fmt.Println("DEBUG: Using embedded filesystem")
+		ws.debugLogger.Debugf("Using embedded filesystem")
 		// Use embedded filesystem for static files (public)
 		ws.router.StaticFS("/static", http.FS(distFS))
 
@@ -170,7 +172,7 @@ func (ws *WebServer) setupRoutes() {
 		ws.router.GET("/login", func(c *gin.Context) {
 			indexFile, err := distFS.Open("index.html")
 			if err != nil {
-				fmt.Printf("DEBUG: Failed to open embedded index.html: %v\n", err)
+				ws.debugLogger.Debugf("Failed to open embedded index.html: %v", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load frontend"})
 				return
 			}
@@ -184,7 +186,7 @@ func (ws *WebServer) setupRoutes() {
 		ws.router.GET("/", ws.authMiddleware.RequireAuth(), func(c *gin.Context) {
 			indexFile, err := distFS.Open("index.html")
 			if err != nil {
-				fmt.Printf("DEBUG: Failed to open embedded index.html: %v\n", err)
+				ws.debugLogger.Debugf("Failed to open embedded index.html: %v", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load frontend"})
 				return
 			}
@@ -213,7 +215,7 @@ func (ws *WebServer) setupRoutes() {
 			// For all other routes, serve index.html (Vue.js SPA)
 			indexFile, err := distFS.Open("index.html")
 			if err != nil {
-				fmt.Printf("DEBUG: Failed to open embedded index.html in NoRoute: %v\n", err)
+				ws.debugLogger.Debugf("Failed to open embedded index.html in NoRoute: %v", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load frontend"})
 				return
 			}

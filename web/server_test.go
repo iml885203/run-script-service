@@ -1072,3 +1072,18 @@ func TestWebServer_PostScriptWithTemplate_PureScript(t *testing.T) {
 		}
 	}
 }
+
+func TestWebServer_DebugLoggerIntegration(t *testing.T) {
+	// Red phase - this test should fail until we integrate debug logger
+	server := NewWebServer(nil, 8080, "test-secret")
+
+	// Test that server has debug logger configured
+	if server.debugLogger == nil {
+		t.Error("Expected server to have debug logger configured")
+	}
+
+	// Test debug logger respects environment variable
+	if server.debugLogger.IsEnabled() && os.Getenv("DEBUG") == "" {
+		t.Error("Debug logger should not be enabled without DEBUG environment variable")
+	}
+}
