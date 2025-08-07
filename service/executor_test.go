@@ -254,7 +254,7 @@ func TestExecutor_ExecuteWithResult(t *testing.T) {
 			if tt.expectedExit == 0 && err != nil {
 				t.Errorf("expected no error for successful script, got: %v", err)
 			}
-			
+
 			if tt.expectedExit != 0 && err == nil {
 				t.Error("expected error for failing script, got none")
 			}

@@ -340,3 +340,22 @@ func (e *Executor) streamOutputToBuilder(reader io.Reader, streamType string, bu
 func (e *Executor) SetLogHandler(handler LogHandler) {
 	e.logHandler = handler
 }
+
+// ExecuteWithResult executes the script and returns both result and error
+// This method provides a simpler interface for script execution with error handling
+func (e *Executor) ExecuteWithResult(ctx context.Context, args ...string) (*ExecutionResult, error) {
+	// Use background context if none provided
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// Execute the script using existing method
+	result := e.ExecuteScriptWithContext(ctx, args...)
+
+	// Convert exit code to error for non-zero codes
+	if result.ExitCode != 0 {
+		return result, fmt.Errorf("script execution failed with exit code %d", result.ExitCode)
+	}
+
+	return result, nil
+}
