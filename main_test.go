@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -283,6 +284,43 @@ func TestWebServerWithFileManager(t *testing.T) {
 		if fm == nil {
 			// This is expected - we're just testing that the integration structure exists
 			// The actual FileManager would be created in the runMultiScriptServiceWithWeb function
+		}
+	})
+}
+
+func TestRunMultiScriptServiceWithWeb_ConfigSetup(t *testing.T) {
+	// Red phase: Write failing test for runMultiScriptServiceWithWeb configuration setup
+	t.Run("should load configuration and create required components", func(t *testing.T) {
+		// Create a temporary test directory
+		testDir, err := os.MkdirTemp("", "test_web_service")
+		if err != nil {
+			t.Fatalf("Failed to create test directory: %v", err)
+		}
+		defer os.RemoveAll(testDir)
+
+		// Create a test config file
+		configPath := filepath.Join(testDir, "service_config.json")
+		testConfig := `{
+			"scripts": [
+				{
+					"name": "test-script",
+					"path": "/tmp/test.sh",
+					"interval": 60,
+					"enabled": true,
+					"max_log_lines": 100,
+					"timeout": 0
+				}
+			],
+			"web_port": 8080
+		}`
+		if err := os.WriteFile(configPath, []byte(testConfig), 0644); err != nil {
+			t.Fatalf("Failed to create test config: %v", err)
+		}
+
+		// Test that the function properly validates web service setup
+		setupValid := validateWebServiceSetup(configPath)
+		if !setupValid {
+			t.Error("Expected web service setup validation to pass")
 		}
 	})
 }

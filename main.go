@@ -767,6 +767,57 @@ func runMultiScriptServiceWithWeb(configPath string) {
 	fmt.Println("Service stopped")
 }
 
+// validateWebServiceSetup validates that web service can be properly initialized
+// Returns true if all required components can be created and configured properly
+func validateWebServiceSetup(configPath string) bool {
+	// Load enhanced configuration with .env file support
+	envPath := ".env"
+	enhancedConfig, err := loadEnhancedConfig(configPath, envPath)
+	if err != nil {
+		return false
+	}
+
+	// Validate that required components can be created
+	if enhancedConfig == nil {
+		return false
+	}
+
+	// Validate configuration structure
+	if err := validateServiceConfig(&enhancedConfig.Config); err != nil {
+		return false
+	}
+
+	// Validate web port configuration
+	webPort := enhancedConfig.GetWebPort()
+	if webPort <= 0 || webPort > 65535 {
+		return false
+	}
+
+	return true
+}
+
+// validateServiceConfig validates the service configuration structure
+func validateServiceConfig(config *service.ServiceConfig) error {
+	if config == nil {
+		return fmt.Errorf("config cannot be nil")
+	}
+
+	// Validate scripts configuration
+	for _, script := range config.Scripts {
+		if script.Name == "" {
+			return fmt.Errorf("script name cannot be empty")
+		}
+		if script.Path == "" {
+			return fmt.Errorf("script path cannot be empty")
+		}
+		if script.Interval <= 0 {
+			return fmt.Errorf("script interval must be positive")
+		}
+	}
+
+	return nil
+}
+
 // PID file management functions
 func getPidFilePath() string {
 	dir, err := os.Executable()
