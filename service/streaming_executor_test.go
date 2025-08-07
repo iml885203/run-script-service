@@ -285,3 +285,70 @@ exit 0
 		t.Errorf("Expected logged exit code 0, got %d", entry.ExitCode)
 	}
 }
+
+func TestExecuteWithStreaming_TimeoutSupport(t *testing.T) {
+	// Red phase - this test should fail until we implement timeout support
+	tmpDir := t.TempDir()
+	scriptPath := tmpDir + "/timeout_script.sh"
+	logPath := tmpDir + "/timeout.log"
+
+	// Create a long-running test script
+	scriptContent := `#!/bin/bash
+echo "Starting long operation"
+sleep 5
+echo "Operation completed"
+`
+	err := os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create executor with timeout capability
+	executor := NewExecutorWithTimeout(scriptPath, logPath, 100, 2*time.Second)
+	handler := &MockLogHandler{}
+	executor.SetLogHandler(handler)
+
+	startTime := time.Now()
+	ctx := context.Background()
+	result := executor.ExecuteWithStreaming(ctx)
+	duration := time.Since(startTime)
+
+	// Should timeout after ~2 seconds, not complete the full 5-second sleep
+	if duration > 3*time.Second {
+		t.Errorf("Expected execution to timeout in ~2 seconds, but took %v", duration)
+	}
+
+	// Should have a timeout exit code (typically -1 or specific timeout code)
+	if result.ExitCode == 0 {
+		t.Error("Expected non-zero exit code due to timeout")
+	}
+
+	// Handler should receive timeout notification
+	if handler.ExecutionEnd == nil {
+		t.Error("Expected HandleExecutionEnd to be called for timeout")
+	}
+
+	// Should have received some log lines before timeout
+	if len(handler.LogLines) == 0 {
+		t.Error("Expected to receive log lines before timeout")
+	}
+
+	// Should contain the "Starting long operation" but not "Operation completed"
+	foundStart := false
+	foundComplete := false
+	for _, line := range handler.LogLines {
+		if line.Line == "Starting long operation" {
+			foundStart = true
+		}
+		if line.Line == "Operation completed" {
+			foundComplete = true
+		}
+	}
+
+	if !foundStart {
+		t.Error("Expected to find 'Starting long operation' in logs")
+	}
+	if foundComplete {
+		t.Error("Should not have found 'Operation completed' due to timeout")
+	}
+}

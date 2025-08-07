@@ -29,6 +29,7 @@ type Executor struct {
 	logPath    string
 	maxLines   int
 	logHandler LogHandler
+	timeout    time.Duration // timeout for script execution
 }
 
 // NewExecutor creates a new script executor
@@ -37,6 +38,17 @@ func NewExecutor(scriptPath, logPath string, maxLines int) *Executor {
 		scriptPath: scriptPath,
 		logPath:    logPath,
 		maxLines:   maxLines,
+		timeout:    0, // no timeout by default
+	}
+}
+
+// NewExecutorWithTimeout creates a new script executor with timeout capability
+func NewExecutorWithTimeout(scriptPath, logPath string, maxLines int, timeout time.Duration) *Executor {
+	return &Executor{
+		scriptPath: scriptPath,
+		logPath:    logPath,
+		maxLines:   maxLines,
+		timeout:    timeout,
 	}
 }
 
@@ -221,6 +233,13 @@ func (e *Executor) ExecuteWithStreaming(ctx context.Context, args ...string) *Ex
 		Timestamp: timestamp,
 	}
 
+	// Apply timeout if configured
+	if e.timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, e.timeout)
+		defer cancel()
+	}
+
 	// Notify handler of execution start
 	if e.logHandler != nil {
 		e.logHandler.HandleExecutionStart(timestamp)
@@ -306,6 +325,10 @@ func (e *Executor) ExecuteWithStreaming(ctx context.Context, args ...string) *Ex
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
 			result.ExitCode = exitError.ExitCode()
+		} else if err.Error() == "signal: killed" && ctx.Err() == context.DeadlineExceeded {
+			// Handle timeout specifically
+			e.logError(timestamp, fmt.Sprintf("Script execution timed out after %v", e.timeout))
+			result.ExitCode = -1
 		} else {
 			e.logError(timestamp, fmt.Sprintf("Error waiting for command: %v", err))
 			result.ExitCode = -1
