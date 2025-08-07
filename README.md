@@ -478,6 +478,7 @@ The `plans/` directory contains detailed implementation plans for upcoming featu
 | ~~[enhanced-script-creation-plan.md](plans/enhanced-script-creation-plan.md)~~ | Enhanced Script Creation Experience | ✅ Completed - Git project discovery, script type selection, template generation |
 | ~~[real-time-config-updates-plan.md](plans/real-time-config-updates-plan.md)~~ | Real-time Script Configuration Updates | ✅ Completed - Immediate config application with WebSocket broadcasting |
 | ~~[config-management-enhancement.md](plans/config-management-enhancement.md)~~ | Hybrid Configuration System with .env Support | ✅ Completed - Environment variable loading with .env file support, priority handling |
+| ~~[dashboard-metrics-display-fix.md](plans/dashboard-metrics-display-fix.md)~~ | Dashboard Metrics Display Fix | ✅ Completed - System metrics formatting and display stability improvements |
 
 ### Development Workflow
 
