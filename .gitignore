@@ -34,6 +34,10 @@ Thumbs.db
 *.tmp
 *.temp
 
+# Cookie files (testing artifacts)
+cookies.txt
+cookie.txt
+
 # Project-specific scripts
 run-*.sh
 run.sh
