@@ -692,6 +692,9 @@ func runMultiScriptServiceWithWeb(configPath string) {
 	// Create file manager for secure file operations
 	fileManager := service.NewFileManager(dir)
 
+	// Create script file manager for inline script management
+	scriptFileManager := service.NewScriptFileManager(dir)
+
 	// Create script manager
 	scriptManager := service.NewScriptManagerWithPath(&enhancedConfig.Config, configPath)
 
@@ -715,6 +718,7 @@ func runMultiScriptServiceWithWeb(configPath string) {
 	webServer := web.NewWebServer(nil, webPort, secretKey)
 	webServer.SetScriptManager(scriptManager)
 	webServer.SetFileManager(fileManager)
+	webServer.SetScriptFileManager(scriptFileManager)
 	webServer.SetSystemMonitor(systemMonitor)
 
 	// Set up signal handling
