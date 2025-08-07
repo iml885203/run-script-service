@@ -481,6 +481,7 @@ The `plans/` directory contains detailed implementation plans for upcoming featu
 | ~~[dashboard-metrics-display-fix.md](plans/dashboard-metrics-display-fix.md)~~ | Dashboard Metrics Display Fix | ✅ Completed - System metrics formatting and display stability improvements |
 | ~~[inline-script-management.md](plans/inline-script-management.md)~~ | Inline Script Management Feature | ✅ Completed - Web-based script creation, editing, and management with file system integration |
 | ~~[streaming-logging-plan.md](plans/streaming-logging-plan.md)~~ | Streaming Logging Implementation | ✅ Completed - Core streaming executor infrastructure with comprehensive tests |
+| ~~[001-streaming-timeout-enhancement.md](plans/001-streaming-timeout-enhancement.md)~~ | Streaming Executor Timeout Enhancement | ✅ Completed - Configurable timeouts with graceful error handling and CLI integration |
 
 ### Development Workflow
 
