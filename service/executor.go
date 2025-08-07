@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -284,17 +285,23 @@ func (e *Executor) ExecuteWithStreaming(ctx context.Context, args ...string) *Ex
 	// Stream output in real-time using goroutines
 	var stdoutBuilder strings.Builder
 	var stderrBuilder strings.Builder
+	var wg sync.WaitGroup
 
 	// Start streaming goroutines
+	wg.Add(2)
 	go func() {
+		defer wg.Done()
 		e.streamOutputToBuilder(stdout, "STDOUT", &stdoutBuilder)
 	}()
 
 	go func() {
+		defer wg.Done()
 		e.streamOutputToBuilder(stderr, "STDERR", &stderrBuilder)
 	}()
 
 	err = cmd.Wait()
+	// Wait for all streaming to complete before proceeding
+	wg.Wait()
 	result.ExitCode = 0
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
