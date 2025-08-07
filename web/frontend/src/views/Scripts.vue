@@ -121,6 +121,73 @@
         </form>
       </div>
     </div>
+
+    <!-- Edit Script Modal -->
+    <div v-if="showEditForm && editingScript" class="modal-overlay" @click="showEditForm = false" data-testid="edit-modal">
+      <div class="modal" @click.stop>
+        <h3>Edit Script</h3>
+        <form @submit.prevent="handleEditScript" data-testid="edit-form">
+          <div class="form-group">
+            <label for="edit-name">Script Name:</label>
+            <input
+              v-model="editingScript.name"
+              type="text"
+              id="edit-name"
+              data-testid="edit-name-input"
+              disabled
+              class="disabled-input"
+            />
+            <small class="form-help">Script name cannot be changed</small>
+          </div>
+          <div class="form-group">
+            <label for="edit-path">Script Path:</label>
+            <input
+              v-model="editingScript.path"
+              type="text"
+              id="edit-path"
+              data-testid="edit-path-input"
+              placeholder="/path/to/script.sh"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="edit-interval">Interval (seconds):</label>
+            <input
+              v-model.number="editingScript.interval"
+              type="number"
+              id="edit-interval"
+              data-testid="edit-interval-input"
+              min="1"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="edit-timeout">Timeout (seconds, optional):</label>
+            <input
+              v-model.number="editingScript.timeout"
+              type="number"
+              id="edit-timeout"
+              data-testid="edit-timeout-input"
+              min="1"
+            />
+          </div>
+          <div class="form-group">
+            <label>
+              <input v-model="editingScript.enabled" type="checkbox" data-testid="edit-enabled-checkbox" />
+              Enable script
+            </label>
+          </div>
+          <div class="modal-actions">
+            <button type="button" @click="showEditForm = false; editingScript = null" class="btn btn-secondary">
+              Cancel
+            </button>
+            <button type="submit" :disabled="loading" class="btn btn-primary">
+              Update Script
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -135,12 +202,14 @@ const {
   error,
   fetchScripts,
   addScript,
+  updateScript,
   runScript,
   toggleScript,
   deleteScript
 } = useScripts()
 
 const showAddForm = ref(false)
+const showEditForm = ref(false)
 const newScript = ref({
   name: '',
   path: '',
@@ -148,10 +217,11 @@ const newScript = ref({
   enabled: true,
   timeout: undefined as number | undefined
 })
+const editingScript = ref<ScriptConfig | null>(null)
 
 const editScript = (script: ScriptConfig) => {
-  // TODO: Implement edit functionality
-  console.log('Edit script:', script)
+  editingScript.value = { ...script }
+  showEditForm.value = true
 }
 
 const handleAddScript = async () => {
@@ -167,6 +237,23 @@ const handleAddScript = async () => {
     }
   } catch (err) {
     console.error('Failed to add script:', err)
+  }
+}
+
+const handleEditScript = async () => {
+  if (!editingScript.value) return
+
+  try {
+    await updateScript(editingScript.value.name, {
+      path: editingScript.value.path,
+      interval: editingScript.value.interval,
+      enabled: editingScript.value.enabled,
+      timeout: editingScript.value.timeout
+    })
+    showEditForm.value = false
+    editingScript.value = null
+  } catch (err) {
+    console.error('Failed to update script:', err)
   }
 }
 
@@ -283,6 +370,19 @@ onMounted(() => {
 .form-group input[type="checkbox"] {
   width: auto;
   margin-right: 0.5rem;
+}
+
+.disabled-input {
+  background-color: var(--color-background-mute);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-help {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  display: block;
 }
 
 .modal-actions {
