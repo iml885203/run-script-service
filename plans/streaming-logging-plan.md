@@ -297,24 +297,250 @@ web/
 - ✅ Comprehensive error handling and recovery
 - ✅ Complete test coverage for streaming functionality
 
+## Additional Feature Enhancement: Simplified Log Display
+
+### Current Log Display Issues
+
+The current log display system tries to parse log content into structured format, which causes problems:
+
+1. **Log Format Inconsistency** - Different scripts produce different log formats
+2. **Parsing Complexity** - Unnecessary parsing overhead and potential errors
+3. **Display Limitations** - Structured parsing may miss important raw output
+4. **User Experience** - Users often need to see raw log content for debugging
+
+### Proposed Solution: Raw Log Content Display
+
+#### **Frontend Changes**
+
+##### 1. Simplify Log Entry Display
+```vue
+<!-- OLD: Complex structured parsing -->
+<div class="log-entry">
+  <div class="log-timestamp">{{ entry.timestamp }}</div>
+  <div class="log-level">{{ entry.level }}</div>
+  <div class="log-message">{{ entry.message }}</div>
+</div>
+
+<!-- NEW: Simple raw content display -->
+<div class="log-entry">
+  <div class="log-content">{{ entry.rawContent }}</div>
+</div>
+```
+
+##### 2. Enhanced Raw Log Viewer
+```vue
+<template>
+  <div class="logs-container">
+    <!-- Log Controls -->
+    <div class="log-controls">
+      <select v-model="selectedScript">
+        <option value="">All scripts</option>
+        <option v-for="script in scripts" :key="script" :value="script">
+          {{ script }}
+        </option>
+      </select>
+
+      <input
+        v-model="searchQuery"
+        placeholder="Search logs..."
+        class="search-input"
+      />
+
+      <button @click="clearLogs" class="btn-danger">
+        Clear Logs
+      </button>
+    </div>
+
+    <!-- Raw Log Display -->
+    <div class="log-viewer">
+      <pre
+        v-for="(entry, index) in filteredLogs"
+        :key="`${entry.timestamp}-${index}`"
+        class="log-line"
+        :class="{ 'highlight': isHighlighted(entry.content) }"
+      >{{ entry.content }}</pre>
+    </div>
+  </div>
+</template>
+```
+
+##### 3. Improved Log Styling
+```css
+.log-viewer {
+  font-family: 'Courier New', monospace;
+  background: #1e1e1e;
+  color: #f0f0f0;
+  padding: 1rem;
+  border-radius: 4px;
+  max-height: 600px;
+  overflow-y: auto;
+  border: 1px solid #333;
+}
+
+.log-line {
+  margin: 0;
+  padding: 2px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+.log-line.highlight {
+  background-color: rgba(255, 255, 0, 0.2);
+}
+
+/* Color coding for different content types */
+.log-line:has-text("ERROR") { color: #ff6b6b; }
+.log-line:has-text("WARN") { color: #ffa726; }
+.log-line:has-text("INFO") { color: #42a5f5; }
+.log-line:has-text("DEBUG") { color: #ab47bc; }
+```
+
+#### **Backend Changes**
+
+##### 1. Simplified Log Entry Structure
+```go
+// OLD: Complex structured log entry
+type LogEntry struct {
+    Timestamp time.Time `json:"timestamp"`
+    Level     string    `json:"level"`
+    Message   string    `json:"message"`
+    Script    string    `json:"script"`
+    // ... many other fields
+}
+
+// NEW: Simple raw content log entry
+type LogEntry struct {
+    Timestamp time.Time `json:"timestamp"`
+    Script    string    `json:"script"`
+    Content   string    `json:"content"`     // Raw log content
+    Type      string    `json:"type"`        // "stdout", "stderr", "system"
+}
+```
+
+##### 2. Remove Complex Parsing Logic
+```go
+// Remove complex log parsing functions
+// func parseLogEntry(line string) *LogEntry { ... }
+// func extractLogLevel(content string) string { ... }
+// func parseTimestamp(content string) time.Time { ... }
+
+// Replace with simple content storage
+func (lm *LogManager) WriteRawEntry(script, content, entryType string) {
+    entry := &LogEntry{
+        Timestamp: time.Now(),
+        Script:    script,
+        Content:   content,
+        Type:      entryType,
+    }
+    lm.writeEntryToFile(entry)
+}
+```
+
+##### 3. Updated API Endpoints
+```go
+// Simplified log retrieval
+func (ws *WebServer) handleGetLogs(c *gin.Context) {
+    script := c.Query("script")
+    limit := c.DefaultQuery("limit", "50")
+
+    logs, err := ws.logManager.GetRawLogs(script, limit)
+    if err != nil {
+        c.JSON(500, APIResponse{Success: false, Error: err.Error()})
+        return
+    }
+
+    c.JSON(200, APIResponse{Success: true, Data: logs})
+}
+```
+
+#### **Implementation Benefits**
+
+1. **Simplified Architecture**
+   - Remove complex parsing logic
+   - Reduce code maintenance burden
+   - Fewer potential parsing errors
+
+2. **Better User Experience**
+   - See exact script output
+   - No information loss from parsing
+   - Faster log loading (no parsing overhead)
+
+3. **Format Flexibility**
+   - Works with any log format
+   - Supports colored output (ANSI codes)
+   - Handles multiline outputs correctly
+
+4. **Performance Improvement**
+   - No CPU overhead for parsing
+   - Faster log retrieval
+   - Reduced memory usage
+
+#### **Migration Strategy**
+
+1. **Backward Compatibility**
+   - Keep existing parsed fields for old logs
+   - New logs use simplified structure
+   - Gradual migration of display components
+
+2. **Configuration Option**
+   ```json
+   {
+     "logging": {
+       "display_mode": "raw",        // "raw" or "parsed"
+       "preserve_formatting": true,
+       "max_line_length": 10000
+     }
+   }
+   ```
+
+3. **Progressive Enhancement**
+   - Phase 1: Add raw content field to existing entries
+   - Phase 2: Update frontend to use raw display
+   - Phase 3: Remove complex parsing (optional)
+
+#### **Implementation Steps**
+
+1. **Backend Updates** (1 day)
+   - [ ] Add raw content field to LogEntry
+   - [ ] Update log writing to store raw content
+   - [ ] Modify API to return raw content
+   - [ ] Add configuration for display mode
+
+2. **Frontend Updates** (1 day)
+   - [ ] Create raw log viewer component
+   - [ ] Update Logs.vue to use raw display
+   - [ ] Add search functionality for raw content
+   - [ ] Implement syntax highlighting (optional)
+
+3. **Testing & Polish** (0.5 day)
+   - [ ] Test with various script outputs
+   - [ ] Verify search functionality
+   - [ ] Test performance with large logs
+   - [ ] Update documentation
+
 ## Benefits
 
 1. **Improved User Experience**
    - Real-time visibility into script execution
    - Better monitoring of long-running processes
    - Immediate feedback on script progress
+   - **Raw log content display without parsing complexity**
 
 2. **Better Debugging**
    - See output as it happens
    - Identify hang points in scripts
    - Real-time error detection
+   - **Exact script output preservation**
 
 3. **Enhanced Web Interface**
    - Live log streaming in browser
    - Better user engagement
    - Professional monitoring experience
+   - **Simplified and faster log display**
 
 4. **Operational Benefits**
    - Faster issue detection
    - Reduced waiting time for feedback
    - Better system observability
+   - **Reduced parsing overhead and complexity**
