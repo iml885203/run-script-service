@@ -71,7 +71,7 @@
 
 				<option value="file7">run-script-service/service/event.go (100.0%)</option>
 
-				<option value="file8">run-script-service/service/executor.go (77.3%)</option>
+				<option value="file8">run-script-service/service/executor.go (71.2%)</option>
 
 				<option value="file9">run-script-service/service/file_manager.go (85.1%)</option>
 
@@ -91,19 +91,21 @@
 
 				<option value="file17">run-script-service/service/service.go (89.5%)</option>
 
-				<option value="file18">run-script-service/web/event_bridge.go (100.0%)</option>
+				<option value="file18">run-script-service/service/streaming_executor.go (83.1%)</option>
 
-				<option value="file19">run-script-service/web/frontend_setup.go (82.6%)</option>
+				<option value="file19">run-script-service/web/event_bridge.go (100.0%)</option>
 
-				<option value="file20">run-script-service/web/handlers_files.go (78.3%)</option>
+				<option value="file20">run-script-service/web/frontend_setup.go (82.6%)</option>
 
-				<option value="file21">run-script-service/web/handlers_script_files.go (68.0%)</option>
+				<option value="file21">run-script-service/web/handlers_files.go (78.3%)</option>
 
-				<option value="file22">run-script-service/web/server.go (49.8%)</option>
+				<option value="file22">run-script-service/web/handlers_script_files.go (68.0%)</option>
 
-				<option value="file23">run-script-service/web/vue_build_manager.go (13.6%)</option>
+				<option value="file23">run-script-service/web/server.go (49.8%)</option>
 
-				<option value="file24">run-script-service/web/websocket.go (18.3%)</option>
+				<option value="file24">run-script-service/web/vue_build_manager.go (13.6%)</option>
+
+				<option value="file25">run-script-service/web/websocket.go (18.3%)</option>
 
 				</select>
 			</div>
@@ -2152,6 +2154,7 @@ type Executor struct {
         scriptPath string
         logPath    string
         maxLines   int
+        logHandler LogHandler
 }
 
 // NewExecutor creates a new script executor
@@ -2331,6 +2334,151 @@ func (e *Executor) TrimLog() error <span class="cov8" title="1">{
 
         <span class="cov8" title="1">return nil</span>
 }
+
+// ExecuteWithStreaming executes the script with streaming output
+func (e *Executor) ExecuteWithStreaming(ctx context.Context, args ...string) *ExecutionResult <span class="cov8" title="1">{
+        timestamp := time.Now()
+        result := &amp;ExecutionResult{
+                Timestamp: timestamp,
+        }
+
+        // Notify handler of execution start
+        if e.logHandler != nil </span><span class="cov8" title="1">{
+                e.logHandler.HandleExecutionStart(timestamp)
+        }</span>
+
+        <span class="cov8" title="1">cmd := exec.CommandContext(ctx, e.scriptPath, args...)
+        cmd.Dir = filepath.Dir(e.scriptPath)
+
+        // Set process group to enable proper cleanup
+        cmd.SysProcAttr = &amp;syscall.SysProcAttr{
+                Setpgid: true,
+        }
+
+        stdout, err := cmd.StdoutPipe()
+        if err != nil </span><span class="cov0" title="0">{
+                e.logError(timestamp, fmt.Sprintf("Error creating stdout pipe: %v", err))
+                result.ExitCode = -1
+                if e.logHandler != nil </span><span class="cov0" title="0">{
+                        e.logHandler.HandleExecutionEnd(timestamp, -1)
+                }</span>
+                <span class="cov0" title="0">return result</span>
+        }
+
+        <span class="cov8" title="1">stderr, err := cmd.StderrPipe()
+        if err != nil </span><span class="cov0" title="0">{
+                e.logError(timestamp, fmt.Sprintf("Error creating stderr pipe: %v", err))
+                result.ExitCode = -1
+                if e.logHandler != nil </span><span class="cov0" title="0">{
+                        e.logHandler.HandleExecutionEnd(timestamp, -1)
+                }</span>
+                <span class="cov0" title="0">return result</span>
+        }
+
+        <span class="cov8" title="1">if startErr := cmd.Start(); startErr != nil </span><span class="cov0" title="0">{
+                e.logError(timestamp, fmt.Sprintf("Error starting command: %v", startErr))
+                result.ExitCode = -1
+                if e.logHandler != nil </span><span class="cov0" title="0">{
+                        e.logHandler.HandleExecutionEnd(timestamp, -1)
+                }</span>
+                <span class="cov0" title="0">return result</span>
+        }
+
+        // Ensure process cleanup on exit
+        <span class="cov8" title="1">defer func() </span><span class="cov8" title="1">{
+                if cmd.Process != nil </span><span class="cov8" title="1">{
+                        // Kill the entire process group to clean up any child processes
+                        if pgid, err := syscall.Getpgid(cmd.Process.Pid); err == nil </span><span class="cov0" title="0">{
+                                // Only kill if the process is still running and we can get the pgid
+                                _ = syscall.Kill(-pgid, syscall.SIGTERM)
+
+                                // Wait a moment for graceful shutdown, then force kill if needed
+                                go func() </span><span class="cov0" title="0">{
+                                        time.Sleep(100 * time.Millisecond)
+                                        if cmd.ProcessState == nil || !cmd.ProcessState.Exited() </span><span class="cov0" title="0">{
+                                                _ = syscall.Kill(-pgid, syscall.SIGKILL)
+                                        }</span>
+                                }()
+                        }
+                }
+        }()
+
+        // Stream output in real-time using goroutines
+        <span class="cov8" title="1">var stdoutBuilder strings.Builder
+        var stderrBuilder strings.Builder
+
+        // Start streaming goroutines
+        go func() </span><span class="cov8" title="1">{
+                e.streamOutputToBuilder(stdout, "STDOUT", &amp;stdoutBuilder)
+        }</span>()
+
+        <span class="cov8" title="1">go func() </span><span class="cov8" title="1">{
+                e.streamOutputToBuilder(stderr, "STDERR", &amp;stderrBuilder)
+        }</span>()
+
+        <span class="cov8" title="1">err = cmd.Wait()
+        result.ExitCode = 0
+        if err != nil </span><span class="cov0" title="0">{
+                if exitError, ok := err.(*exec.ExitError); ok </span><span class="cov0" title="0">{
+                        result.ExitCode = exitError.ExitCode()
+                }</span> else<span class="cov0" title="0"> {
+                        e.logError(timestamp, fmt.Sprintf("Error waiting for command: %v", err))
+                        result.ExitCode = -1
+                }</span>
+        }
+
+        <span class="cov8" title="1">result.Stdout = strings.TrimSpace(stdoutBuilder.String())
+        result.Stderr = strings.TrimSpace(stderrBuilder.String())
+
+        // Notify handler of execution end
+        if e.logHandler != nil </span><span class="cov8" title="1">{
+                e.logHandler.HandleExecutionEnd(time.Now(), result.ExitCode)
+        }</span>
+
+        // Write to log only if logPath is specified
+        <span class="cov8" title="1">if e.logPath != "" </span><span class="cov8" title="1">{
+                logEntry := fmt.Sprintf("[%s] Exit code: %d\n", timestamp.Format("2006-01-02 15:04:05"), result.ExitCode)
+                if result.Stdout != "" </span><span class="cov8" title="1">{
+                        logEntry += fmt.Sprintf("STDOUT: %s\n", result.Stdout)
+                }</span>
+                <span class="cov8" title="1">if result.Stderr != "" </span><span class="cov8" title="1">{
+                        logEntry += fmt.Sprintf("STDERR: %s\n", result.Stderr)
+                }</span>
+                <span class="cov8" title="1">logEntry += strings.Repeat("-", 50) + "\n"
+
+                if err := e.WriteLog(logEntry); err != nil </span><span class="cov0" title="0">{
+                        fmt.Printf("Error writing to log: %v\n", err)
+                }</span>
+
+                <span class="cov8" title="1">if err := e.TrimLog(); err != nil </span><span class="cov0" title="0">{
+                        fmt.Printf("Error trimming log: %v\n", err)
+                }</span>
+        }
+
+        <span class="cov8" title="1">return result</span>
+}
+
+// streamOutputToBuilder processes output from a reader line by line, calls the log handler, and builds output string
+func (e *Executor) streamOutputToBuilder(reader io.Reader, streamType string, builder *strings.Builder) <span class="cov8" title="1">{
+        scanner := bufio.NewScanner(reader)
+        for scanner.Scan() </span><span class="cov8" title="1">{
+                line := scanner.Text()
+                timestamp := time.Now()
+
+                // Add to builder for backward compatibility
+                builder.WriteString(line + "\n")
+
+                // Send to log handler if available
+                if e.logHandler != nil </span><span class="cov8" title="1">{
+                        e.logHandler.HandleLogLine(timestamp, streamType, line)
+                }</span>
+        }
+}
+
+// SetLogHandler sets the log handler for streaming output
+func (e *Executor) SetLogHandler(handler LogHandler) <span class="cov8" title="1">{
+        e.logHandler = handler
+}</span>
 </pre>
 
 		<pre class="file" id="file9" style="display: none">// Package service provides file management functionality
@@ -4433,7 +4581,225 @@ func formatDuration(seconds int) string <span class="cov8" title="1">{
 }
 </pre>
 
-		<pre class="file" id="file18" style="display: none">package web
+		<pre class="file" id="file18" style="display: none">// Package service provides core functionality for the run-script-service daemon.
+package service
+
+import (
+        "bufio"
+        "context"
+        "io"
+        "os"
+        "strings"
+        "sync"
+        "time"
+)
+
+// StreamingExecutor defines the interface for executing scripts with streaming output
+type StreamingExecutor interface {
+        ExecuteWithStreaming(ctx context.Context, args ...string) *ExecutionResult
+        SetLogHandler(handler LogHandler)
+}
+
+// LogHandler defines the interface for handling streaming log events
+type LogHandler interface {
+        HandleLogLine(timestamp time.Time, stream string, line string)
+        HandleExecutionStart(timestamp time.Time)
+        HandleExecutionEnd(timestamp time.Time, exitCode int)
+}
+
+// StreamingLogWriter handles real-time log writing with buffering
+type StreamingLogWriter struct {
+        logPath       string
+        file          *os.File
+        mutex         sync.Mutex
+        buffer        *bufio.Writer
+        flushInterval time.Duration
+        bufferSize    int
+        closed        bool
+        stopChan      chan struct{}
+        flushTicker   *time.Ticker
+}
+
+// NewStreamingLogWriter creates a new streaming log writer
+func NewStreamingLogWriter(logPath string, bufferSize int, flushInterval time.Duration) *StreamingLogWriter <span class="cov8" title="1">{
+        writer := &amp;StreamingLogWriter{
+                logPath:       logPath,
+                bufferSize:    bufferSize,
+                flushInterval: flushInterval,
+                stopChan:      make(chan struct{}),
+        }
+
+        // Initialize the writer
+        if err := writer.init(); err != nil </span><span class="cov0" title="0">{
+                // Return a writer that will fail on WriteStreamLine
+                return writer
+        }</span>
+
+        <span class="cov8" title="1">return writer</span>
+}
+
+// init initializes the log writer
+func (w *StreamingLogWriter) init() error <span class="cov8" title="1">{
+        w.mutex.Lock()
+        defer w.mutex.Unlock()
+
+        if w.closed </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        <span class="cov8" title="1">file, err := os.OpenFile(w.logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov8" title="1">w.file = file
+        w.buffer = bufio.NewWriterSize(file, w.bufferSize)
+
+        // Start flush ticker
+        w.flushTicker = time.NewTicker(w.flushInterval)
+        go w.flushLoop()
+
+        return nil</span>
+}
+
+// flushLoop periodically flushes the buffer
+func (w *StreamingLogWriter) flushLoop() <span class="cov8" title="1">{
+        for </span><span class="cov8" title="1">{
+                select </span>{
+                case &lt;-w.flushTicker.C:<span class="cov0" title="0">
+                        w.flush()</span>
+                case &lt;-w.stopChan:<span class="cov8" title="1">
+                        return</span>
+                }
+        }
+}
+
+// WriteStreamLine writes a single log line with timestamp and stream type
+func (w *StreamingLogWriter) WriteStreamLine(timestamp time.Time, streamType string, line string) error <span class="cov8" title="1">{
+        w.mutex.Lock()
+        defer w.mutex.Unlock()
+
+        if w.closed || w.buffer == nil </span><span class="cov0" title="0">{
+                return nil // Fail silently for closed writer
+        }</span>
+
+        <span class="cov8" title="1">logEntry := timestamp.Format("2006-01-02 15:04:05") + " [" + streamType + "] " + line + "\n"
+        _, err := w.buffer.WriteString(logEntry)
+        return err</span>
+}
+
+// flush flushes the buffer to disk
+func (w *StreamingLogWriter) flush() <span class="cov0" title="0">{
+        w.mutex.Lock()
+        defer w.mutex.Unlock()
+
+        if w.buffer != nil &amp;&amp; !w.closed </span><span class="cov0" title="0">{
+                _ = w.buffer.Flush()
+        }</span>
+}
+
+// Close closes the streaming log writer
+func (w *StreamingLogWriter) Close() error <span class="cov8" title="1">{
+        w.mutex.Lock()
+        defer w.mutex.Unlock()
+
+        if w.closed </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        <span class="cov8" title="1">w.closed = true
+        close(w.stopChan)
+
+        if w.flushTicker != nil </span><span class="cov8" title="1">{
+                w.flushTicker.Stop()
+        }</span>
+
+        <span class="cov8" title="1">if w.buffer != nil </span><span class="cov8" title="1">{
+                _ = w.buffer.Flush()
+        }</span>
+
+        <span class="cov8" title="1">if w.file != nil </span><span class="cov8" title="1">{
+                return w.file.Close()
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// streamOutput processes output from a reader line by line and sends to log handler
+func (e *Executor) streamOutput(reader io.Reader, streamType string, handler LogHandler) <span class="cov8" title="1">{
+        scanner := bufio.NewScanner(reader)
+        for scanner.Scan() </span><span class="cov8" title="1">{
+                line := scanner.Text()
+                timestamp := time.Now()
+                handler.HandleLogLine(timestamp, streamType, line)
+        }</span>
+}
+
+// StreamingLogHandler integrates streaming output with the log manager
+type StreamingLogHandler struct {
+        scriptName  string
+        logManager  *LogManager
+        startTime   time.Time
+        stdoutLines []string
+        stderrLines []string
+        mutex       sync.Mutex
+}
+
+// NewStreamingLogHandler creates a new streaming log handler
+func NewStreamingLogHandler(scriptName string, logManager *LogManager) *StreamingLogHandler <span class="cov8" title="1">{
+        return &amp;StreamingLogHandler{
+                scriptName:  scriptName,
+                logManager:  logManager,
+                stdoutLines: make([]string, 0),
+                stderrLines: make([]string, 0),
+        }
+}</span>
+
+// HandleLogLine processes individual log lines during streaming
+func (h *StreamingLogHandler) HandleLogLine(timestamp time.Time, stream string, line string) <span class="cov8" title="1">{
+        h.mutex.Lock()
+        defer h.mutex.Unlock()
+
+        switch stream </span>{
+        case "STDOUT":<span class="cov8" title="1">
+                h.stdoutLines = append(h.stdoutLines, line)</span>
+        case "STDERR":<span class="cov8" title="1">
+                h.stderrLines = append(h.stderrLines, line)</span>
+        }
+}
+
+// HandleExecutionStart records the start time of execution
+func (h *StreamingLogHandler) HandleExecutionStart(timestamp time.Time) <span class="cov8" title="1">{
+        h.mutex.Lock()
+        defer h.mutex.Unlock()
+
+        h.startTime = timestamp
+        h.stdoutLines = make([]string, 0)
+        h.stderrLines = make([]string, 0)
+}</span>
+
+// HandleExecutionEnd finalizes the log entry and adds it to the log manager
+func (h *StreamingLogHandler) HandleExecutionEnd(timestamp time.Time, exitCode int) <span class="cov8" title="1">{
+        h.mutex.Lock()
+        defer h.mutex.Unlock()
+
+        // Create final log entry with accumulated output
+        entry := &amp;LogEntry{
+                Timestamp:  h.startTime,
+                ScriptName: h.scriptName,
+                ExitCode:   exitCode,
+                Stdout:     strings.Join(h.stdoutLines, "\n"),
+                Stderr:     strings.Join(h.stderrLines, "\n"),
+                Duration:   timestamp.Sub(h.startTime).Nanoseconds() / 1e6, // Convert to milliseconds
+        }
+
+        // Add to log manager
+        logger := h.logManager.GetLogger(h.scriptName)
+        _ = logger.AddEntry(entry) // Ignore error for now - could be logged separately
+}</span>
+</pre>
+
+		<pre class="file" id="file19" style="display: none">package web
 
 import (
         "run-script-service/service"
@@ -4494,7 +4860,7 @@ func (eb *EventBridge) Close() <span class="cov8" title="1">{
 }
 </pre>
 
-		<pre class="file" id="file19" style="display: none">package web
+		<pre class="file" id="file20" style="display: none">package web
 
 import (
         "encoding/json"
@@ -4728,7 +5094,7 @@ export default {
 }</span>
 </pre>
 
-		<pre class="file" id="file20" style="display: none">// Package web provides file operation handlers for the HTTP API server
+		<pre class="file" id="file21" style="display: none">// Package web provides file operation handlers for the HTTP API server
 package web
 
 import (
@@ -4977,7 +5343,7 @@ func (ws *WebServer) handleListFiles(c *gin.Context) <span class="cov8" title="1
 }
 </pre>
 
-		<pre class="file" id="file21" style="display: none">// Package web provides script file management handlers for the HTTP API server
+		<pre class="file" id="file22" style="display: none">// Package web provides script file management handlers for the HTTP API server
 package web
 
 import (
@@ -5218,7 +5584,7 @@ func (ws *WebServer) handleDeleteScriptFile(c *gin.Context) <span class="cov8" t
 }
 </pre>
 
-		<pre class="file" id="file22" style="display: none">// Package web provides HTTP API server functionality
+		<pre class="file" id="file23" style="display: none">// Package web provides HTTP API server functionality
 package web
 
 import (
@@ -6436,7 +6802,7 @@ func (ws *WebServer) handleGetGitProjects(c *gin.Context) <span class="cov8" tit
 }
 </pre>
 
-		<pre class="file" id="file23" style="display: none">package web
+		<pre class="file" id="file24" style="display: none">package web
 
 import (
         "fmt"
@@ -6549,7 +6915,7 @@ func (vbm *VueBuildManager) CheckFrontendExists() bool <span class="cov0" title=
 }
 </pre>
 
-		<pre class="file" id="file24" style="display: none">package web
+		<pre class="file" id="file25" style="display: none">package web
 
 import (
         "encoding/json"

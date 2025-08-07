@@ -6,6 +6,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -149,4 +150,67 @@ func (e *Executor) streamOutput(reader io.Reader, streamType string, handler Log
 		timestamp := time.Now()
 		handler.HandleLogLine(timestamp, streamType, line)
 	}
+}
+
+// StreamingLogHandler integrates streaming output with the log manager
+type StreamingLogHandler struct {
+	scriptName  string
+	logManager  *LogManager
+	startTime   time.Time
+	stdoutLines []string
+	stderrLines []string
+	mutex       sync.Mutex
+}
+
+// NewStreamingLogHandler creates a new streaming log handler
+func NewStreamingLogHandler(scriptName string, logManager *LogManager) *StreamingLogHandler {
+	return &StreamingLogHandler{
+		scriptName:  scriptName,
+		logManager:  logManager,
+		stdoutLines: make([]string, 0),
+		stderrLines: make([]string, 0),
+	}
+}
+
+// HandleLogLine processes individual log lines during streaming
+func (h *StreamingLogHandler) HandleLogLine(timestamp time.Time, stream string, line string) {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
+	switch stream {
+	case "STDOUT":
+		h.stdoutLines = append(h.stdoutLines, line)
+	case "STDERR":
+		h.stderrLines = append(h.stderrLines, line)
+	}
+}
+
+// HandleExecutionStart records the start time of execution
+func (h *StreamingLogHandler) HandleExecutionStart(timestamp time.Time) {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
+	h.startTime = timestamp
+	h.stdoutLines = make([]string, 0)
+	h.stderrLines = make([]string, 0)
+}
+
+// HandleExecutionEnd finalizes the log entry and adds it to the log manager
+func (h *StreamingLogHandler) HandleExecutionEnd(timestamp time.Time, exitCode int) {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
+	// Create final log entry with accumulated output
+	entry := &LogEntry{
+		Timestamp:  h.startTime,
+		ScriptName: h.scriptName,
+		ExitCode:   exitCode,
+		Stdout:     strings.Join(h.stdoutLines, "\n"),
+		Stderr:     strings.Join(h.stderrLines, "\n"),
+		Duration:   timestamp.Sub(h.startTime).Nanoseconds() / 1e6, // Convert to milliseconds
+	}
+
+	// Add to log manager
+	logger := h.logManager.GetLogger(h.scriptName)
+	_ = logger.AddEntry(entry) // Ignore error for now - could be logged separately
 }

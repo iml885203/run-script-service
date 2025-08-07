@@ -118,7 +118,26 @@ func (e *Executor) ExecuteScriptWithContext(ctx context.Context, args ...string)
 	result.Stdout = strings.TrimSpace(string(stdoutBytes))
 	result.Stderr = strings.TrimSpace(string(stderrBytes))
 
-	// Write to log only if logPath is specified
+	// Write execution result to log
+	e.writeExecutionLog(timestamp, result)
+
+	return result
+}
+
+// logError logs an error message
+func (e *Executor) logError(timestamp time.Time, message string) {
+	if e.logPath != "" {
+		errorMsg := fmt.Sprintf("[%s] ERROR: %s\n%s\n",
+			timestamp.Format("2006-01-02 15:04:05"), message, strings.Repeat("-", 50))
+		if err := e.WriteLog(errorMsg); err != nil {
+			fmt.Printf("Error writing error to log: %v\n", err)
+		}
+	}
+	fmt.Printf("Error executing script: %s\n", message)
+}
+
+// writeExecutionLog writes execution result to log file
+func (e *Executor) writeExecutionLog(timestamp time.Time, result *ExecutionResult) {
 	if e.logPath != "" {
 		logEntry := fmt.Sprintf("[%s] Exit code: %d\n", timestamp.Format("2006-01-02 15:04:05"), result.ExitCode)
 		if result.Stdout != "" {
@@ -137,20 +156,6 @@ func (e *Executor) ExecuteScriptWithContext(ctx context.Context, args ...string)
 			fmt.Printf("Error trimming log: %v\n", err)
 		}
 	}
-
-	return result
-}
-
-// logError logs an error message
-func (e *Executor) logError(timestamp time.Time, message string) {
-	if e.logPath != "" {
-		errorMsg := fmt.Sprintf("[%s] ERROR: %s\n%s\n",
-			timestamp.Format("2006-01-02 15:04:05"), message, strings.Repeat("-", 50))
-		if err := e.WriteLog(errorMsg); err != nil {
-			fmt.Printf("Error writing error to log: %v\n", err)
-		}
-	}
-	fmt.Printf("Error executing script: %s\n", message)
 }
 
 // WriteLog writes content to the log file
@@ -210,9 +215,125 @@ func (e *Executor) TrimLog() error {
 
 // ExecuteWithStreaming executes the script with streaming output
 func (e *Executor) ExecuteWithStreaming(ctx context.Context, args ...string) *ExecutionResult {
-	// For now, this is a minimal implementation that satisfies the interface
-	// It will be enhanced in future iterations
-	return e.ExecuteScriptWithContext(ctx, args...)
+	timestamp := time.Now()
+	result := &ExecutionResult{
+		Timestamp: timestamp,
+	}
+
+	// Notify handler of execution start
+	if e.logHandler != nil {
+		e.logHandler.HandleExecutionStart(timestamp)
+	}
+
+	cmd := exec.CommandContext(ctx, e.scriptPath, args...)
+	cmd.Dir = filepath.Dir(e.scriptPath)
+
+	// Set process group to enable proper cleanup
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true,
+	}
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		e.logError(timestamp, fmt.Sprintf("Error creating stdout pipe: %v", err))
+		result.ExitCode = -1
+		if e.logHandler != nil {
+			e.logHandler.HandleExecutionEnd(timestamp, -1)
+		}
+		return result
+	}
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		e.logError(timestamp, fmt.Sprintf("Error creating stderr pipe: %v", err))
+		result.ExitCode = -1
+		if e.logHandler != nil {
+			e.logHandler.HandleExecutionEnd(timestamp, -1)
+		}
+		return result
+	}
+
+	if startErr := cmd.Start(); startErr != nil {
+		e.logError(timestamp, fmt.Sprintf("Error starting command: %v", startErr))
+		result.ExitCode = -1
+		if e.logHandler != nil {
+			e.logHandler.HandleExecutionEnd(timestamp, -1)
+		}
+		return result
+	}
+
+	// Ensure process cleanup on exit
+	defer func() {
+		if cmd.Process != nil {
+			// Kill the entire process group to clean up any child processes
+			if pgid, err := syscall.Getpgid(cmd.Process.Pid); err == nil {
+				// Only kill if the process is still running and we can get the pgid
+				_ = syscall.Kill(-pgid, syscall.SIGTERM)
+
+				// Wait a moment for graceful shutdown, then force kill if needed
+				go func() {
+					time.Sleep(100 * time.Millisecond)
+					if cmd.ProcessState == nil || !cmd.ProcessState.Exited() {
+						_ = syscall.Kill(-pgid, syscall.SIGKILL)
+					}
+				}()
+			}
+		}
+	}()
+
+	// Stream output in real-time using goroutines
+	var stdoutBuilder strings.Builder
+	var stderrBuilder strings.Builder
+
+	// Start streaming goroutines
+	go func() {
+		e.streamOutputToBuilder(stdout, "STDOUT", &stdoutBuilder)
+	}()
+
+	go func() {
+		e.streamOutputToBuilder(stderr, "STDERR", &stderrBuilder)
+	}()
+
+	err = cmd.Wait()
+	result.ExitCode = 0
+	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			result.ExitCode = exitError.ExitCode()
+		} else {
+			e.logError(timestamp, fmt.Sprintf("Error waiting for command: %v", err))
+			result.ExitCode = -1
+		}
+	}
+
+	result.Stdout = strings.TrimSpace(stdoutBuilder.String())
+	result.Stderr = strings.TrimSpace(stderrBuilder.String())
+
+	// Notify handler of execution end
+	if e.logHandler != nil {
+		e.logHandler.HandleExecutionEnd(time.Now(), result.ExitCode)
+	}
+
+	// Write execution result to log
+	e.writeExecutionLog(timestamp, result)
+
+	return result
+}
+
+// streamOutputToBuilder processes output from a reader line by line, calls the log handler, and builds output string
+func (e *Executor) streamOutputToBuilder(reader io.Reader, streamType string, builder *strings.Builder) {
+	scanner := bufio.NewScanner(reader)
+	for scanner.Scan() {
+		line := scanner.Text()
+		timestamp := time.Now()
+
+		// Add to builder for backward compatibility
+		builder.WriteString(line + "\n")
+
+		// Send to log handler if available
+		if e.logHandler != nil {
+			e.logHandler.HandleLogLine(timestamp, streamType, line)
+		}
+	}
 }
 
 // SetLogHandler sets the log handler for streaming output

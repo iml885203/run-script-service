@@ -2,6 +2,8 @@
 package service
 
 import (
+	"context"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -130,5 +132,156 @@ func TestStreamOutput_Processing(t *testing.T) {
 		if i < len(handler.LogLines) && handler.LogLines[i].Line != expectedLine {
 			t.Errorf("Expected line %d to be '%s', got '%s'", i, expectedLine, handler.LogLines[i].Line)
 		}
+	}
+}
+
+func TestExecuteWithStreaming_RealImplementation(t *testing.T) {
+	// Red phase - this test should fail until we implement real streaming
+	tmpDir := t.TempDir()
+	scriptPath := tmpDir + "/test_script.sh"
+	logPath := tmpDir + "/test.log"
+
+	// Create a test script that outputs to both stdout and stderr
+	scriptContent := `#!/bin/bash
+echo "stdout line 1"
+echo "stderr line 1" >&2
+echo "stdout line 2"
+echo "stderr line 2" >&2
+`
+	err := os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	executor := NewExecutor(scriptPath, logPath, 100)
+	handler := &MockLogHandler{}
+	executor.SetLogHandler(handler)
+
+	ctx := context.Background()
+	result := executor.ExecuteWithStreaming(ctx)
+
+	// Check that we got some log lines processed
+	if len(handler.LogLines) == 0 {
+		t.Error("Expected streaming log lines, but got none")
+	}
+
+	// Check that execution completed successfully
+	if result.ExitCode != 0 {
+		t.Errorf("Expected exit code 0, got %d", result.ExitCode)
+	}
+
+	// Check that both HandleExecutionStart and HandleExecutionEnd were called
+	if handler.ExecutionStart == nil {
+		t.Error("Expected HandleExecutionStart to be called")
+	}
+
+	if handler.ExecutionEnd == nil {
+		t.Error("Expected HandleExecutionEnd to be called")
+	}
+}
+
+func TestStreamingLogHandler_Integration(t *testing.T) {
+	// Red phase - test streaming log handler integration with log manager
+	tmpDir := t.TempDir()
+	logManager := NewLogManager(tmpDir)
+	scriptName := "test-script"
+
+	// Create streaming log handler that integrates with log manager
+	handler := NewStreamingLogHandler(scriptName, logManager)
+
+	// Simulate streaming log events
+	startTime := time.Now()
+	handler.HandleExecutionStart(startTime)
+
+	handler.HandleLogLine(time.Now(), "STDOUT", "line 1")
+	handler.HandleLogLine(time.Now(), "STDERR", "error line 1")
+	handler.HandleLogLine(time.Now(), "STDOUT", "line 2")
+
+	endTime := time.Now()
+	handler.HandleExecutionEnd(endTime, 0)
+
+	// Check that log manager has the completed entry
+	logger := logManager.GetLogger(scriptName)
+	entries := logger.GetEntries()
+
+	if len(entries) != 1 {
+		t.Errorf("Expected 1 log entry, got %d", len(entries))
+	}
+
+	if len(entries) > 0 {
+		entry := entries[0]
+		if entry.ExitCode != 0 {
+			t.Errorf("Expected exit code 0, got %d", entry.ExitCode)
+		}
+
+		if !strings.Contains(entry.Stdout, "line 1") || !strings.Contains(entry.Stdout, "line 2") {
+			t.Errorf("Expected stdout to contain streaming lines, got: %s", entry.Stdout)
+		}
+
+		if !strings.Contains(entry.Stderr, "error line 1") {
+			t.Errorf("Expected stderr to contain error line, got: %s", entry.Stderr)
+		}
+	}
+}
+
+func TestExecuteWithStreaming_LogManagerIntegration(t *testing.T) {
+	// Integration test: Executor + StreamingLogHandler + LogManager
+	tmpDir := t.TempDir()
+	scriptPath := tmpDir + "/test_script.sh"
+	logPath := tmpDir + "/test.log"
+
+	// Create a test script
+	scriptContent := `#!/bin/bash
+echo "Hello from stdout"
+echo "Error from stderr" >&2
+echo "Another stdout line"
+exit 0
+`
+	err := os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Set up executor with streaming log handler
+	executor := NewExecutor(scriptPath, logPath, 100)
+	logManager := NewLogManager(tmpDir)
+	streamingHandler := NewStreamingLogHandler("integration-test", logManager)
+	executor.SetLogHandler(streamingHandler)
+
+	// Execute with streaming
+	ctx := context.Background()
+	result := executor.ExecuteWithStreaming(ctx)
+
+	// Verify execution result
+	if result.ExitCode != 0 {
+		t.Errorf("Expected exit code 0, got %d", result.ExitCode)
+	}
+
+	// Verify log manager received the streamed data
+	logger := logManager.GetLogger("integration-test")
+	entries := logger.GetEntries()
+
+	if len(entries) != 1 {
+		t.Errorf("Expected 1 log entry, got %d", len(entries))
+		return
+	}
+
+	entry := entries[0]
+
+	// Check that streaming captured all output properly
+	if !strings.Contains(entry.Stdout, "Hello from stdout") {
+		t.Errorf("Expected stdout to contain 'Hello from stdout', got: %s", entry.Stdout)
+	}
+
+	if !strings.Contains(entry.Stdout, "Another stdout line") {
+		t.Errorf("Expected stdout to contain 'Another stdout line', got: %s", entry.Stdout)
+	}
+
+	if !strings.Contains(entry.Stderr, "Error from stderr") {
+		t.Errorf("Expected stderr to contain 'Error from stderr', got: %s", entry.Stderr)
+	}
+
+	if entry.ExitCode != 0 {
+		t.Errorf("Expected logged exit code 0, got %d", entry.ExitCode)
 	}
 }
