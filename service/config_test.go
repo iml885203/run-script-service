@@ -260,3 +260,95 @@ func TestScriptConfig_Validation(t *testing.T) {
 		})
 	}
 }
+
+func TestEnhancedConfig_LoadWithEnvFile(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create .env file
+	envFile := filepath.Join(tempDir, ".env")
+	envContent := `WEB_SECRET_KEY=test-secret-from-env
+LOG_LEVEL=debug
+WEB_PORT=9090
+`
+	err := os.WriteFile(envFile, []byte(envContent), 0600)
+	if err != nil {
+		t.Fatalf("Failed to create .env file: %v", err)
+	}
+
+	// Create service config file
+	configFile := filepath.Join(tempDir, "service_config.json")
+	configContent := `{
+  "scripts": [
+    {
+      "name": "test-script",
+      "path": "./test.sh",
+      "interval": 300,
+      "enabled": true,
+      "max_log_lines": 100,
+      "timeout": 0
+    }
+  ],
+  "web_port": 8080
+}`
+	err = os.WriteFile(configFile, []byte(configContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	// Test enhanced configuration loading
+	enhancedConfig := NewEnhancedConfig()
+	err = enhancedConfig.LoadWithEnv(configFile, envFile)
+	if err != nil {
+		t.Fatalf("LoadWithEnv failed: %v", err)
+	}
+
+	// Test that service config was loaded
+	if len(enhancedConfig.Config.Scripts) != 1 {
+		t.Errorf("Expected 1 script, got %d", len(enhancedConfig.Config.Scripts))
+	}
+
+	if enhancedConfig.Config.Scripts[0].Name != "test-script" {
+		t.Errorf("Expected script name 'test-script', got %s", enhancedConfig.Config.Scripts[0].Name)
+	}
+
+	// Test that env values are accessible
+	if secret := enhancedConfig.GetEnv("WEB_SECRET_KEY"); secret != "test-secret-from-env" {
+		t.Errorf("Expected WEB_SECRET_KEY='test-secret-from-env', got '%s'", secret)
+	}
+
+	if logLevel := enhancedConfig.GetEnv("LOG_LEVEL"); logLevel != "debug" {
+		t.Errorf("Expected LOG_LEVEL='debug', got '%s'", logLevel)
+	}
+}
+
+func TestEnhancedConfig_GetWebPort(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create .env file with WEB_PORT
+	envFile := filepath.Join(tempDir, ".env")
+	envContent := `WEB_PORT=9090`
+	err := os.WriteFile(envFile, []byte(envContent), 0600)
+	if err != nil {
+		t.Fatalf("Failed to create .env file: %v", err)
+	}
+
+	// Create service config with different port
+	configFile := filepath.Join(tempDir, "service_config.json")
+	configContent := `{"scripts": [], "web_port": 8080}`
+	err = os.WriteFile(configFile, []byte(configContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	enhancedConfig := NewEnhancedConfig()
+	err = enhancedConfig.LoadWithEnv(configFile, envFile)
+	if err != nil {
+		t.Fatalf("LoadWithEnv failed: %v", err)
+	}
+
+	// Environment variable should take priority over JSON config
+	webPort := enhancedConfig.GetWebPort()
+	if webPort != 9090 {
+		t.Errorf("Expected web port 9090 (from env), got %d", webPort)
+	}
+}

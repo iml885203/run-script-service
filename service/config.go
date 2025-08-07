@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 // ScriptConfig represents configuration for a single script
@@ -59,6 +60,12 @@ type ServiceConfig struct {
 // Config is a legacy struct for backward compatibility
 type Config struct {
 	Interval int `json:"interval"`
+}
+
+// EnhancedConfig combines service configuration with environment variable loading
+type EnhancedConfig struct {
+	Config    ServiceConfig
+	envLoader *EnvLoader
 }
 
 // Validate checks if the script configuration is valid
@@ -224,4 +231,63 @@ func SaveServiceConfig(configPath string, config *ServiceConfig) error {
 	}
 
 	return nil
+}
+
+// NewEnhancedConfig creates a new enhanced configuration manager
+func NewEnhancedConfig() *EnhancedConfig {
+	return &EnhancedConfig{
+		Config: ServiceConfig{
+			Scripts: []ScriptConfig{},
+			WebPort: 8080, // default
+		},
+		envLoader: NewEnvLoader(),
+	}
+}
+
+// LoadWithEnv loads both service configuration and environment variables
+func (ec *EnhancedConfig) LoadWithEnv(configPath, envPath string) error {
+	// Load .env file first
+	if err := ec.envLoader.LoadFromFile(envPath); err != nil {
+		return fmt.Errorf("failed to load env file: %v", err)
+	}
+
+	// Load service configuration
+	if err := LoadServiceConfig(configPath, &ec.Config); err != nil {
+		return fmt.Errorf("failed to load service config: %v", err)
+	}
+
+	return nil
+}
+
+// GetEnv retrieves environment variable with .env file support
+func (ec *EnhancedConfig) GetEnv(key string) string {
+	return ec.envLoader.Get(key)
+}
+
+// GetEnvWithDefault retrieves environment variable with default fallback
+func (ec *EnhancedConfig) GetEnvWithDefault(key, defaultValue string) string {
+	return ec.envLoader.GetWithDefault(key, defaultValue)
+}
+
+// GetWebPort returns the web port, prioritizing environment variables
+func (ec *EnhancedConfig) GetWebPort() int {
+	// Check environment variable first
+	if portStr := ec.GetEnv("WEB_PORT"); portStr != "" {
+		if port, err := strconv.Atoi(portStr); err == nil {
+			return port
+		}
+	}
+
+	// Fallback to JSON config
+	if ec.Config.WebPort > 0 {
+		return ec.Config.WebPort
+	}
+
+	// Final fallback
+	return 8080
+}
+
+// GetSecretKey returns the secret key from environment variables
+func (ec *EnhancedConfig) GetSecretKey() string {
+	return ec.GetEnv("WEB_SECRET_KEY")
 }
