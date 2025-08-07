@@ -351,37 +351,33 @@ func (e *Executor) SetLogHandler(handler LogHandler) {
 // ExecuteWithResult executes the script and returns both result and error
 // This method provides a simpler interface for script execution with error handling
 func (e *Executor) ExecuteWithResult(ctx context.Context, args ...string) (*ExecutionResult, error) {
-	// Use background context if none provided
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	// Execute the script using existing method
+	ctx = e.ensureContext(ctx)
 	result := e.ExecuteScriptWithContext(ctx, args...)
-
-	// Convert exit code to error for non-zero codes
-	if result.ExitCode != 0 {
-		return result, fmt.Errorf("script execution failed with exit code %d", result.ExitCode)
-	}
-
-	return result, nil
+	return e.handleExecutionResult(result)
 }
 
 // ExecuteWithResultStreaming executes the script with streaming output and returns both result and error
-// This method combines streaming capabilities with error handling interface
+// This method combines streaming capabilities with error handling interface, allowing real-time
+// output processing while maintaining the same error handling semantics as ExecuteWithResult
 func (e *Executor) ExecuteWithResultStreaming(ctx context.Context, args ...string) (*ExecutionResult, error) {
-	// Use background context if none provided
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	// Execute the script using streaming method
+	ctx = e.ensureContext(ctx)
 	result := e.ExecuteWithStreaming(ctx, args...)
+	return e.handleExecutionResult(result)
+}
 
-	// Convert exit code to error for non-zero codes
+// ensureContext ensures we have a valid context, using background context as fallback
+func (e *Executor) ensureContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
+}
+
+// handleExecutionResult converts execution results to the result/error pattern
+// Non-zero exit codes are converted to errors while preserving the full result
+func (e *Executor) handleExecutionResult(result *ExecutionResult) (*ExecutionResult, error) {
 	if result.ExitCode != 0 {
 		return result, fmt.Errorf("script execution failed with exit code %d", result.ExitCode)
 	}
-
 	return result, nil
 }

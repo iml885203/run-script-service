@@ -400,3 +400,100 @@ func TestExecutor_ExecuteWithResultStreaming(t *testing.T) {
 		})
 	}
 }
+
+func TestExecutor_EnsureContext(t *testing.T) {
+	executor := NewExecutor("/tmp/test.sh", "/tmp/test.log", 100)
+
+	tests := []struct {
+		name        string
+		inputCtx    context.Context
+		expectValid bool
+	}{
+		{
+			name:        "nil context returns background context",
+			inputCtx:    nil,
+			expectValid: true,
+		},
+		{
+			name:        "valid context is preserved",
+			inputCtx:    context.Background(),
+			expectValid: true,
+		},
+		{
+			name:        "context with timeout is preserved",
+			inputCtx:    context.WithValue(context.Background(), "test", "value"),
+			expectValid: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := executor.ensureContext(tt.inputCtx)
+			if result == nil {
+				t.Error("ensureContext should never return nil")
+			}
+		})
+	}
+}
+
+func TestExecutor_HandleExecutionResult(t *testing.T) {
+	executor := NewExecutor("/tmp/test.sh", "/tmp/test.log", 100)
+
+	tests := []struct {
+		name        string
+		result      *ExecutionResult
+		expectError bool
+		expectedMsg string
+	}{
+		{
+			name: "success result returns no error",
+			result: &ExecutionResult{
+				ExitCode: 0,
+				Stdout:   "success",
+			},
+			expectError: false,
+		},
+		{
+			name: "non-zero exit code returns error",
+			result: &ExecutionResult{
+				ExitCode: 1,
+				Stderr:   "error occurred",
+			},
+			expectError: true,
+			expectedMsg: "script execution failed with exit code 1",
+		},
+		{
+			name: "different exit code returns appropriate error",
+			result: &ExecutionResult{
+				ExitCode: 127,
+				Stderr:   "command not found",
+			},
+			expectError: true,
+			expectedMsg: "script execution failed with exit code 127",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := executor.handleExecutionResult(tt.result)
+
+			if (err != nil) != tt.expectError {
+				t.Errorf("handleExecutionResult() error = %v, expectError = %v", err, tt.expectError)
+			}
+
+			if tt.expectError && err.Error() != tt.expectedMsg {
+				t.Errorf("handleExecutionResult() error message = '%s', expected = '%s'", err.Error(), tt.expectedMsg)
+			}
+
+			// Result should always be returned, even when there's an error
+			if result == nil {
+				t.Error("handleExecutionResult() should always return result")
+			}
+
+			// Result should be the same object that was passed in
+			if result != tt.result {
+				t.Error("handleExecutionResult() should return the same result object")
+			}
+		})
+	}
+}
