@@ -73,7 +73,7 @@
 
 				<option value="file8">run-script-service/service/event.go (100.0%)</option>
 
-				<option value="file9">run-script-service/service/executor.go (72.0%)</option>
+				<option value="file9">run-script-service/service/executor.go (72.8%)</option>
 
 				<option value="file10">run-script-service/service/file_manager.go (85.1%)</option>
 
@@ -2249,6 +2249,7 @@ import (
         "os/exec"
         "path/filepath"
         "strings"
+        "sync"
         "syscall"
         "time"
 )
@@ -2523,17 +2524,23 @@ func (e *Executor) ExecuteWithStreaming(ctx context.Context, args ...string) *Ex
         // Stream output in real-time using goroutines
         <span class="cov8" title="1">var stdoutBuilder strings.Builder
         var stderrBuilder strings.Builder
+        var wg sync.WaitGroup
 
         // Start streaming goroutines
+        wg.Add(2)
         go func() </span><span class="cov8" title="1">{
+                defer wg.Done()
                 e.streamOutputToBuilder(stdout, "STDOUT", &amp;stdoutBuilder)
         }</span>()
 
         <span class="cov8" title="1">go func() </span><span class="cov8" title="1">{
+                defer wg.Done()
                 e.streamOutputToBuilder(stderr, "STDERR", &amp;stderrBuilder)
         }</span>()
 
         <span class="cov8" title="1">err = cmd.Wait()
+        // Wait for all streaming to complete before proceeding
+        wg.Wait()
         result.ExitCode = 0
         if err != nil </span><span class="cov0" title="0">{
                 if exitError, ok := err.(*exec.ExitError); ok </span><span class="cov0" title="0">{
