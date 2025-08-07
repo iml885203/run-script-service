@@ -673,17 +673,12 @@ func handleSetWebPort(portStr, configPath string) (CommandResult, error) {
 
 // runMultiScriptServiceWithWeb runs the service with web interface
 func runMultiScriptServiceWithWeb(configPath string) {
-	// Load service configuration
-	var config service.ServiceConfig
-	err := service.LoadServiceConfig(configPath, &config)
+	// Load enhanced configuration with .env file support
+	envPath := ".env"
+	enhancedConfig, err := loadEnhancedConfig(configPath, envPath)
 	if err != nil {
 		fmt.Printf("Failed to load config: %v\n", err)
 		os.Exit(1)
-	}
-
-	// Set default web port if not configured
-	if config.WebPort == 0 {
-		config.WebPort = 8080
 	}
 
 	// Get current directory for file operations
@@ -698,24 +693,26 @@ func runMultiScriptServiceWithWeb(configPath string) {
 	fileManager := service.NewFileManager(dir)
 
 	// Create script manager
-	scriptManager := service.NewScriptManagerWithPath(&config, configPath)
+	scriptManager := service.NewScriptManagerWithPath(&enhancedConfig.Config, configPath)
 
 	// Create system monitor
 	systemMonitor := service.NewSystemMonitor()
 
-	// Get secret key from environment or generate one
-	secretKey := os.Getenv("WEB_SECRET_KEY")
+	// Get secret key from enhanced configuration (supports .env files)
+	secretKey := enhancedConfig.GetSecretKey()
 	if secretKey == "" {
 		// Generate a random secret key and warn about it
 		secretKey = generateRandomKey()
 		fmt.Printf("WARNING: No WEB_SECRET_KEY environment variable set!\n")
 		fmt.Printf("Generated random secret key: %s\n", secretKey)
-		fmt.Printf("Set WEB_SECRET_KEY environment variable to use a persistent key.\n")
-		fmt.Printf("For production, use: export WEB_SECRET_KEY=your-secure-secret-here\n\n")
+		fmt.Printf("Set WEB_SECRET_KEY environment variable or add to .env file to use a persistent key.\n")
+		fmt.Printf("For production, use: export WEB_SECRET_KEY=your-secure-secret-here\n")
+		fmt.Printf("Or create .env file with: WEB_SECRET_KEY=your-secure-secret-here\n\n")
 	}
 
 	// Create web server (simplified, no LogManager dependency)
-	webServer := web.NewWebServer(nil, config.WebPort, secretKey)
+	webPort := enhancedConfig.GetWebPort()
+	webServer := web.NewWebServer(nil, webPort, secretKey)
 	webServer.SetScriptManager(scriptManager)
 	webServer.SetFileManager(fileManager)
 	webServer.SetSystemMonitor(systemMonitor)
@@ -737,7 +734,7 @@ func runMultiScriptServiceWithWeb(configPath string) {
 
 	fmt.Println("Multi-script service with web interface started")
 	fmt.Printf("Running scripts: %v\n", scriptManager.GetRunningScripts())
-	fmt.Printf("Web interface available at http://localhost:%d\n", config.WebPort)
+	fmt.Printf("Web interface available at http://localhost:%d\n", webPort)
 
 	// Start system metrics broadcasting (every 30 seconds)
 	err = webServer.StartSystemMetricsBroadcasting(ctx, 30*time.Second)
@@ -1081,6 +1078,16 @@ func runCommand(command string, args []string, workingDir string) error {
 	cmd.Stderr = os.Stderr
 
 	return cmd.Run()
+}
+
+// loadEnhancedConfig loads configuration with .env file support
+func loadEnhancedConfig(configPath, envPath string) (*service.EnhancedConfig, error) {
+	config := service.NewEnhancedConfig()
+	err := config.LoadWithEnv(configPath, envPath)
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
 }
 
 // generateRandomKey generates a cryptographically secure random key

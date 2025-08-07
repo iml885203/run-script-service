@@ -206,6 +206,48 @@ func contains(s, substr string) bool {
 	return strings.Contains(s, substr)
 }
 
+func TestEnhancedConfigIntegration(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := tempDir + "/service_config.json"
+	envPath := tempDir + "/.env"
+
+	// Create .env file with secret key
+	envContent := `WEB_SECRET_KEY=test-secret-from-env
+WEB_PORT=9090`
+	err := os.WriteFile(envPath, []byte(envContent), 0600)
+	if err != nil {
+		t.Fatalf("Failed to create .env file: %v", err)
+	}
+
+	// Create service config file
+	configContent := `{
+		"scripts": [],
+		"web_port": 8080
+	}`
+	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	// Test enhanced configuration loading
+	config, err := loadEnhancedConfig(configPath, envPath)
+	if err != nil {
+		t.Fatalf("loadEnhancedConfig failed: %v", err)
+	}
+
+	// Test that secret key is loaded from .env file
+	secretKey := config.GetSecretKey()
+	if secretKey != "test-secret-from-env" {
+		t.Errorf("Expected secret key 'test-secret-from-env', got '%s'", secretKey)
+	}
+
+	// Test that web port prioritizes environment variable over JSON
+	webPort := config.GetWebPort()
+	if webPort != 9090 {
+		t.Errorf("Expected web port 9090 (from env), got %d", webPort)
+	}
+}
+
 func TestWebServerWithFileManager(t *testing.T) {
 	// Create a temporary directory for test files
 	tempDir := t.TempDir()
