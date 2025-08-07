@@ -366,3 +366,22 @@ func (e *Executor) ExecuteWithResult(ctx context.Context, args ...string) (*Exec
 
 	return result, nil
 }
+
+// ExecuteWithResultStreaming executes the script with streaming output and returns both result and error
+// This method combines streaming capabilities with error handling interface
+func (e *Executor) ExecuteWithResultStreaming(ctx context.Context, args ...string) (*ExecutionResult, error) {
+	// Use background context if none provided
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// Execute the script using streaming method
+	result := e.ExecuteWithStreaming(ctx, args...)
+
+	// Convert exit code to error for non-zero codes
+	if result.ExitCode != 0 {
+		return result, fmt.Errorf("script execution failed with exit code %d", result.ExitCode)
+	}
+
+	return result, nil
+}
