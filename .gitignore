@@ -46,6 +46,9 @@ run.sh
 # Test scripts (should not be committed)
 test*.sh
 
+# User-created scripts (managed via web interface)
+scripts/
+
 # Frontend build output
 web/frontend/node_modules/
 web/frontend/dist/
