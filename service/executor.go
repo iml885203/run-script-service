@@ -27,6 +27,7 @@ type Executor struct {
 	scriptPath string
 	logPath    string
 	maxLines   int
+	logHandler LogHandler
 }
 
 // NewExecutor creates a new script executor
@@ -205,4 +206,16 @@ func (e *Executor) TrimLog() error {
 	}
 
 	return nil
+}
+
+// ExecuteWithStreaming executes the script with streaming output
+func (e *Executor) ExecuteWithStreaming(ctx context.Context, args ...string) *ExecutionResult {
+	// For now, this is a minimal implementation that satisfies the interface
+	// It will be enhanced in future iterations
+	return e.ExecuteScriptWithContext(ctx, args...)
+}
+
+// SetLogHandler sets the log handler for streaming output
+func (e *Executor) SetLogHandler(handler LogHandler) {
+	e.logHandler = handler
 }
