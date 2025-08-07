@@ -61,7 +61,7 @@
 
 				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
 
-				<option value="file3">run-script-service/main.go (38.8%)</option>
+				<option value="file3">run-script-service/main.go (56.4%)</option>
 
 				<option value="file4">run-script-service/mocks/filesystem.go (26.7%)</option>
 
@@ -71,7 +71,7 @@
 
 				<option value="file7">run-script-service/service/event.go (100.0%)</option>
 
-				<option value="file8">run-script-service/service/executor.go (71.2%)</option>
+				<option value="file8">run-script-service/service/executor.go (70.9%)</option>
 
 				<option value="file9">run-script-service/service/file_manager.go (85.1%)</option>
 
@@ -833,7 +833,7 @@ func handleScriptToggle(scriptName, configPath string, enable bool) (CommandResu
                 }
         }
 
-        <span class="cov8" title="1">if !found </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if !found </span><span class="cov8" title="1">{
                 return CommandResult{shouldRunService: false}, fmt.Errorf("script '%s' not found", scriptName)
         }</span>
 
@@ -1056,7 +1056,7 @@ func parseLogFlags(args []string) (map[string]string, error) <span class="cov8" 
                         }</span> else<span class="cov0" title="0"> {
                                 return nil, fmt.Errorf("invalid flag format: %s (expected --key=value)", arg)
                         }</span>
-                } else<span class="cov0" title="0"> {
+                } else<span class="cov8" title="1"> {
                         return nil, fmt.Errorf("invalid argument: %s", arg)
                 }</span>
         }
@@ -1191,66 +1191,117 @@ func runMultiScriptServiceWithWeb(configPath string) <span class="cov0" title="0
         fmt.Println("Service stopped")</span>
 }
 
+// validateWebServiceSetup validates that web service can be properly initialized
+// Returns true if all required components can be created and configured properly
+func validateWebServiceSetup(configPath string) bool <span class="cov8" title="1">{
+        // Load enhanced configuration with .env file support
+        envPath := ".env"
+        enhancedConfig, err := loadEnhancedConfig(configPath, envPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return false
+        }</span>
+
+        // Validate that required components can be created
+        <span class="cov8" title="1">if enhancedConfig == nil </span><span class="cov0" title="0">{
+                return false
+        }</span>
+
+        // Validate configuration structure
+        <span class="cov8" title="1">if err := validateServiceConfig(&amp;enhancedConfig.Config); err != nil </span><span class="cov0" title="0">{
+                return false
+        }</span>
+
+        // Validate web port configuration
+        <span class="cov8" title="1">webPort := enhancedConfig.GetWebPort()
+        if webPort &lt;= 0 || webPort &gt; 65535 </span><span class="cov0" title="0">{
+                return false
+        }</span>
+
+        <span class="cov8" title="1">return true</span>
+}
+
+// validateServiceConfig validates the service configuration structure
+func validateServiceConfig(config *service.ServiceConfig) error <span class="cov8" title="1">{
+        if config == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("config cannot be nil")
+        }</span>
+
+        // Validate scripts configuration
+        <span class="cov8" title="1">for _, script := range config.Scripts </span><span class="cov8" title="1">{
+                if script.Name == "" </span><span class="cov0" title="0">{
+                        return fmt.Errorf("script name cannot be empty")
+                }</span>
+                <span class="cov8" title="1">if script.Path == "" </span><span class="cov0" title="0">{
+                        return fmt.Errorf("script path cannot be empty")
+                }</span>
+                <span class="cov8" title="1">if script.Interval &lt;= 0 </span><span class="cov0" title="0">{
+                        return fmt.Errorf("script interval must be positive")
+                }</span>
+        }
+
+        <span class="cov8" title="1">return nil</span>
+}
+
 // PID file management functions
-func getPidFilePath() string <span class="cov0" title="0">{
+func getPidFilePath() string <span class="cov8" title="1">{
         dir, err := os.Executable()
         if err != nil </span><span class="cov0" title="0">{
                 dir, _ = os.Getwd()
-        }</span> else<span class="cov0" title="0"> {
+        }</span> else<span class="cov8" title="1"> {
                 dir = filepath.Dir(dir)
         }</span>
-        <span class="cov0" title="0">return filepath.Join(dir, "run-script-service.pid")</span>
+        <span class="cov8" title="1">return filepath.Join(dir, "run-script-service.pid")</span>
 }
 
-func writePidFile(pid int) error <span class="cov0" title="0">{
+func writePidFile(pid int) error <span class="cov8" title="1">{
         pidFile := getPidFilePath()
         return os.WriteFile(pidFile, []byte(fmt.Sprintf("%d", pid)), 0644)
 }</span>
 
-func readPidFile() (int, error) <span class="cov0" title="0">{
+func readPidFile() (int, error) <span class="cov8" title="1">{
         pidFile := getPidFilePath()
         data, err := os.ReadFile(pidFile)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return 0, err
         }</span>
-        <span class="cov0" title="0">return strconv.Atoi(strings.TrimSpace(string(data)))</span>
+        <span class="cov8" title="1">return strconv.Atoi(strings.TrimSpace(string(data)))</span>
 }
 
-func removePidFile() error <span class="cov0" title="0">{
+func removePidFile() error <span class="cov8" title="1">{
         pidFile := getPidFilePath()
         return os.Remove(pidFile)
 }</span>
 
-func isProcessRunning(pid int) bool <span class="cov0" title="0">{
+func isProcessRunning(pid int) bool <span class="cov8" title="1">{
         process, err := os.FindProcess(pid)
         if err != nil </span><span class="cov0" title="0">{
                 return false
         }</span>
-        <span class="cov0" title="0">err = process.Signal(syscall.Signal(0))
+        <span class="cov8" title="1">err = process.Signal(syscall.Signal(0))
         return err == nil</span>
 }
 
 // handleDaemonCommand handles daemon subcommands (start/stop/status/restart/logs)
-func handleDaemonCommand(subCommand, configPath string) (CommandResult, error) <span class="cov0" title="0">{
+func handleDaemonCommand(subCommand, configPath string) (CommandResult, error) <span class="cov8" title="1">{
         switch subCommand </span>{
-        case "start":<span class="cov0" title="0">
+        case "start":<span class="cov8" title="1">
                 return handleDaemonStart(configPath)</span>
-        case "stop":<span class="cov0" title="0">
+        case "stop":<span class="cov8" title="1">
                 return handleDaemonStop()</span>
-        case "status":<span class="cov0" title="0">
+        case "status":<span class="cov8" title="1">
                 return handleDaemonStatus()</span>
-        case "restart":<span class="cov0" title="0">
+        case "restart":<span class="cov8" title="1">
                 return handleDaemonRestart(configPath)</span>
-        case "logs":<span class="cov0" title="0">
+        case "logs":<span class="cov8" title="1">
                 return handleDaemonLogs()</span>
-        default:<span class="cov0" title="0">
+        default:<span class="cov8" title="1">
                 return CommandResult{shouldRunService: false},
                         fmt.Errorf("unknown daemon subcommand: %s\navailable subcommands: start, stop, status, restart, logs", subCommand)</span>
         }
 }
 
 // handleDaemonStart starts the service as a background daemon
-func handleDaemonStart(configPath string) (CommandResult, error) <span class="cov0" title="0">{
+func handleDaemonStart(configPath string) (CommandResult, error) <span class="cov8" title="1">{
         // Check if already running
         if pid, err := readPidFile(); err == nil &amp;&amp; isProcessRunning(pid) </span><span class="cov0" title="0">{
                 return CommandResult{shouldRunService: false},
@@ -1258,29 +1309,29 @@ func handleDaemonStart(configPath string) (CommandResult, error) <span class="co
         }</span>
 
         // Get executable path
-        <span class="cov0" title="0">execPath, err := os.Executable()
+        <span class="cov8" title="1">execPath, err := os.Executable()
         if err != nil </span><span class="cov0" title="0">{
                 return CommandResult{shouldRunService: false},
                         fmt.Errorf("failed to get executable path: %v", err)
         }</span>
 
         // Get working directory
-        <span class="cov0" title="0">workDir := filepath.Dir(execPath)
+        <span class="cov8" title="1">workDir := filepath.Dir(execPath)
 
         // Auto-build frontend if needed
-        if err := ensureFrontendBuilt(workDir); err != nil </span><span class="cov0" title="0">{
+        if err := ensureFrontendBuilt(workDir); err != nil </span><span class="cov8" title="1">{
                 fmt.Printf("Warning: Frontend build failed: %v\n", err)
                 fmt.Println("Continuing with existing build...")
         }</span>
 
         // Create log file for daemon output
-        <span class="cov0" title="0">logFile := filepath.Join(workDir, "daemon.log")
+        <span class="cov8" title="1">logFile := filepath.Join(workDir, "daemon.log")
         file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
         if err != nil </span><span class="cov0" title="0">{
                 return CommandResult{shouldRunService: false},
                         fmt.Errorf("failed to create log file: %v", err)
         }</span>
-        <span class="cov0" title="0">defer file.Close()
+        <span class="cov8" title="1">defer file.Close()
 
         // Start the daemon process
         cmd := exec.Command(execPath, "run")
@@ -1298,14 +1349,14 @@ func handleDaemonStart(configPath string) (CommandResult, error) <span class="co
         }</span>
 
         // Write PID file
-        <span class="cov0" title="0">err = writePidFile(cmd.Process.Pid)
+        <span class="cov8" title="1">err = writePidFile(cmd.Process.Pid)
         if err != nil </span><span class="cov0" title="0">{
                 cmd.Process.Kill()
                 return CommandResult{shouldRunService: false},
                         fmt.Errorf("failed to write PID file: %v", err)
         }</span>
 
-        <span class="cov0" title="0">fmt.Printf("Service started successfully (PID: %d)\n", cmd.Process.Pid)
+        <span class="cov8" title="1">fmt.Printf("Service started successfully (PID: %d)\n", cmd.Process.Pid)
         fmt.Printf("Web interface available at http://localhost:8080\n")
         fmt.Printf("Logs: %s\n", logFile)
 
@@ -1313,56 +1364,56 @@ func handleDaemonStart(configPath string) (CommandResult, error) <span class="co
 }
 
 // handleDaemonStop stops the running daemon
-func handleDaemonStop() (CommandResult, error) <span class="cov0" title="0">{
+func handleDaemonStop() (CommandResult, error) <span class="cov8" title="1">{
         pid, err := readPidFile()
-        if err != nil </span><span class="cov0" title="0">{
-                if os.IsNotExist(err) </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
+                if os.IsNotExist(err) </span><span class="cov8" title="1">{
                         return CommandResult{shouldRunService: false}, fmt.Errorf("service is not running")
                 }</span>
                 <span class="cov0" title="0">return CommandResult{shouldRunService: false}, fmt.Errorf("failed to read PID file: %v", err)</span>
         }
 
-        <span class="cov0" title="0">if !isProcessRunning(pid) </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if !isProcessRunning(pid) </span><span class="cov0" title="0">{
                 removePidFile()
                 return CommandResult{shouldRunService: false}, fmt.Errorf("service is not running")
         }</span>
 
-        <span class="cov0" title="0">process, err := os.FindProcess(pid)
+        <span class="cov8" title="1">process, err := os.FindProcess(pid)
         if err != nil </span><span class="cov0" title="0">{
                 return CommandResult{shouldRunService: false}, fmt.Errorf("failed to find process: %v", err)
         }</span>
 
         // Send SIGTERM for graceful shutdown
-        <span class="cov0" title="0">err = process.Signal(syscall.SIGTERM)
+        <span class="cov8" title="1">err = process.Signal(syscall.SIGTERM)
         if err != nil </span><span class="cov0" title="0">{
                 return CommandResult{shouldRunService: false}, fmt.Errorf("failed to stop service: %v", err)
         }</span>
 
         // Wait a bit for graceful shutdown
-        <span class="cov0" title="0">time.Sleep(2 * time.Second)
+        <span class="cov8" title="1">time.Sleep(2 * time.Second)
 
         // Check if still running, force kill if necessary
-        if isProcessRunning(pid) </span><span class="cov0" title="0">{
+        if isProcessRunning(pid) </span><span class="cov8" title="1">{
                 err = process.Kill()
                 if err != nil </span><span class="cov0" title="0">{
                         return CommandResult{shouldRunService: false}, fmt.Errorf("failed to force kill service: %v", err)
                 }</span>
-                <span class="cov0" title="0">fmt.Println("Service force killed")</span>
+                <span class="cov8" title="1">fmt.Println("Service force killed")</span>
         } else<span class="cov0" title="0"> {
                 fmt.Println("Service stopped gracefully")
         }</span>
 
         // Remove PID file
-        <span class="cov0" title="0">removePidFile()
+        <span class="cov8" title="1">removePidFile()
 
         return CommandResult{shouldRunService: false}, nil</span>
 }
 
 // handleDaemonStatus shows the status of the daemon
-func handleDaemonStatus() (CommandResult, error) <span class="cov0" title="0">{
+func handleDaemonStatus() (CommandResult, error) <span class="cov8" title="1">{
         pid, err := readPidFile()
-        if err != nil </span><span class="cov0" title="0">{
-                if os.IsNotExist(err) </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
+                if os.IsNotExist(err) </span><span class="cov8" title="1">{
                         fmt.Println("Service is not running")
                         return CommandResult{shouldRunService: false}, nil
                 }</span>
@@ -1381,7 +1432,7 @@ func handleDaemonStatus() (CommandResult, error) <span class="cov0" title="0">{
 }
 
 // handleDaemonRestart restarts the daemon
-func handleDaemonRestart(configPath string) (CommandResult, error) <span class="cov0" title="0">{
+func handleDaemonRestart(configPath string) (CommandResult, error) <span class="cov8" title="1">{
         // Stop if running
         _, err := handleDaemonStop()
         if err != nil &amp;&amp; !strings.Contains(err.Error(), "not running") </span><span class="cov0" title="0">{
@@ -1389,22 +1440,22 @@ func handleDaemonRestart(configPath string) (CommandResult, error) <span class="
         }</span>
 
         // Wait a moment
-        <span class="cov0" title="0">time.Sleep(1 * time.Second)
+        <span class="cov8" title="1">time.Sleep(1 * time.Second)
 
         // Start again
         return handleDaemonStart(configPath)</span>
 }
 
 // handleDaemonLogs shows the daemon service logs
-func handleDaemonLogs() (CommandResult, error) <span class="cov0" title="0">{
+func handleDaemonLogs() (CommandResult, error) <span class="cov8" title="1">{
         dir, err := os.Executable()
         if err != nil </span><span class="cov0" title="0">{
                 dir, _ = os.Getwd()
-        }</span> else<span class="cov0" title="0"> {
+        }</span> else<span class="cov8" title="1"> {
                 dir = filepath.Dir(dir)
         }</span>
 
-        <span class="cov0" title="0">logFile := filepath.Join(dir, "daemon.log")
+        <span class="cov8" title="1">logFile := filepath.Join(dir, "daemon.log")
 
         // Check if log file exists
         if _, err := os.Stat(logFile); os.IsNotExist(err) </span><span class="cov0" title="0">{
@@ -1413,27 +1464,27 @@ func handleDaemonLogs() (CommandResult, error) <span class="cov0" title="0">{
         }</span>
 
         // Read and display the log file
-        <span class="cov0" title="0">content, err := os.ReadFile(logFile)
+        <span class="cov8" title="1">content, err := os.ReadFile(logFile)
         if err != nil </span><span class="cov0" title="0">{
                 return CommandResult{shouldRunService: false}, fmt.Errorf("failed to read daemon logs: %v", err)
         }</span>
 
-        <span class="cov0" title="0">if len(content) == 0 </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if len(content) == 0 </span><span class="cov8" title="1">{
                 fmt.Println("Daemon log file is empty")
         }</span> else<span class="cov0" title="0"> {
                 fmt.Print(string(content))
         }</span>
 
-        <span class="cov0" title="0">return CommandResult{shouldRunService: false}, nil</span>
+        <span class="cov8" title="1">return CommandResult{shouldRunService: false}, nil</span>
 }
 
 // ensureFrontendBuilt checks if frontend needs building and builds it if necessary
-func ensureFrontendBuilt(workDir string) error <span class="cov0" title="0">{
+func ensureFrontendBuilt(workDir string) error <span class="cov8" title="1">{
         frontendDir := filepath.Join(workDir, "web", "frontend")
         distDir := filepath.Join(frontendDir, "dist")
 
         // Check if frontend project exists
-        if _, err := os.Stat(filepath.Join(frontendDir, "package.json")); os.IsNotExist(err) </span><span class="cov0" title="0">{
+        if _, err := os.Stat(filepath.Join(frontendDir, "package.json")); os.IsNotExist(err) </span><span class="cov8" title="1">{
                 return fmt.Errorf("frontend project not found at %s", frontendDir)
         }</span>
 
@@ -1519,14 +1570,14 @@ func loadEnhancedConfig(configPath, envPath string) (*service.EnhancedConfig, er
 }
 
 // generateRandomKey generates a cryptographically secure random key
-func generateRandomKey() string <span class="cov0" title="0">{
+func generateRandomKey() string <span class="cov8" title="1">{
         bytes := make([]byte, 32) // 256-bit key
         _, err := rand.Read(bytes)
         if err != nil </span><span class="cov0" title="0">{
                 // Fallback to time-based key if crypto/rand fails
                 return fmt.Sprintf("fallback-key-%d", time.Now().UnixNano())
         }</span>
-        <span class="cov0" title="0">return hex.EncodeToString(bytes)</span>
+        <span class="cov8" title="1">return hex.EncodeToString(bytes)</span>
 }
 </pre>
 
@@ -2245,7 +2296,26 @@ func (e *Executor) ExecuteScriptWithContext(ctx context.Context, args ...string)
         <span class="cov8" title="1">result.Stdout = strings.TrimSpace(string(stdoutBytes))
         result.Stderr = strings.TrimSpace(string(stderrBytes))
 
-        // Write to log only if logPath is specified
+        // Write execution result to log
+        e.writeExecutionLog(timestamp, result)
+
+        return result</span>
+}
+
+// logError logs an error message
+func (e *Executor) logError(timestamp time.Time, message string) <span class="cov8" title="1">{
+        if e.logPath != "" </span><span class="cov8" title="1">{
+                errorMsg := fmt.Sprintf("[%s] ERROR: %s\n%s\n",
+                        timestamp.Format("2006-01-02 15:04:05"), message, strings.Repeat("-", 50))
+                if err := e.WriteLog(errorMsg); err != nil </span><span class="cov0" title="0">{
+                        fmt.Printf("Error writing error to log: %v\n", err)
+                }</span>
+        }
+        <span class="cov8" title="1">fmt.Printf("Error executing script: %s\n", message)</span>
+}
+
+// writeExecutionLog writes execution result to log file
+func (e *Executor) writeExecutionLog(timestamp time.Time, result *ExecutionResult) <span class="cov8" title="1">{
         if e.logPath != "" </span><span class="cov8" title="1">{
                 logEntry := fmt.Sprintf("[%s] Exit code: %d\n", timestamp.Format("2006-01-02 15:04:05"), result.ExitCode)
                 if result.Stdout != "" </span><span class="cov8" title="1">{
@@ -2264,20 +2334,6 @@ func (e *Executor) ExecuteScriptWithContext(ctx context.Context, args ...string)
                         fmt.Printf("Error trimming log: %v\n", err)
                 }</span>
         }
-
-        <span class="cov8" title="1">return result</span>
-}
-
-// logError logs an error message
-func (e *Executor) logError(timestamp time.Time, message string) <span class="cov8" title="1">{
-        if e.logPath != "" </span><span class="cov8" title="1">{
-                errorMsg := fmt.Sprintf("[%s] ERROR: %s\n%s\n",
-                        timestamp.Format("2006-01-02 15:04:05"), message, strings.Repeat("-", 50))
-                if err := e.WriteLog(errorMsg); err != nil </span><span class="cov0" title="0">{
-                        fmt.Printf("Error writing error to log: %v\n", err)
-                }</span>
-        }
-        <span class="cov8" title="1">fmt.Printf("Error executing script: %s\n", message)</span>
 }
 
 // WriteLog writes content to the log file
@@ -2435,27 +2491,10 @@ func (e *Executor) ExecuteWithStreaming(ctx context.Context, args ...string) *Ex
                 e.logHandler.HandleExecutionEnd(time.Now(), result.ExitCode)
         }</span>
 
-        // Write to log only if logPath is specified
-        <span class="cov8" title="1">if e.logPath != "" </span><span class="cov8" title="1">{
-                logEntry := fmt.Sprintf("[%s] Exit code: %d\n", timestamp.Format("2006-01-02 15:04:05"), result.ExitCode)
-                if result.Stdout != "" </span><span class="cov8" title="1">{
-                        logEntry += fmt.Sprintf("STDOUT: %s\n", result.Stdout)
-                }</span>
-                <span class="cov8" title="1">if result.Stderr != "" </span><span class="cov8" title="1">{
-                        logEntry += fmt.Sprintf("STDERR: %s\n", result.Stderr)
-                }</span>
-                <span class="cov8" title="1">logEntry += strings.Repeat("-", 50) + "\n"
+        // Write execution result to log
+        <span class="cov8" title="1">e.writeExecutionLog(timestamp, result)
 
-                if err := e.WriteLog(logEntry); err != nil </span><span class="cov0" title="0">{
-                        fmt.Printf("Error writing to log: %v\n", err)
-                }</span>
-
-                <span class="cov8" title="1">if err := e.TrimLog(); err != nil </span><span class="cov0" title="0">{
-                        fmt.Printf("Error trimming log: %v\n", err)
-                }</span>
-        }
-
-        <span class="cov8" title="1">return result</span>
+        return result</span>
 }
 
 // streamOutputToBuilder processes output from a reader line by line, calls the log handler, and builds output string
