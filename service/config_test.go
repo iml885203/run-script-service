@@ -354,6 +354,76 @@ func TestEnhancedConfig_GetWebPort(t *testing.T) {
 	}
 }
 
+func TestEnhancedConfig_GetSecretKey(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create .env file with WEB_SECRET_KEY
+	envFile := filepath.Join(tempDir, ".env")
+	envContent := `WEB_SECRET_KEY=test-secret-key-12345`
+	err := os.WriteFile(envFile, []byte(envContent), 0600)
+	if err != nil {
+		t.Fatalf("Failed to create .env file: %v", err)
+	}
+
+	// Create service config file
+	configFile := filepath.Join(tempDir, "service_config.json")
+	configContent := `{"scripts": []}`
+	err = os.WriteFile(configFile, []byte(configContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	enhancedConfig := NewEnhancedConfig()
+	err = enhancedConfig.LoadWithEnv(configFile, envFile)
+	if err != nil {
+		t.Fatalf("LoadWithEnv failed: %v", err)
+	}
+
+	// Test GetSecretKey retrieves from environment
+	secretKey := enhancedConfig.GetSecretKey()
+	if secretKey != "test-secret-key-12345" {
+		t.Errorf("Expected secret key 'test-secret-key-12345', got '%s'", secretKey)
+	}
+}
+
+func TestEnhancedConfig_GetEnvWithDefault(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create .env file with one variable
+	envFile := filepath.Join(tempDir, ".env")
+	envContent := `EXISTING_VAR=existing_value`
+	err := os.WriteFile(envFile, []byte(envContent), 0600)
+	if err != nil {
+		t.Fatalf("Failed to create .env file: %v", err)
+	}
+
+	// Create service config file
+	configFile := filepath.Join(tempDir, "service_config.json")
+	configContent := `{"scripts": []}`
+	err = os.WriteFile(configFile, []byte(configContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	enhancedConfig := NewEnhancedConfig()
+	err = enhancedConfig.LoadWithEnv(configFile, envFile)
+	if err != nil {
+		t.Fatalf("LoadWithEnv failed: %v", err)
+	}
+
+	// Test existing variable returns its value
+	existingValue := enhancedConfig.GetEnvWithDefault("EXISTING_VAR", "default_fallback")
+	if existingValue != "existing_value" {
+		t.Errorf("Expected 'existing_value', got '%s'", existingValue)
+	}
+
+	// Test missing variable returns default
+	missingValue := enhancedConfig.GetEnvWithDefault("MISSING_VAR", "default_fallback")
+	if missingValue != "default_fallback" {
+		t.Errorf("Expected 'default_fallback', got '%s'", missingValue)
+	}
+}
+
 func TestScriptConfig_Validate(t *testing.T) {
 	// Red phase: Test the Validate() method which includes file existence check
 
