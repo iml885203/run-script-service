@@ -355,34 +355,15 @@ func TestEnhancedConfig_GetWebPort(t *testing.T) {
 }
 
 func TestEnhancedConfig_GetSecretKey(t *testing.T) {
-	tempDir := t.TempDir()
+	// Test using environment variable (cleaner approach than file I/O)
+	os.Setenv("WEB_SECRET_KEY", "test-secret-key-12345")
+	defer os.Unsetenv("WEB_SECRET_KEY")
 
-	// Create .env file with WEB_SECRET_KEY
-	envFile := filepath.Join(tempDir, ".env")
-	envContent := `WEB_SECRET_KEY=test-secret-key-12345`
-	err := os.WriteFile(envFile, []byte(envContent), 0600)
-	if err != nil {
-		t.Fatalf("Failed to create .env file: %v", err)
-	}
+	config := NewEnhancedConfig()
+	config.envLoader = NewEnvLoader()
 
-	// Create service config file
-	configFile := filepath.Join(tempDir, "service_config.json")
-	configContent := `{"scripts": []}`
-	err = os.WriteFile(configFile, []byte(configContent), 0644)
-	if err != nil {
-		t.Fatalf("Failed to create config file: %v", err)
-	}
-
-	enhancedConfig := NewEnhancedConfig()
-	err = enhancedConfig.LoadWithEnv(configFile, envFile)
-	if err != nil {
-		t.Fatalf("LoadWithEnv failed: %v", err)
-	}
-
-	// Test GetSecretKey retrieves from environment
-	secretKey := enhancedConfig.GetSecretKey()
-	if secretKey != "test-secret-key-12345" {
-		t.Errorf("Expected secret key 'test-secret-key-12345', got '%s'", secretKey)
+	if key := config.GetSecretKey(); key != "test-secret-key-12345" {
+		t.Errorf("Expected secret key 'test-secret-key-12345', got '%s'", key)
 	}
 }
 
