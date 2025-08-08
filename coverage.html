@@ -54,73 +54,73 @@
 		<div id="topbar">
 			<div id="nav">
 				<select id="files">
-
+				
 				<option value="file0">run-script-service/auth/handler.go (85.2%)</option>
-
+				
 				<option value="file1">run-script-service/auth/middleware.go (100.0%)</option>
-
-				<option value="file2">run-script-service/auth/session.go (93.5%)</option>
-
-				<option value="file3">run-script-service/main.go (56.9%)</option>
-
+				
+				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
+				
+				<option value="file3">run-script-service/main.go (57.8%)</option>
+				
 				<option value="file4">run-script-service/mocks/filesystem.go (26.7%)</option>
-
+				
 				<option value="file5">run-script-service/service/config.go (51.6%)</option>
-
+				
 				<option value="file6">run-script-service/service/debug_logger.go (100.0%)</option>
-
+				
 				<option value="file7">run-script-service/service/env_loader.go (89.3%)</option>
-
+				
 				<option value="file8">run-script-service/service/event.go (100.0%)</option>
-
+				
 				<option value="file9">run-script-service/service/executor.go (74.4%)</option>
-
+				
 				<option value="file10">run-script-service/service/file_manager.go (85.1%)</option>
-
+				
 				<option value="file11">run-script-service/service/git_discovery.go (88.2%)</option>
-
+				
 				<option value="file12">run-script-service/service/log_manager.go (33.0%)</option>
-
+				
 				<option value="file13">run-script-service/service/monitor.go (70.4%)</option>
-
+				
 				<option value="file14">run-script-service/service/script_file_manager.go (87.9%)</option>
-
+				
 				<option value="file15">run-script-service/service/script_generator.go (84.8%)</option>
-
+				
 				<option value="file16">run-script-service/service/script_manager.go (44.3%)</option>
-
+				
 				<option value="file17">run-script-service/service/script_runner.go (76.1%)</option>
-
+				
 				<option value="file18">run-script-service/service/service.go (89.5%)</option>
-
+				
 				<option value="file19">run-script-service/service/streaming_executor.go (83.1%)</option>
-
+				
 				<option value="file20">run-script-service/web/event_bridge.go (100.0%)</option>
-
+				
 				<option value="file21">run-script-service/web/frontend_setup.go (82.6%)</option>
-
+				
 				<option value="file22">run-script-service/web/handlers_files.go (78.3%)</option>
-
+				
 				<option value="file23">run-script-service/web/handlers_script_files.go (68.0%)</option>
-
+				
 				<option value="file24">run-script-service/web/server.go (50.6%)</option>
-
+				
 				<option value="file25">run-script-service/web/vue_build_manager.go (13.6%)</option>
-
+				
 				<option value="file26">run-script-service/web/websocket.go (18.3%)</option>
-
+				
 				</select>
 			</div>
 			<div id="legend">
 				<span>not tracked</span>
-
+			
 				<span class="cov0">not covered</span>
 				<span class="cov8">covered</span>
-
+			
 			</div>
 		</div>
 		<div id="content">
-
+		
 		<pre class="file" id="file0" style="display: none">package auth
 
 import (
@@ -253,7 +253,7 @@ func (ah *AuthHandler) AuthStatus(c *gin.Context) <span class="cov8" title="1">{
         })</span>
 }
 </pre>
-
+		
 		<pre class="file" id="file1" style="display: none">package auth
 
 import (
@@ -318,7 +318,7 @@ func (am *AuthMiddleware) RequireAuth() gin.HandlerFunc <span class="cov8" title
         }
 }
 </pre>
-
+		
 		<pre class="file" id="file2" style="display: none">// Package auth provides authentication and session management
 package auth
 
@@ -393,7 +393,7 @@ func (sm *SessionManager) ValidateSession(token string) (string, bool) <span cla
         // Check if session has expired
         <span class="cov8" title="1">if time.Now().After(session.ExpiresAt) </span><span class="cov8" title="1">{
                 // Clean up expired session
-                go func() </span><span class="cov8" title="1">{
+                go func() </span><span class="cov0" title="0">{
                         sm.mutex.Lock()
                         defer sm.mutex.Unlock()
                         delete(sm.sessions, token)
@@ -423,7 +423,7 @@ func generateSessionToken() (string, error) <span class="cov8" title="1">{
         <span class="cov8" title="1">return hex.EncodeToString(bytes), nil</span>
 }
 </pre>
-
+		
 		<pre class="file" id="file3" style="display: none">// Package main provides the run-script-service daemon executable.
 package main
 
@@ -1586,7 +1586,7 @@ func buildFrontend(frontendDir string) error <span class="cov0" title="0">{
 }
 
 // runCommand executes a command in the specified directory
-func runCommand(command string, args []string, workingDir string) error <span class="cov0" title="0">{
+func runCommand(command string, args []string, workingDir string) error <span class="cov8" title="1">{
         cmd := exec.Command(command, args...)
         cmd.Dir = workingDir
         cmd.Stdout = os.Stdout
@@ -1616,7 +1616,7 @@ func generateRandomKey() string <span class="cov8" title="1">{
         <span class="cov8" title="1">return hex.EncodeToString(bytes)</span>
 }
 </pre>
-
+		
 		<pre class="file" id="file4" style="display: none">// Package mocks provides mock implementations for testing purposes.
 package mocks
 
@@ -1739,7 +1739,7 @@ func (m *MockTime) After(d time.Duration) &lt;-chan time.Time <span class="cov8"
         return ch
 }</span>
 </pre>
-
+		
 		<pre class="file" id="file5" style="display: none">// Package service provides core functionality for the run-script-service daemon.
 package service
 
@@ -2035,7 +2035,7 @@ func (ec *EnhancedConfig) GetSecretKey() string <span class="cov0" title="0">{
         return ec.GetEnv("WEB_SECRET_KEY")
 }</span>
 </pre>
-
+		
 		<pre class="file" id="file6" style="display: none">package service
 
 import (
@@ -2094,7 +2094,7 @@ func (d *DebugLogger) Debugf(format string, args ...interface{}) <span class="co
         fmt.Fprintln(d.output, message)</span>
 }
 </pre>
-
+		
 		<pre class="file" id="file7" style="display: none">package service
 
 import (
@@ -2179,7 +2179,7 @@ func (e *EnvLoader) GetWithDefault(key, defaultValue string) string <span class=
         <span class="cov8" title="1">return defaultValue</span>
 }
 </pre>
-
+		
 		<pre class="file" id="file8" style="display: none">package service
 
 import (
@@ -2270,7 +2270,7 @@ func (eb *EventBroadcaster) Broadcast(event *ScriptStatusEvent) <span class="cov
         }
 }
 </pre>
-
+		
 		<pre class="file" id="file9" style="display: none">// Package service provides core functionality for the run-script-service daemon.
 package service
 
@@ -2678,7 +2678,7 @@ func (e *Executor) handleExecutionResult(result *ExecutionResult) (*ExecutionRes
         <span class="cov8" title="1">return result, nil</span>
 }
 </pre>
-
+		
 		<pre class="file" id="file10" style="display: none">// Package service provides file management functionality
 package service
 
@@ -2927,7 +2927,7 @@ func (fm *FileManager) ListFiles(dirPath string) ([]fs.FileInfo, error) <span cl
         <span class="cov8" title="1">return fileInfos, nil</span>
 }
 </pre>
-
+		
 		<pre class="file" id="file11" style="display: none">package service
 
 import (
@@ -2991,7 +2991,7 @@ func (gds *GitDiscoveryService) DiscoverGitProjects(rootDir string) ([]GitProjec
         <span class="cov8" title="1">return projects, nil</span>
 }
 </pre>
-
+		
 		<pre class="file" id="file12" style="display: none">// Package service provides core functionality for the run-script-service daemon
 package service
 
@@ -3283,7 +3283,7 @@ func (sl *ScriptLogger) ClearEntries() error <span class="cov0" title="0">{
         <span class="cov0" title="0">return nil</span>
 }
 </pre>
-
+		
 		<pre class="file" id="file13" style="display: none">package service
 
 import (
@@ -3447,7 +3447,7 @@ func (sm *SystemMonitor) StartPeriodicBroadcasting(ctx context.Context, interval
         }
 }
 </pre>
-
+		
 		<pre class="file" id="file14" style="display: none">package service
 
 import (
@@ -3650,7 +3650,7 @@ func isValidFilename(filename string) bool <span class="cov8" title="1">{
         <span class="cov8" title="1">return true</span>
 }
 </pre>
-
+		
 		<pre class="file" id="file15" style="display: none">package service
 
 import (
@@ -3827,7 +3827,7 @@ echo "$(date): ` + template.Name + ` completed successfully"
         return script, nil</span>
 }
 </pre>
-
+		
 		<pre class="file" id="file16" style="display: none">// Package service provides core functionality for the run-script-service daemon.
 package service
 
@@ -4337,7 +4337,7 @@ func (sm *ScriptManager) UpdateScriptWithFeedback(name string, updatedConfig Scr
         }</span>
 }
 </pre>
-
+		
 		<pre class="file" id="file17" style="display: none">// Package service provides core functionality for the run-script-service daemon.
 package service
 
@@ -4662,7 +4662,7 @@ func (sr *ScriptRunner) GetRestartPendingConfig() *ScriptConfig <span class="cov
         return sr.restartPending
 }</span>
 </pre>
-
+		
 		<pre class="file" id="file18" style="display: none">// Package service provides core functionality for the run-script-service daemon.
 package service
 
@@ -4778,7 +4778,7 @@ func formatDuration(seconds int) string <span class="cov8" title="1">{
         }</span>
 }
 </pre>
-
+		
 		<pre class="file" id="file19" style="display: none">// Package service provides core functionality for the run-script-service daemon.
 package service
 
@@ -4996,7 +4996,7 @@ func (h *StreamingLogHandler) HandleExecutionEnd(timestamp time.Time, exitCode i
         _ = logger.AddEntry(entry) // Ignore error for now - could be logged separately
 }</span>
 </pre>
-
+		
 		<pre class="file" id="file20" style="display: none">package web
 
 import (
@@ -5057,7 +5057,7 @@ func (eb *EventBridge) Close() <span class="cov8" title="1">{
         <span class="cov8" title="1">close(eb.events)</span>
 }
 </pre>
-
+		
 		<pre class="file" id="file21" style="display: none">package web
 
 import (
@@ -5291,7 +5291,7 @@ export default {
         return os.WriteFile(appVuePath, []byte(appVue), 0644)
 }</span>
 </pre>
-
+		
 		<pre class="file" id="file22" style="display: none">// Package web provides file operation handlers for the HTTP API server
 package web
 
@@ -5540,7 +5540,7 @@ func (ws *WebServer) handleListFiles(c *gin.Context) <span class="cov8" title="1
         })</span>
 }
 </pre>
-
+		
 		<pre class="file" id="file23" style="display: none">// Package web provides script file management handlers for the HTTP API server
 package web
 
@@ -5781,7 +5781,7 @@ func (ws *WebServer) handleDeleteScriptFile(c *gin.Context) <span class="cov8" t
         })</span>
 }
 </pre>
-
+		
 		<pre class="file" id="file24" style="display: none">// Package web provides HTTP API server functionality
 package web
 
@@ -7026,7 +7026,7 @@ func (ws *WebServer) handleGetGitProjects(c *gin.Context) <span class="cov8" tit
         })</span>
 }
 </pre>
-
+		
 		<pre class="file" id="file25" style="display: none">package web
 
 import (
@@ -7139,7 +7139,7 @@ func (vbm *VueBuildManager) CheckFrontendExists() bool <span class="cov0" title=
         <span class="cov0" title="0">return true</span>
 }
 </pre>
-
+		
 		<pre class="file" id="file26" style="display: none">package web
 
 import (
@@ -7359,7 +7359,7 @@ func (c *WebSocketClient) writePump() <span class="cov0" title="0">{
         }
 }
 </pre>
-
+		
 		</div>
 	</body>
 	<script>

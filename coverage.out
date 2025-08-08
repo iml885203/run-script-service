@@ -61,7 +61,7 @@ run-script-service/auth/session.go:63.72,68.13 4 1
 run-script-service/auth/session.go:68.13,70.3 1 1
 run-script-service/auth/session.go:73.2,73.41 1 1
 run-script-service/auth/session.go:73.41,75.13 1 1
-run-script-service/auth/session.go:75.13,79.4 3 1
+run-script-service/auth/session.go:75.13,79.4 3 0
 run-script-service/auth/session.go:80.3,80.19 1 1
 run-script-service/auth/session.go:83.2,83.29 1 1
 run-script-service/auth/session.go:87.62,93.2 4 1
@@ -838,7 +838,7 @@ run-script-service/main.go:1147.78,1149.4 1 0
 run-script-service/main.go:1153.2,1154.75 2 0
 run-script-service/main.go:1154.75,1156.3 1 0
 run-script-service/main.go:1158.2,1159.12 2 0
-run-script-service/main.go:1163.73,1170.2 5 0
+run-script-service/main.go:1163.73,1170.2 5 1
 run-script-service/main.go:1173.86,1176.16 3 1
 run-script-service/main.go:1176.16,1178.3 1 0
 run-script-service/main.go:1179.2,1179.20 1 1

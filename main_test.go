@@ -817,3 +817,66 @@ func TestRunMultiScriptService_ConfigurationHandling(t *testing.T) {
 		}
 	})
 }
+
+func TestRunCommand(t *testing.T) {
+	tests := []struct {
+		name        string
+		command     string
+		args        []string
+		workingDir  string
+		expectError bool
+	}{
+		{
+			name:        "successful command",
+			command:     "echo",
+			args:        []string{"test"},
+			workingDir:  "/tmp",
+			expectError: false,
+		},
+		{
+			name:        "command with working directory",
+			command:     "pwd",
+			args:        []string{},
+			workingDir:  "/tmp",
+			expectError: false,
+		},
+		{
+			name:        "failing command",
+			command:     "false", // false command always returns exit code 1
+			args:        []string{},
+			workingDir:  "/tmp",
+			expectError: true,
+		},
+		{
+			name:        "non-existent command",
+			command:     "non-existent-command-12345",
+			args:        []string{},
+			workingDir:  "/tmp",
+			expectError: true,
+		},
+		{
+			name:        "invalid working directory",
+			command:     "echo",
+			args:        []string{"test"},
+			workingDir:  "/non/existent/directory",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := runCommand(tt.command, tt.args, tt.workingDir)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error for command %s, but got none", tt.command)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error for command %s: %v", tt.command, err)
+				}
+			}
+		})
+	}
+}
