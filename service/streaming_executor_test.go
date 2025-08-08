@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -66,17 +67,19 @@ func TestLogHandler_Interface(t *testing.T) {
 	timestamp := time.Now()
 	handler.HandleLogLine(timestamp, "STDOUT", "test line")
 
-	if len(handler.LogLines) != 1 {
-		t.Errorf("Expected 1 log line, got %d", len(handler.LogLines))
+	logLines := handler.GetLogLines()
+	if len(logLines) != 1 {
+		t.Errorf("Expected 1 log line, got %d", len(logLines))
 	}
 
-	if handler.LogLines[0].Line != "test line" {
-		t.Errorf("Expected 'test line', got '%s'", handler.LogLines[0].Line)
+	if logLines[0].Line != "test line" {
+		t.Errorf("Expected 'test line', got '%s'", logLines[0].Line)
 	}
 }
 
 // MockLogHandler for testing
 type MockLogHandler struct {
+	mu             sync.Mutex
 	LogLines       []MockLogLine
 	ExecutionStart *time.Time
 	ExecutionEnd   *MockExecutionEnd
@@ -94,6 +97,8 @@ type MockExecutionEnd struct {
 }
 
 func (m *MockLogHandler) HandleLogLine(timestamp time.Time, streamType string, line string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.LogLines = append(m.LogLines, MockLogLine{
 		Timestamp:  timestamp,
 		StreamType: streamType,
@@ -102,14 +107,40 @@ func (m *MockLogHandler) HandleLogLine(timestamp time.Time, streamType string, l
 }
 
 func (m *MockLogHandler) HandleExecutionStart(timestamp time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.ExecutionStart = &timestamp
 }
 
 func (m *MockLogHandler) HandleExecutionEnd(timestamp time.Time, exitCode int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.ExecutionEnd = &MockExecutionEnd{
 		Timestamp: timestamp,
 		ExitCode:  exitCode,
 	}
+}
+
+// Thread-safe getter methods
+func (m *MockLogHandler) GetLogLines() []MockLogLine {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	// Return a copy to avoid race conditions
+	lines := make([]MockLogLine, len(m.LogLines))
+	copy(lines, m.LogLines)
+	return lines
+}
+
+func (m *MockLogHandler) GetExecutionStart() *time.Time {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.ExecutionStart
+}
+
+func (m *MockLogHandler) GetExecutionEnd() *MockExecutionEnd {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.ExecutionEnd
 }
 
 func TestStreamOutput_Processing(t *testing.T) {
@@ -124,13 +155,14 @@ func TestStreamOutput_Processing(t *testing.T) {
 	executor.streamOutput(reader, "STDOUT", handler)
 
 	expectedLines := []string{"line 1", "line 2", "line 3"}
-	if len(handler.LogLines) != len(expectedLines) {
-		t.Errorf("Expected %d lines, got %d", len(expectedLines), len(handler.LogLines))
+	logLines := handler.GetLogLines()
+	if len(logLines) != len(expectedLines) {
+		t.Errorf("Expected %d lines, got %d", len(expectedLines), len(logLines))
 	}
 
 	for i, expectedLine := range expectedLines {
-		if i < len(handler.LogLines) && handler.LogLines[i].Line != expectedLine {
-			t.Errorf("Expected line %d to be '%s', got '%s'", i, expectedLine, handler.LogLines[i].Line)
+		if i < len(logLines) && logLines[i].Line != expectedLine {
+			t.Errorf("Expected line %d to be '%s', got '%s'", i, expectedLine, logLines[i].Line)
 		}
 	}
 }
@@ -161,7 +193,8 @@ echo "stderr line 2" >&2
 	result := executor.ExecuteWithStreaming(ctx)
 
 	// Check that we got some log lines processed
-	if len(handler.LogLines) == 0 {
+	logLines := handler.GetLogLines()
+	if len(logLines) == 0 {
 		t.Error("Expected streaming log lines, but got none")
 	}
 
@@ -171,11 +204,11 @@ echo "stderr line 2" >&2
 	}
 
 	// Check that both HandleExecutionStart and HandleExecutionEnd were called
-	if handler.ExecutionStart == nil {
+	if handler.GetExecutionStart() == nil {
 		t.Error("Expected HandleExecutionStart to be called")
 	}
 
-	if handler.ExecutionEnd == nil {
+	if handler.GetExecutionEnd() == nil {
 		t.Error("Expected HandleExecutionEnd to be called")
 	}
 }
@@ -324,19 +357,20 @@ echo "Operation completed"
 	}
 
 	// Handler should receive timeout notification
-	if handler.ExecutionEnd == nil {
+	if handler.GetExecutionEnd() == nil {
 		t.Error("Expected HandleExecutionEnd to be called for timeout")
 	}
 
 	// Should have received some log lines before timeout
-	if len(handler.LogLines) == 0 {
+	logLines := handler.GetLogLines()
+	if len(logLines) == 0 {
 		t.Error("Expected to receive log lines before timeout")
 	}
 
 	// Should contain the "Starting long operation" but not "Operation completed"
 	foundStart := false
 	foundComplete := false
-	for _, line := range handler.LogLines {
+	for _, line := range logLines {
 		if line.Line == "Starting long operation" {
 			foundStart = true
 		}

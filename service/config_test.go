@@ -3,6 +3,7 @@ package service
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -350,5 +351,146 @@ func TestEnhancedConfig_GetWebPort(t *testing.T) {
 	webPort := enhancedConfig.GetWebPort()
 	if webPort != 9090 {
 		t.Errorf("Expected web port 9090 (from env), got %d", webPort)
+	}
+}
+
+func TestScriptConfig_Validate(t *testing.T) {
+	// Red phase: Test the Validate() method which includes file existence check
+
+	// Create temporary directory for test files
+	tempDir, err := os.MkdirTemp("", "validate_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create a test script file
+	scriptPath := filepath.Join(tempDir, "test.sh")
+	err = os.WriteFile(scriptPath, []byte("#!/bin/bash\necho 'test'"), 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a non-executable file for testing
+	nonExecutablePath := filepath.Join(tempDir, "nonexec.sh")
+	err = os.WriteFile(nonExecutablePath, []byte("#!/bin/bash\necho 'test'"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name        string
+		script      ScriptConfig
+		expectValid bool
+		errorMsg    string
+	}{
+		{
+			name: "valid script with existing file",
+			script: ScriptConfig{
+				Name:        "test",
+				Path:        scriptPath,
+				Interval:    3600,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     300,
+			},
+			expectValid: true,
+		},
+		{
+			name: "script with non-existent file",
+			script: ScriptConfig{
+				Name:        "test",
+				Path:        filepath.Join(tempDir, "nonexistent.sh"),
+				Interval:    3600,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     300,
+			},
+			expectValid: false,
+			errorMsg:    "script file does not exist",
+		},
+		{
+			name: "script with invalid name",
+			script: ScriptConfig{
+				Name:        "",
+				Path:        scriptPath,
+				Interval:    3600,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     300,
+			},
+			expectValid: false,
+			errorMsg:    "script name cannot be empty",
+		},
+		{
+			name: "script with negative MaxLogLines",
+			script: ScriptConfig{
+				Name:        "test",
+				Path:        scriptPath,
+				Interval:    3600,
+				Enabled:     true,
+				MaxLogLines: -1,
+				Timeout:     300,
+			},
+			expectValid: false,
+			errorMsg:    "max_log_lines cannot be negative",
+		},
+		{
+			name: "script with negative Timeout",
+			script: ScriptConfig{
+				Name:        "test",
+				Path:        scriptPath,
+				Interval:    3600,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     -1,
+			},
+			expectValid: false,
+			errorMsg:    "timeout cannot be negative",
+		},
+		{
+			name: "script with directory instead of file",
+			script: ScriptConfig{
+				Name:        "test",
+				Path:        tempDir, // directory instead of file
+				Interval:    3600,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     300,
+			},
+			expectValid: false,
+			errorMsg:    "script path is a directory",
+		},
+		{
+			name: "script with non-executable file",
+			script: ScriptConfig{
+				Name:        "test",
+				Path:        nonExecutablePath,
+				Interval:    3600,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     300,
+			},
+			expectValid: false,
+			errorMsg:    "script file is not executable",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.script.Validate()
+			isValid := err == nil
+
+			if isValid != tt.expectValid {
+				t.Errorf("expected valid=%v, got valid=%v, error=%v", tt.expectValid, isValid, err)
+			}
+
+			if !tt.expectValid && tt.errorMsg != "" && err != nil {
+				if !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("expected error message to contain '%s', got: %v", tt.errorMsg, err)
+				}
+			}
+		})
 	}
 }
