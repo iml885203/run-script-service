@@ -59,9 +59,9 @@
 
 				<option value="file1">run-script-service/auth/middleware.go (100.0%)</option>
 
-				<option value="file2">run-script-service/auth/session.go (93.5%)</option>
+				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
 
-				<option value="file3">run-script-service/main.go (57.8%)</option>
+				<option value="file3">run-script-service/main.go (64.8%)</option>
 
 				<option value="file4">run-script-service/mocks/filesystem.go (26.7%)</option>
 
@@ -393,7 +393,7 @@ func (sm *SessionManager) ValidateSession(token string) (string, bool) <span cla
         // Check if session has expired
         <span class="cov8" title="1">if time.Now().After(session.ExpiresAt) </span><span class="cov8" title="1">{
                 // Clean up expired session
-                go func() </span><span class="cov8" title="1">{
+                go func() </span><span class="cov0" title="0">{
                         sm.mutex.Lock()
                         defer sm.mutex.Unlock()
                         delete(sm.sessions, token)
@@ -565,7 +565,7 @@ func main() <span class="cov0" title="0">{
         }
 }
 
-func runService(svc *service.Service) <span class="cov0" title="0">{
+func runService(svc *service.Service) <span class="cov8" title="1">{
         // Set up signal handling
         sigChan := make(chan os.Signal, 1)
         signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
@@ -575,19 +575,19 @@ func runService(svc *service.Service) <span class="cov0" title="0">{
 
         // Start service in a goroutine
         done := make(chan bool)
-        go func() </span><span class="cov0" title="0">{
+        go func() </span><span class="cov8" title="1">{
                 svc.Start(ctx)
                 done &lt;- true
         }</span>()
 
         // Wait for signal or service completion
-        <span class="cov0" title="0">select </span>{
+        <span class="cov8" title="1">select </span>{
         case &lt;-sigChan:<span class="cov0" title="0">
                 fmt.Println("Received shutdown signal")
                 svc.Stop()
                 cancel()
                 &lt;-done</span> // Wait for service to finish
-        case &lt;-done:<span class="cov0" title="0"></span>
+        case &lt;-done:<span class="cov8" title="1"></span>
                 // Service finished naturally
         }
 }
@@ -1453,18 +1453,18 @@ func handleDaemonStatus() (CommandResult, error) <span class="cov8" title="1">{
                         fmt.Println("Service is not running")
                         return CommandResult{shouldRunService: false}, nil
                 }</span>
-                <span class="cov0" title="0">return CommandResult{shouldRunService: false}, fmt.Errorf("failed to read PID file: %v", err)</span>
+                <span class="cov8" title="1">return CommandResult{shouldRunService: false}, fmt.Errorf("failed to read PID file: %v", err)</span>
         }
 
-        <span class="cov0" title="0">if isProcessRunning(pid) </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if isProcessRunning(pid) </span><span class="cov0" title="0">{
                 fmt.Printf("Service is running (PID: %d)\n", pid)
                 fmt.Println("Web interface: http://localhost:8080")
-        }</span> else<span class="cov0" title="0"> {
+        }</span> else<span class="cov8" title="1"> {
                 fmt.Println("Service is not running (stale PID file)")
                 removePidFile()
         }</span>
 
-        <span class="cov0" title="0">return CommandResult{shouldRunService: false}, nil</span>
+        <span class="cov8" title="1">return CommandResult{shouldRunService: false}, nil</span>
 }
 
 // handleDaemonRestart restarts the daemon
@@ -1525,50 +1525,50 @@ func ensureFrontendBuilt(workDir string) error <span class="cov8" title="1">{
         }</span>
 
         // Check if dist directory exists and has files
-        <span class="cov0" title="0">if info, err := os.Stat(distDir); os.IsNotExist(err) || !info.IsDir() </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if info, err := os.Stat(distDir); os.IsNotExist(err) || !info.IsDir() </span><span class="cov8" title="1">{
                 fmt.Println("Frontend dist directory not found, building frontend...")
                 return buildFrontend(frontendDir)
         }</span>
 
         // Check if dist directory is empty
-        <span class="cov0" title="0">files, err := os.ReadDir(distDir)
+        <span class="cov8" title="1">files, err := os.ReadDir(distDir)
         if err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("failed to read dist directory: %v", err)
         }</span>
 
-        <span class="cov0" title="0">if len(files) == 0 </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if len(files) == 0 </span><span class="cov8" title="1">{
                 fmt.Println("Frontend dist directory is empty, building frontend...")
                 return buildFrontend(frontendDir)
         }</span>
 
         // Check if package.json is newer than dist (basic staleness check)
-        <span class="cov0" title="0">packageJsonPath := filepath.Join(frontendDir, "package.json")
+        <span class="cov8" title="1">packageJsonPath := filepath.Join(frontendDir, "package.json")
         packageInfo, err := os.Stat(packageJsonPath)
         if err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("failed to stat package.json: %v", err)
         }</span>
 
-        <span class="cov0" title="0">distInfo, err := os.Stat(distDir)
+        <span class="cov8" title="1">distInfo, err := os.Stat(distDir)
         if err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("failed to stat dist directory: %v", err)
         }</span>
 
-        <span class="cov0" title="0">if packageInfo.ModTime().After(distInfo.ModTime()) </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if packageInfo.ModTime().After(distInfo.ModTime()) </span><span class="cov8" title="1">{
                 fmt.Println("Frontend source appears newer than build, rebuilding frontend...")
                 return buildFrontend(frontendDir)
         }</span>
 
-        <span class="cov0" title="0">fmt.Println("Frontend build appears up to date")
+        <span class="cov8" title="1">fmt.Println("Frontend build appears up to date")
         return nil</span>
 }
 
 // buildFrontend builds the frontend using pnpm/vite
-func buildFrontend(frontendDir string) error <span class="cov0" title="0">{
+func buildFrontend(frontendDir string) error <span class="cov8" title="1">{
         fmt.Printf("Building frontend in %s...\n", frontendDir)
 
         // Check if node_modules exists, install dependencies if not
         nodeModulesDir := filepath.Join(frontendDir, "node_modules")
-        if _, err := os.Stat(nodeModulesDir); os.IsNotExist(err) </span><span class="cov0" title="0">{
+        if _, err := os.Stat(nodeModulesDir); os.IsNotExist(err) </span><span class="cov8" title="1">{
                 fmt.Println("Installing frontend dependencies...")
                 if err := runCommand("pnpm", []string{"install"}, frontendDir); err != nil </span><span class="cov0" title="0">{
                         return fmt.Errorf("pnpm install failed: %v", err)
@@ -1576,8 +1576,8 @@ func buildFrontend(frontendDir string) error <span class="cov0" title="0">{
         }
 
         // Run the build command
-        <span class="cov0" title="0">fmt.Println("Running frontend build...")
-        if err := runCommand("pnpm", []string{"build"}, frontendDir); err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">fmt.Println("Running frontend build...")
+        if err := runCommand("pnpm", []string{"build"}, frontendDir); err != nil </span><span class="cov8" title="1">{
                 return fmt.Errorf("pnpm build failed: %v", err)
         }</span>
 

@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"run-script-service/service"
 )
@@ -875,6 +877,359 @@ func TestRunCommand(t *testing.T) {
 			} else {
 				if err != nil {
 					t.Errorf("Unexpected error for command %s: %v", tt.command, err)
+				}
+			}
+		})
+	}
+}
+
+func TestHandleDaemonStatus(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupPID    func(tempDir string) error
+		expectError bool
+		expectedMsg string
+	}{
+		{
+			name: "service not running - no PID file",
+			setupPID: func(tempDir string) error {
+				// No PID file - service not running
+				return nil
+			},
+			expectError: false,
+			expectedMsg: "Service is not running",
+		},
+		{
+			name: "service running - valid PID",
+			setupPID: func(tempDir string) error {
+				// Create PID file with current process PID (which should be running)
+				execPath, err := os.Executable()
+				if err != nil {
+					execPath = tempDir
+				} else {
+					execPath = filepath.Dir(execPath)
+				}
+				pidFile := filepath.Join(execPath, "run-script-service.pid")
+				return ioutil.WriteFile(pidFile, []byte("1"), 0644) // PID 1 (init) should always be running
+			},
+			expectError: false,
+			expectedMsg: "Service is running (PID: 1)",
+		},
+		{
+			name: "stale PID file - process not running",
+			setupPID: func(tempDir string) error {
+				// Create PID file with non-existent PID
+				execPath, err := os.Executable()
+				if err != nil {
+					execPath = tempDir
+				} else {
+					execPath = filepath.Dir(execPath)
+				}
+				pidFile := filepath.Join(execPath, "run-script-service.pid")
+				return ioutil.WriteFile(pidFile, []byte("99999"), 0644) // Very unlikely PID
+			},
+			expectError: false,
+			expectedMsg: "Service is not running (stale PID file)",
+		},
+		{
+			name: "invalid PID file content",
+			setupPID: func(tempDir string) error {
+				// Create PID file with invalid content in the executable's directory
+				// Since getPidFilePath uses os.Executable(), we need to create the file there
+				execPath, err := os.Executable()
+				if err != nil {
+					execPath = tempDir
+				} else {
+					execPath = filepath.Dir(execPath)
+				}
+				pidFile := filepath.Join(execPath, "run-script-service.pid")
+				return ioutil.WriteFile(pidFile, []byte("invalid"), 0644)
+			},
+			expectError: true,
+			expectedMsg: "failed to read PID file",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			// Create temporary directory for test
+			tempDir, err := ioutil.TempDir("", "TestHandleDaemonStatus")
+			if err != nil {
+				t.Fatalf("Failed to create temp dir: %v", err)
+			}
+			defer os.RemoveAll(tempDir)
+
+			// Set up PID file scenario
+			if err := tt.setupPID(tempDir); err != nil {
+				t.Fatalf("Failed to set up PID file: %v", err)
+			}
+
+			// Temporarily change working directory to temp directory
+			originalWD, err := os.Getwd()
+			if err != nil {
+				t.Fatalf("Failed to get working directory: %v", err)
+			}
+			err = os.Chdir(tempDir)
+			if err != nil {
+				t.Fatalf("Failed to change working directory: %v", err)
+			}
+			defer os.Chdir(originalWD)
+
+			// Call the function
+			result, err := handleDaemonStatus()
+
+			// Clean up PID file after test
+			defer func() {
+				execPath, err := os.Executable()
+				if err == nil {
+					pidFile := filepath.Join(filepath.Dir(execPath), "run-script-service.pid")
+					os.Remove(pidFile) // Ignore error - file may not exist
+				}
+			}()
+
+			// Verify error expectation
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
+				if !strings.Contains(err.Error(), tt.expectedMsg) {
+					t.Errorf("Expected error message to contain '%s', got: %v", tt.expectedMsg, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+			}
+
+			// Verify result
+			if result.shouldRunService {
+				t.Error("Expected shouldRunService to be false")
+			}
+		})
+	}
+}
+
+// Helper function to create frontend test environment
+func createFrontendTestEnv(tempDir string, packageJsonFirst bool, addDistFile bool, sleepBetween bool) error {
+	frontendDir := filepath.Join(tempDir, "web", "frontend")
+	distDir := filepath.Join(frontendDir, "dist")
+	if err := os.MkdirAll(distDir, 0755); err != nil {
+		return err
+	}
+
+	packageJsonPath := filepath.Join(frontendDir, "package.json")
+	distFilePath := filepath.Join(distDir, "index.html")
+	packageJsonContent := []byte(`{"name": "test"}`)
+	distFileContent := []byte("<html></html>")
+
+	if packageJsonFirst {
+		if err := ioutil.WriteFile(packageJsonPath, packageJsonContent, 0644); err != nil {
+			return err
+		}
+		if sleepBetween {
+			time.Sleep(10 * time.Millisecond)
+		}
+		if addDistFile {
+			return ioutil.WriteFile(distFilePath, distFileContent, 0644)
+		}
+	} else {
+		if addDistFile {
+			if err := ioutil.WriteFile(distFilePath, distFileContent, 0644); err != nil {
+				return err
+			}
+		}
+		if sleepBetween {
+			time.Sleep(10 * time.Millisecond)
+		}
+		return ioutil.WriteFile(packageJsonPath, packageJsonContent, 0644)
+	}
+	return nil
+}
+
+// TestRunService tests the runService function
+func TestRunService(t *testing.T) {
+	t.Run("service starts and initializes correctly", func(t *testing.T) {
+		// Create a temporary directory for test
+		tempDir, err := ioutil.TempDir("", "TestRunService")
+		if err != nil {
+			t.Fatalf("Failed to create temp dir: %v", err)
+		}
+		defer os.RemoveAll(tempDir)
+
+		scriptPath := filepath.Join(tempDir, "test.sh")
+		logPath := filepath.Join(tempDir, "test.log")
+		configPath := filepath.Join(tempDir, "config.json")
+
+		// Create a simple test script that runs quickly
+		err = ioutil.WriteFile(scriptPath, []byte("#!/bin/bash\necho 'test'\n"), 0755)
+		if err != nil {
+			t.Fatalf("Failed to create test script: %v", err)
+		}
+
+		svc := service.NewService(scriptPath, logPath, configPath, 100)
+
+		// Test that runService can start without panic
+		// We'll run it in a goroutine and stop it quickly to test initialization
+		started := make(chan bool, 1)
+		serviceErr := make(chan error, 1)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					serviceErr <- fmt.Errorf("runService panicked: %v", r)
+				}
+			}()
+
+			started <- true
+
+			// Call the actual runService function
+			// But we need a way to stop it for testing
+			// We'll let it run briefly then stop the service
+			go func() {
+				time.Sleep(50 * time.Millisecond) // Let it initialize
+				svc.Stop()                        // Stop the service to exit runService
+			}()
+
+			runService(svc)
+		}()
+
+		// Wait for service to start
+		select {
+		case <-started:
+			// Service started successfully
+		case err := <-serviceErr:
+			t.Fatalf("Service failed to start: %v", err)
+		case <-time.After(1 * time.Second):
+			t.Fatal("Service failed to start within timeout")
+		}
+
+		// Wait for test completion
+		select {
+		case err := <-serviceErr:
+			if err != nil {
+				t.Fatalf("Service error: %v", err)
+			}
+		case <-ctx.Done():
+			// Test completed successfully - service was stopped by timeout
+		}
+	})
+}
+
+func TestEnsureFrontendBuilt(t *testing.T) {
+	tests := []struct {
+		name        string
+		setup       func(tempDir string) error
+		expectError bool
+		expectedMsg string
+	}{
+		{
+			name: "frontend project not found",
+			setup: func(tempDir string) error {
+				// No package.json file - frontend project doesn't exist
+				return nil
+			},
+			expectError: true,
+			expectedMsg: "frontend project not found",
+		},
+		{
+			name: "dist directory does not exist",
+			setup: func(tempDir string) error {
+				// Create package.json but no dist directory
+				frontendDir := filepath.Join(tempDir, "web", "frontend")
+				if err := os.MkdirAll(frontendDir, 0755); err != nil {
+					return err
+				}
+				return ioutil.WriteFile(filepath.Join(frontendDir, "package.json"), []byte(`{"name": "test"}`), 0644)
+			},
+			expectError: true, // buildFrontend will fail
+			expectedMsg: "",
+		},
+		{
+			name: "dist directory is empty",
+			setup: func(tempDir string) error {
+				// Create package.json and empty dist directory
+				frontendDir := filepath.Join(tempDir, "web", "frontend")
+				distDir := filepath.Join(frontendDir, "dist")
+				if err := os.MkdirAll(distDir, 0755); err != nil {
+					return err
+				}
+				return ioutil.WriteFile(filepath.Join(frontendDir, "package.json"), []byte(`{"name": "test"}`), 0644)
+			},
+			expectError: true, // buildFrontend will fail
+			expectedMsg: "",
+		},
+		{
+			name: "dist exists and is up to date",
+			setup: func(tempDir string) error {
+				// package.json first, then dist file (dist will be newer)
+				return createFrontendTestEnv(tempDir, true, true, true)
+			},
+			expectError: false,
+			expectedMsg: "Frontend build appears up to date",
+		},
+		{
+			name: "package.json newer than dist - needs rebuild",
+			setup: func(tempDir string) error {
+				// dist file first, then package.json (package.json will be newer)
+				return createFrontendTestEnv(tempDir, false, true, true)
+			},
+			expectError: true, // buildFrontend will fail
+			expectedMsg: "",
+		},
+		{
+			name: "dist is file not directory",
+			setup: func(tempDir string) error {
+				// Create package.json and dist as a file instead of directory
+				frontendDir := filepath.Join(tempDir, "web", "frontend")
+				if err := os.MkdirAll(frontendDir, 0755); err != nil {
+					return err
+				}
+
+				if err := ioutil.WriteFile(filepath.Join(frontendDir, "package.json"), []byte(`{"name": "test"}`), 0644); err != nil {
+					return err
+				}
+
+				// Create dist as a file, not directory
+				return ioutil.WriteFile(filepath.Join(frontendDir, "dist"), []byte("not a directory"), 0644)
+			},
+			expectError: true, // buildFrontend will fail
+			expectedMsg: "",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			// Create temporary directory for test
+			tempDir, err := ioutil.TempDir("", "TestEnsureFrontendBuilt")
+			if err != nil {
+				t.Fatalf("Failed to create temp dir: %v", err)
+			}
+			defer os.RemoveAll(tempDir)
+
+			// Set up test scenario
+			if err := tt.setup(tempDir); err != nil {
+				t.Fatalf("Failed to set up test scenario: %v", err)
+			}
+
+			// Call the function
+			err = ensureFrontendBuilt(tempDir)
+
+			// Verify error expectation
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
+				if tt.expectedMsg != "" && !strings.Contains(err.Error(), tt.expectedMsg) {
+					t.Errorf("Expected error message to contain '%s', got: %v", tt.expectedMsg, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
 				}
 			}
 		})
