@@ -57,11 +57,11 @@
 
 				<option value="file0">run-script-service/auth/handler.go (85.2%)</option>
 
-				<option value="file1">run-script-service/auth/middleware.go (73.7%)</option>
+				<option value="file1">run-script-service/auth/middleware.go (100.0%)</option>
 
-				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
+				<option value="file2">run-script-service/auth/session.go (93.5%)</option>
 
-				<option value="file3">run-script-service/main.go (56.4%)</option>
+				<option value="file3">run-script-service/main.go (56.9%)</option>
 
 				<option value="file4">run-script-service/mocks/filesystem.go (26.7%)</option>
 
@@ -103,7 +103,7 @@
 
 				<option value="file23">run-script-service/web/handlers_script_files.go (68.0%)</option>
 
-				<option value="file24">run-script-service/web/server.go (49.8%)</option>
+				<option value="file24">run-script-service/web/server.go (50.6%)</option>
 
 				<option value="file25">run-script-service/web/vue_build_manager.go (13.6%)</option>
 
@@ -275,15 +275,15 @@ func NewAuthMiddleware(sessionManager *SessionManager) *AuthMiddleware <span cla
 }</span>
 
 // IsAuthenticated checks if the current request is authenticated
-func (am *AuthMiddleware) IsAuthenticated(c *gin.Context) bool <span class="cov0" title="0">{
+func (am *AuthMiddleware) IsAuthenticated(c *gin.Context) bool <span class="cov8" title="1">{
         // Get session cookie
         sessionCookie, err := c.Request.Cookie("session")
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return false
         }</span>
 
         // Validate session
-        <span class="cov0" title="0">_, valid := am.sessionManager.ValidateSession(sessionCookie.Value)
+        <span class="cov8" title="1">_, valid := am.sessionManager.ValidateSession(sessionCookie.Value)
         return valid</span>
 }
 
@@ -393,7 +393,7 @@ func (sm *SessionManager) ValidateSession(token string) (string, bool) <span cla
         // Check if session has expired
         <span class="cov8" title="1">if time.Now().After(session.ExpiresAt) </span><span class="cov8" title="1">{
                 // Clean up expired session
-                go func() </span><span class="cov0" title="0">{
+                go func() </span><span class="cov8" title="1">{
                         sm.mutex.Lock()
                         defer sm.mutex.Unlock()
                         delete(sm.sessions, token)
@@ -636,6 +636,40 @@ func runMultiScriptService(configPath string) <span class="cov0" title="0">{
         cancel()
 
         fmt.Println("Service stopped")</span>
+}
+
+// Testable version of runMultiScriptService that returns results instead of calling os.Exit
+type ServiceResult struct {
+        Manager *service.ScriptManager
+        Config  *service.ServiceConfig
+}
+
+func runMultiScriptServiceTestable(configPath string, ctx context.Context) (*ServiceResult, error) <span class="cov8" title="1">{
+        // Load service configuration
+        var config service.ServiceConfig
+        err := service.LoadServiceConfig(configPath, &amp;config)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        // Set default web port if not configured
+        <span class="cov8" title="1">if config.WebPort == 0 </span><span class="cov8" title="1">{
+                config.WebPort = 8080
+        }</span>
+
+        // Create script manager
+        <span class="cov8" title="1">manager := service.NewScriptManager(&amp;config)
+
+        // Start all enabled scripts
+        err = manager.StartAllEnabled(ctx)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">return &amp;ServiceResult{
+                Manager: manager,
+                Config:  &amp;config,
+        }, nil</span>
 }
 
 func parseInterval(intervalStr string) (int, error) <span class="cov8" title="1">{
@@ -5805,6 +5839,31 @@ type LogEntry struct {
         Script    string `json:"script,omitempty"`
 }
 
+// enhancedRecoveryMiddleware provides enhanced error handling with structured JSON responses
+func enhancedRecoveryMiddleware() gin.HandlerFunc <span class="cov8" title="1">{
+        return func(c *gin.Context) </span><span class="cov8" title="1">{
+                defer func() </span><span class="cov8" title="1">{
+                        if err := recover(); err != nil </span><span class="cov8" title="1">{
+                                // Log the panic with request context for debugging
+                                log.Printf("Panic recovered: %v - Request: %s %s, User-Agent: %s, X-Request-ID: %s",
+                                        err,
+                                        c.Request.Method,
+                                        c.Request.URL.Path,
+                                        c.GetHeader("User-Agent"),
+                                        c.GetHeader("X-Request-ID"))
+
+                                // Return structured JSON error response
+                                c.JSON(http.StatusInternalServerError, APIResponse{
+                                        Success: false,
+                                        Error:   "Internal server error",
+                                })
+                                c.Abort()
+                        }</span>
+                }()
+                <span class="cov8" title="1">c.Next()</span>
+        }
+}
+
 // NewWebServer creates a new web server instance
 func NewWebServer(svc *service.Service, port int, secretKey string) *WebServer <span class="cov8" title="1">{
         // Set Gin to release mode for production
@@ -5814,7 +5873,7 @@ func NewWebServer(svc *service.Service, port int, secretKey string) *WebServer <
 
         // Add middleware
         router.Use(gin.Logger())
-        router.Use(gin.Recovery())
+        router.Use(enhancedRecoveryMiddleware())
         router.Use(cors.Default())
 
         // Create WebSocket hub
