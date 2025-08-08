@@ -109,3 +109,69 @@ func TestAuthMiddleware_InvalidSessionRequest(t *testing.T) {
 		t.Fatalf("expected status 401, got %d", w.Code)
 	}
 }
+
+func TestAuthMiddleware_IsAuthenticated(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	sessionManager := NewSessionManager()
+	middleware := NewAuthMiddleware(sessionManager)
+
+	tests := []struct {
+		name           string
+		setupCookie    func() *http.Cookie
+		expectedResult bool
+	}{
+		{
+			name: "valid_session",
+			setupCookie: func() *http.Cookie {
+				token, _ := sessionManager.CreateSession("test-user")
+				return &http.Cookie{
+					Name:  "session",
+					Value: token,
+				}
+			},
+			expectedResult: true,
+		},
+		{
+			name: "invalid_session",
+			setupCookie: func() *http.Cookie {
+				return &http.Cookie{
+					Name:  "session",
+					Value: "invalid-token",
+				}
+			},
+			expectedResult: false,
+		},
+		{
+			name: "no_cookie",
+			setupCookie: func() *http.Cookie {
+				return nil
+			},
+			expectedResult: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create gin context
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+
+			// Setup request
+			req := httptest.NewRequest("GET", "/", nil)
+
+			// Add cookie if provided
+			if cookie := tt.setupCookie(); cookie != nil {
+				req.AddCookie(cookie)
+			}
+
+			c.Request = req
+
+			// Test IsAuthenticated
+			result := middleware.IsAuthenticated(c)
+
+			if result != tt.expectedResult {
+				t.Errorf("IsAuthenticated() = %v, want %v", result, tt.expectedResult)
+			}
+		})
+	}
+}
