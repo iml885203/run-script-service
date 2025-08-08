@@ -401,6 +401,76 @@ func TestExecutor_ExecuteWithResultStreaming(t *testing.T) {
 	}
 }
 
+func TestExecutor_ExecuteWithResultStreamingSynchronization(t *testing.T) {
+	// This test ensures that streaming output is properly synchronized
+	// Create temporary directory and script
+	tempDir, err := os.MkdirTemp("", "executor_streaming_sync_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	scriptContent := "#!/bin/bash\necho 'Line 1'\nsleep 0.1\necho 'Line 2' >&2\nsleep 0.1\necho 'Line 3'\nexit 0"
+	scriptPath := filepath.Join(tempDir, "sync_test.sh")
+	logPath := filepath.Join(tempDir, "sync_test.log")
+
+	// Write script file
+	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create executor with streaming log handler
+	executor := NewExecutor(scriptPath, logPath, 100)
+	logManager := NewLogManager(tempDir)
+	streamingHandler := NewStreamingLogHandler("sync-test-script", logManager)
+	executor.SetLogHandler(streamingHandler)
+
+	// Execute multiple times to test for race conditions
+	for i := 0; i < 5; i++ {
+		ctx := context.Background()
+		result, execError := executor.ExecuteWithResultStreaming(ctx)
+
+		if execError != nil {
+			t.Errorf("Run %d: ExecuteWithResultStreaming() unexpected error = %v", i+1, execError)
+			continue
+		}
+
+		if result.ExitCode != 0 {
+			t.Errorf("Run %d: ExecuteWithResultStreaming() exit code = %v, expected = 0", i+1, result.ExitCode)
+			continue
+		}
+
+		// Verify both stdout and stderr are captured in result
+		if result.Stdout == "" {
+			t.Errorf("Run %d: Expected stdout in result, got empty", i+1)
+		}
+
+		if result.Stderr == "" {
+			t.Errorf("Run %d: Expected stderr in result, got empty", i+1)
+		}
+
+		// Check streaming was captured by log manager
+		logger := logManager.GetLogger("sync-test-script")
+		entries := logger.GetEntries()
+
+		if len(entries) != i+1 {
+			t.Errorf("Run %d: Expected %d log entries from streaming, got %d", i+1, i+1, len(entries))
+			continue
+		}
+
+		// Verify last entry has proper output
+		entry := entries[len(entries)-1]
+		if entry.Stdout == "" {
+			t.Errorf("Run %d: Expected stdout to be captured via streaming", i+1)
+		}
+
+		if entry.Stderr == "" {
+			t.Errorf("Run %d: Expected stderr to be captured via streaming", i+1)
+		}
+	}
+}
+
 func TestExecutor_EnsureContext(t *testing.T) {
 	executor := NewExecutor("/tmp/test.sh", "/tmp/test.log", 100)
 

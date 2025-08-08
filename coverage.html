@@ -59,7 +59,7 @@
 
 				<option value="file1">run-script-service/auth/middleware.go (73.7%)</option>
 
-				<option value="file2">run-script-service/auth/session.go (93.5%)</option>
+				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
 
 				<option value="file3">run-script-service/main.go (56.4%)</option>
 
@@ -73,7 +73,7 @@
 
 				<option value="file8">run-script-service/service/event.go (100.0%)</option>
 
-				<option value="file9">run-script-service/service/executor.go (72.8%)</option>
+				<option value="file9">run-script-service/service/executor.go (74.4%)</option>
 
 				<option value="file10">run-script-service/service/file_manager.go (85.1%)</option>
 
@@ -393,7 +393,7 @@ func (sm *SessionManager) ValidateSession(token string) (string, bool) <span cla
         // Check if session has expired
         <span class="cov8" title="1">if time.Now().After(session.ExpiresAt) </span><span class="cov8" title="1">{
                 // Clean up expired session
-                go func() </span><span class="cov8" title="1">{
+                go func() </span><span class="cov0" title="0">{
                         sm.mutex.Lock()
                         defer sm.mutex.Unlock()
                         delete(sm.sessions, token)
@@ -2268,6 +2268,7 @@ type Executor struct {
         logPath    string
         maxLines   int
         logHandler LogHandler
+        timeout    time.Duration // timeout for script execution
 }
 
 // NewExecutor creates a new script executor
@@ -2276,6 +2277,17 @@ func NewExecutor(scriptPath, logPath string, maxLines int) *Executor <span class
                 scriptPath: scriptPath,
                 logPath:    logPath,
                 maxLines:   maxLines,
+                timeout:    0, // no timeout by default
+        }
+}</span>
+
+// NewExecutorWithTimeout creates a new script executor with timeout capability
+func NewExecutorWithTimeout(scriptPath, logPath string, maxLines int, timeout time.Duration) *Executor <span class="cov8" title="1">{
+        return &amp;Executor{
+                scriptPath: scriptPath,
+                logPath:    logPath,
+                maxLines:   maxLines,
+                timeout:    timeout,
         }
 }</span>
 
@@ -2460,8 +2472,15 @@ func (e *Executor) ExecuteWithStreaming(ctx context.Context, args ...string) *Ex
                 Timestamp: timestamp,
         }
 
+        // Apply timeout if configured
+        if e.timeout &gt; 0 </span><span class="cov8" title="1">{
+                var cancel context.CancelFunc
+                ctx, cancel = context.WithTimeout(ctx, e.timeout)
+                defer cancel()
+        }</span>
+
         // Notify handler of execution start
-        if e.logHandler != nil </span><span class="cov8" title="1">{
+        <span class="cov8" title="1">if e.logHandler != nil </span><span class="cov8" title="1">{
                 e.logHandler.HandleExecutionStart(timestamp)
         }</span>
 
@@ -2542,9 +2561,13 @@ func (e *Executor) ExecuteWithStreaming(ctx context.Context, args ...string) *Ex
         // Wait for all streaming to complete before proceeding
         wg.Wait()
         result.ExitCode = 0
-        if err != nil </span><span class="cov0" title="0">{
-                if exitError, ok := err.(*exec.ExitError); ok </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
+                if exitError, ok := err.(*exec.ExitError); ok </span><span class="cov8" title="1">{
                         result.ExitCode = exitError.ExitCode()
+                }</span> else<span class="cov0" title="0"> if err.Error() == "signal: killed" &amp;&amp; ctx.Err() == context.DeadlineExceeded </span><span class="cov0" title="0">{
+                        // Handle timeout specifically
+                        e.logError(timestamp, fmt.Sprintf("Script execution timed out after %v", e.timeout))
+                        result.ExitCode = -1
                 }</span> else<span class="cov0" title="0"> {
                         e.logError(timestamp, fmt.Sprintf("Error waiting for command: %v", err))
                         result.ExitCode = -1
@@ -2590,19 +2613,34 @@ func (e *Executor) SetLogHandler(handler LogHandler) <span class="cov8" title="1
 // ExecuteWithResult executes the script and returns both result and error
 // This method provides a simpler interface for script execution with error handling
 func (e *Executor) ExecuteWithResult(ctx context.Context, args ...string) (*ExecutionResult, error) <span class="cov8" title="1">{
-        // Use background context if none provided
+        ctx = e.ensureContext(ctx)
+        result := e.ExecuteScriptWithContext(ctx, args...)
+        return e.handleExecutionResult(result)
+}</span>
+
+// ExecuteWithResultStreaming executes the script with streaming output and returns both result and error
+// This method combines streaming capabilities with error handling interface, allowing real-time
+// output processing while maintaining the same error handling semantics as ExecuteWithResult
+func (e *Executor) ExecuteWithResultStreaming(ctx context.Context, args ...string) (*ExecutionResult, error) <span class="cov8" title="1">{
+        ctx = e.ensureContext(ctx)
+        result := e.ExecuteWithStreaming(ctx, args...)
+        return e.handleExecutionResult(result)
+}</span>
+
+// ensureContext ensures we have a valid context, using background context as fallback
+func (e *Executor) ensureContext(ctx context.Context) context.Context <span class="cov8" title="1">{
         if ctx == nil </span><span class="cov8" title="1">{
-                ctx = context.Background()
+                return context.Background()
         }</span>
+        <span class="cov8" title="1">return ctx</span>
+}
 
-        // Execute the script using existing method
-        <span class="cov8" title="1">result := e.ExecuteScriptWithContext(ctx, args...)
-
-        // Convert exit code to error for non-zero codes
+// handleExecutionResult converts execution results to the result/error pattern
+// Non-zero exit codes are converted to errors while preserving the full result
+func (e *Executor) handleExecutionResult(result *ExecutionResult) (*ExecutionResult, error) <span class="cov8" title="1">{
         if result.ExitCode != 0 </span><span class="cov8" title="1">{
                 return result, fmt.Errorf("script execution failed with exit code %d", result.ExitCode)
         }</span>
-
         <span class="cov8" title="1">return result, nil</span>
 }
 </pre>
