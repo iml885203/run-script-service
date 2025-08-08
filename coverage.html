@@ -61,7 +61,7 @@
 
 				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
 
-				<option value="file3">run-script-service/main.go (64.8%)</option>
+				<option value="file3">run-script-service/main.go (65.5%)</option>
 
 				<option value="file4">run-script-service/mocks/filesystem.go (26.7%)</option>
 
@@ -431,6 +431,7 @@ import (
         "context"
         "crypto/rand"
         "encoding/hex"
+        "encoding/json"
         "fmt"
         "os"
         "os/exec"
@@ -1581,7 +1582,7 @@ func buildFrontend(frontendDir string) error <span class="cov8" title="1">{
                 return fmt.Errorf("pnpm build failed: %v", err)
         }</span>
 
-        <span class="cov0" title="0">fmt.Println("Frontend build completed successfully")
+        <span class="cov8" title="1">fmt.Println("Frontend build completed successfully")
         return nil</span>
 }
 
@@ -1594,6 +1595,28 @@ func runCommand(command string, args []string, workingDir string) error <span cl
 
         return cmd.Run()
 }</span>
+
+// validateFrontendPackageJson checks if package.json contains a valid build script
+func validateFrontendPackageJson(packageJsonContent []byte) bool <span class="cov8" title="1">{
+        var packageJson map[string]interface{}
+        if err := json.Unmarshal(packageJsonContent, &amp;packageJson); err != nil </span><span class="cov0" title="0">{
+                return false
+        }</span>
+
+        <span class="cov8" title="1">scripts, ok := packageJson["scripts"].(map[string]interface{})
+        if !ok </span><span class="cov8" title="1">{
+                return false
+        }</span>
+
+        <span class="cov8" title="1">buildScript, hasBuild := scripts["build"]
+        if !hasBuild </span><span class="cov0" title="0">{
+                return false
+        }</span>
+
+        // Ensure build script is not empty
+        <span class="cov8" title="1">buildStr, ok := buildScript.(string)
+        return ok &amp;&amp; strings.TrimSpace(buildStr) != ""</span>
+}
 
 // loadEnhancedConfig loads configuration with .env file support
 func loadEnhancedConfig(configPath, envPath string) (*service.EnhancedConfig, error) <span class="cov8" title="1">{
