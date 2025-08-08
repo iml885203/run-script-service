@@ -55,6 +55,31 @@ type LogEntry struct {
 	Script    string `json:"script,omitempty"`
 }
 
+// enhancedRecoveryMiddleware provides enhanced error handling with structured JSON responses
+func enhancedRecoveryMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		defer func() {
+			if err := recover(); err != nil {
+				// Log the panic with request context for debugging
+				log.Printf("Panic recovered: %v - Request: %s %s, User-Agent: %s, X-Request-ID: %s",
+					err,
+					c.Request.Method,
+					c.Request.URL.Path,
+					c.GetHeader("User-Agent"),
+					c.GetHeader("X-Request-ID"))
+
+				// Return structured JSON error response
+				c.JSON(http.StatusInternalServerError, APIResponse{
+					Success: false,
+					Error:   "Internal server error",
+				})
+				c.Abort()
+			}
+		}()
+		c.Next()
+	}
+}
+
 // NewWebServer creates a new web server instance
 func NewWebServer(svc *service.Service, port int, secretKey string) *WebServer {
 	// Set Gin to release mode for production
@@ -64,7 +89,7 @@ func NewWebServer(svc *service.Service, port int, secretKey string) *WebServer {
 
 	// Add middleware
 	router.Use(gin.Logger())
-	router.Use(gin.Recovery())
+	router.Use(enhancedRecoveryMiddleware())
 	router.Use(cors.Default())
 
 	// Create WebSocket hub

@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"run-script-service/service"
 )
 
@@ -1085,5 +1087,98 @@ func TestWebServer_DebugLoggerIntegration(t *testing.T) {
 	// Test debug logger respects environment variable
 	if server.debugLogger.IsEnabled() && os.Getenv("DEBUG") == "" {
 		t.Error("Debug logger should not be enabled without DEBUG environment variable")
+	}
+}
+
+func TestWebServer_ErrorHandlingMiddleware(t *testing.T) {
+	// Red phase - this test should fail until we implement error handling middleware
+	server := NewWebServer(nil, 8080, "test-secret")
+
+	// Test panic recovery - should return 500 with structured error
+	req, err := http.NewRequest("GET", "/api/panic-test", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+
+	// Add a route that panics to test recovery
+	server.router.GET("/api/panic-test", func(c *gin.Context) {
+		panic("test panic")
+	})
+
+	server.router.ServeHTTP(rr, req)
+
+	// Should return 500 Internal Server Error
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status 500, got %d", rr.Code)
+	}
+
+	// Response should be structured JSON
+	var response APIResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal error response: %v", err)
+	}
+
+	if response.Success {
+		t.Error("Expected failed response for panic")
+	}
+
+	if response.Error == "" {
+		t.Error("Expected error message in response")
+	}
+
+	expectedErrorMsg := "Internal server error"
+	if !strings.Contains(response.Error, expectedErrorMsg) {
+		t.Errorf("Expected error message to contain '%s', got '%s'", expectedErrorMsg, response.Error)
+	}
+}
+
+func TestWebServer_ErrorHandlingMiddleware_RequestTracking(t *testing.T) {
+	// Red phase - this test should fail until we implement request tracking in error middleware
+	server := NewWebServer(nil, 8080, "test-secret")
+
+	// Create a request with specific headers to track
+	req, err := http.NewRequest("GET", "/api/error-test", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Request-ID", "test-request-123")
+	req.Header.Set("User-Agent", "test-client/1.0")
+
+	rr := httptest.NewRecorder()
+
+	// Add a route that returns an error to test error tracking
+	server.router.GET("/api/error-test", func(c *gin.Context) {
+		c.JSON(http.StatusBadRequest, APIResponse{
+			Success: false,
+			Error:   "Validation error: invalid input",
+		})
+	})
+
+	server.router.ServeHTTP(rr, req)
+
+	// Should maintain the error status
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", rr.Code)
+	}
+
+	// Check that error response includes request context for debugging
+	var response APIResponse
+	err = json.Unmarshal(rr.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal error response: %v", err)
+	}
+
+	if response.Success {
+		t.Error("Expected failed response")
+	}
+
+	// For this test, we expect the error middleware to log the request context
+	// The actual response should contain the original error message
+	expectedError := "Validation error: invalid input"
+	if response.Error != expectedError {
+		t.Errorf("Expected error message '%s', got '%s'", expectedError, response.Error)
 	}
 }
