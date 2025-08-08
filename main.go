@@ -212,6 +212,40 @@ func runMultiScriptService(configPath string) {
 	fmt.Println("Service stopped")
 }
 
+// Testable version of runMultiScriptService that returns results instead of calling os.Exit
+type ServiceResult struct {
+	Manager *service.ScriptManager
+	Config  *service.ServiceConfig
+}
+
+func runMultiScriptServiceTestable(configPath string, ctx context.Context) (*ServiceResult, error) {
+	// Load service configuration
+	var config service.ServiceConfig
+	err := service.LoadServiceConfig(configPath, &config)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set default web port if not configured
+	if config.WebPort == 0 {
+		config.WebPort = 8080
+	}
+
+	// Create script manager
+	manager := service.NewScriptManager(&config)
+
+	// Start all enabled scripts
+	err = manager.StartAllEnabled(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ServiceResult{
+		Manager: manager,
+		Config:  &config,
+	}, nil
+}
+
 func parseInterval(intervalStr string) (int, error) {
 	if intervalStr == "" {
 		return 0, fmt.Errorf("empty interval")

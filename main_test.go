@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"run-script-service/service"
 )
 
 func TestParseInterval(t *testing.T) {
@@ -678,4 +682,138 @@ func TestGenerateRandomKey(t *testing.T) {
 	if len(key1)%2 != 0 {
 		t.Error("Generated key should be valid hex string (even length)")
 	}
+}
+
+// Test for runMultiScriptService function
+func TestRunMultiScriptService_ConfigurationHandling(t *testing.T) {
+	t.Run("should handle valid configuration", func(t *testing.T) {
+		// Create temporary directory for test
+		tempDir, err := ioutil.TempDir("", "test_multi_script_service")
+		if err != nil {
+			t.Fatalf("Failed to create temp dir: %v", err)
+		}
+		defer os.RemoveAll(tempDir)
+
+		// Create test configuration
+		configPath := filepath.Join(tempDir, "service_config.json")
+		config := service.ServiceConfig{
+			Scripts: []service.ScriptConfig{
+				{
+					Name:     "test-script",
+					Path:     filepath.Join(tempDir, "test.sh"),
+					Interval: 60,
+					Enabled:  true,
+				},
+			},
+			WebPort: 9090,
+		}
+
+		// Create a simple test script
+		scriptContent := "#!/bin/bash\necho 'test script running'\n"
+		err = ioutil.WriteFile(config.Scripts[0].Path, []byte(scriptContent), 0755)
+		if err != nil {
+			t.Fatalf("Failed to create test script: %v", err)
+		}
+
+		// Save configuration
+		err = service.SaveServiceConfig(configPath, &config)
+		if err != nil {
+			t.Fatalf("Failed to save config: %v", err)
+		}
+
+		// This test will fail initially since runMultiScriptService is not testable
+		// We need to refactor it to accept dependencies and return errors instead of calling os.Exit
+		result, err := runMultiScriptServiceTestable(configPath, context.Background())
+		if err != nil {
+			t.Fatalf("Expected successful service initialization, got error: %v", err)
+		}
+
+		if result == nil {
+			t.Fatal("Expected non-nil result from service initialization")
+		}
+
+		// Verify manager was created
+		if result.Manager == nil {
+			t.Error("Expected non-nil script manager")
+		}
+
+		// Verify config was loaded properly
+		if result.Config == nil {
+			t.Error("Expected non-nil config")
+		}
+
+		if result.Config.WebPort != 9090 {
+			t.Errorf("Expected WebPort 9090, got %d", result.Config.WebPort)
+		}
+
+		if len(result.Config.Scripts) != 1 {
+			t.Errorf("Expected 1 script, got %d", len(result.Config.Scripts))
+		}
+	})
+
+	t.Run("should handle missing config file with default config", func(t *testing.T) {
+		// Test with non-existent config file - should use default config
+		result, err := runMultiScriptServiceTestable("/nonexistent/config.json", context.Background())
+		if err != nil {
+			t.Errorf("Expected no error for missing config file, got: %v", err)
+		}
+		if result == nil {
+			t.Error("Expected non-nil result with default config")
+		}
+
+		// Should have default web port
+		if result.Config.WebPort != 8080 {
+			t.Errorf("Expected default WebPort 8080, got %d", result.Config.WebPort)
+		}
+
+		// Should have no scripts in default config
+		if len(result.Config.Scripts) != 0 {
+			t.Errorf("Expected 0 scripts in default config, got %d", len(result.Config.Scripts))
+		}
+	})
+
+	t.Run("should set default web port when not specified", func(t *testing.T) {
+		// Create temporary directory for test
+		tempDir, err := ioutil.TempDir("", "test_default_port")
+		if err != nil {
+			t.Fatalf("Failed to create temp dir: %v", err)
+		}
+		defer os.RemoveAll(tempDir)
+
+		// Create test configuration without WebPort
+		configPath := filepath.Join(tempDir, "service_config.json")
+		config := service.ServiceConfig{
+			Scripts: []service.ScriptConfig{
+				{
+					Name:     "test-script",
+					Path:     filepath.Join(tempDir, "test.sh"),
+					Interval: 60,
+					Enabled:  true,
+				},
+			},
+			// WebPort intentionally not set
+		}
+
+		// Create a simple test script
+		scriptContent := "#!/bin/bash\necho 'test script running'\n"
+		err = ioutil.WriteFile(config.Scripts[0].Path, []byte(scriptContent), 0755)
+		if err != nil {
+			t.Fatalf("Failed to create test script: %v", err)
+		}
+
+		// Save configuration
+		err = service.SaveServiceConfig(configPath, &config)
+		if err != nil {
+			t.Fatalf("Failed to save config: %v", err)
+		}
+
+		result, err := runMultiScriptServiceTestable(configPath, context.Background())
+		if err != nil {
+			t.Fatalf("Expected successful service initialization, got error: %v", err)
+		}
+
+		if result.Config.WebPort != 8080 {
+			t.Errorf("Expected default WebPort 8080, got %d", result.Config.WebPort)
+		}
+	})
 }
