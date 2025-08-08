@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -1167,6 +1168,28 @@ func runCommand(command string, args []string, workingDir string) error {
 	cmd.Stderr = os.Stderr
 
 	return cmd.Run()
+}
+
+// validateFrontendPackageJson checks if package.json contains a valid build script
+func validateFrontendPackageJson(packageJsonContent []byte) bool {
+	var packageJson map[string]interface{}
+	if err := json.Unmarshal(packageJsonContent, &packageJson); err != nil {
+		return false
+	}
+
+	scripts, ok := packageJson["scripts"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+
+	buildScript, hasBuild := scripts["build"]
+	if !hasBuild {
+		return false
+	}
+
+	// Ensure build script is not empty
+	buildStr, ok := buildScript.(string)
+	return ok && strings.TrimSpace(buildStr) != ""
 }
 
 // loadEnhancedConfig loads configuration with .env file support

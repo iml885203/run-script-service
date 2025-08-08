@@ -1020,7 +1020,17 @@ func createFrontendTestEnv(tempDir string, packageJsonFirst bool, addDistFile bo
 
 	packageJsonPath := filepath.Join(frontendDir, "package.json")
 	distFilePath := filepath.Join(distDir, "index.html")
-	packageJsonContent := []byte(`{"name": "test"}`)
+	// Use proper package.json with build script to prevent pnpm build failures
+	packageJsonContent := []byte(`{
+		"name": "test",
+		"version": "1.0.0",
+		"scripts": {
+			"build": "echo 'Mock build successful' && mkdir -p dist && echo '<html><body>Test</body></html>' > dist/index.html"
+		},
+		"devDependencies": {
+			"vite": "^5.0.0"
+		}
+	}`)
 	distFileContent := []byte("<html></html>")
 
 	if packageJsonFirst {
@@ -1045,6 +1055,53 @@ func createFrontendTestEnv(tempDir string, packageJsonFirst bool, addDistFile bo
 		return ioutil.WriteFile(packageJsonPath, packageJsonContent, 0644)
 	}
 	return nil
+}
+
+// Test for package.json build script validation - RED PHASE
+func TestFrontendPackageJsonValidation(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "TestFrontendPackageJsonValidation")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := []struct {
+		name           string
+		packageJson    string
+		expectBuildCmd bool
+	}{
+		{
+			name:           "package.json without build script should be invalid",
+			packageJson:    `{"name": "test"}`,
+			expectBuildCmd: false,
+		},
+		{
+			name:           "package.json with empty build script should be invalid",
+			packageJson:    `{"name": "test", "scripts": {"build": ""}}`,
+			expectBuildCmd: false,
+		},
+		{
+			name:           "package.json with whitespace-only build script should be invalid",
+			packageJson:    `{"name": "test", "scripts": {"build": "   "}}`,
+			expectBuildCmd: false,
+		},
+		{
+			name:           "package.json with build script should be valid",
+			packageJson:    `{"name": "test", "scripts": {"build": "vite build"}}`,
+			expectBuildCmd: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// This test will fail initially because validateFrontendPackageJson doesn't exist
+			hasValidBuildScript := validateFrontendPackageJson([]byte(tt.packageJson))
+
+			if hasValidBuildScript != tt.expectBuildCmd {
+				t.Errorf("validateFrontendPackageJson() = %v, want %v", hasValidBuildScript, tt.expectBuildCmd)
+			}
+		})
+	}
 }
 
 // TestRunService tests the runService function
@@ -1177,7 +1234,7 @@ func TestEnsureFrontendBuilt(t *testing.T) {
 				// dist file first, then package.json (package.json will be newer)
 				return createFrontendTestEnv(tempDir, false, true, true)
 			},
-			expectError: true, // buildFrontend will fail
+			expectError: false, // buildFrontend will succeed with proper build script
 			expectedMsg: "",
 		},
 		{
