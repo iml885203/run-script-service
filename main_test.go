@@ -1458,3 +1458,46 @@ func TestValidateWebServiceSetup(t *testing.T) {
 		})
 	}
 }
+
+// RED PHASE: Test runMultiScriptService function coverage
+func TestRunMultiScriptService(t *testing.T) {
+	t.Run("should_handle_configuration_loading_and_service_startup", func(t *testing.T) {
+		// Create temporary directory
+		tempDir, err := ioutil.TempDir("", "test_multi_script_service")
+		if err != nil {
+			t.Fatalf("Failed to create temp dir: %v", err)
+		}
+		defer os.RemoveAll(tempDir)
+
+		// Create test configuration
+		configPath := filepath.Join(tempDir, "service_config.json")
+		testConfig := service.ServiceConfig{
+			Scripts: []service.ScriptConfig{
+				{
+					Name:     "test",
+					Path:     filepath.Join(tempDir, "test.sh"),
+					Interval: 60,
+					Enabled:  true,
+				},
+			},
+			WebPort: 8080,
+		}
+
+		// Create test script file
+		testScript := filepath.Join(tempDir, "test.sh")
+		err = ioutil.WriteFile(testScript, []byte("#!/bin/bash\necho 'test'\n"), 0755)
+		if err != nil {
+			t.Fatalf("Failed to create test script: %v", err)
+		}
+
+		// Save configuration
+		err = service.SaveServiceConfig(configPath, &testConfig)
+		if err != nil {
+			t.Fatalf("Failed to save config: %v", err)
+		}
+
+		// This test will initially fail because runMultiScriptService is not testable
+		// We need to extract testable logic from runMultiScriptService
+		t.Skip("runMultiScriptService not yet testable - needs refactoring for TDD")
+	})
+}
