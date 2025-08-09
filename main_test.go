@@ -1658,4 +1658,64 @@ func TestMainFunctionWrapper(t *testing.T) {
 			t.Errorf("Expected exit code 0, got %d", exitCode)
 		}
 	})
+
+	// 🔴 Red Phase: Test error conditions
+	t.Run("should_return_error_exit_code_for_invalid_command", func(t *testing.T) {
+		// Create temp directory for test
+		tempDir := t.TempDir()
+
+		// Test invalid command arguments
+		args := []string{"program", "invalid-command"}
+		scriptPath := filepath.Join(tempDir, "run.sh")
+		configPath := filepath.Join(tempDir, "service_config.json")
+		logPath := filepath.Join(tempDir, "run.log")
+
+		// This should return exit code 1 for invalid command
+		exitCode, err := runMainTestable(args, scriptPath, logPath, configPath, 100)
+		if err == nil {
+			t.Error("Expected error for invalid command")
+		}
+
+		if exitCode != 1 {
+			t.Errorf("Expected exit code 1 for error, got %d", exitCode)
+		}
+	})
+
+	// 🔴 Red Phase: Test service startup behavior
+	t.Run("should_handle_run_command_with_service_startup", func(t *testing.T) {
+		// Create temp directory for test
+		tempDir := t.TempDir()
+
+		// Create test script
+		scriptPath := filepath.Join(tempDir, "run.sh")
+		scriptContent := "#!/bin/bash\necho 'test service output'"
+		err := os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+		if err != nil {
+			t.Fatalf("Failed to create test script: %v", err)
+		}
+
+		// Create test config
+		configPath := filepath.Join(tempDir, "service_config.json")
+		configContent := `{"web_port": 8080, "scripts": []}`
+		err = os.WriteFile(configPath, []byte(configContent), 0644)
+		if err != nil {
+			t.Fatalf("Failed to create config: %v", err)
+		}
+
+		// Test 'run' command that should start service (but we can't test the blocking part)
+		args := []string{"program", "run"}
+		logPath := filepath.Join(tempDir, "run.log")
+
+		// Test that we correctly identify this as a service command
+		// We can't test the actual service startup since it's blocking
+		// But we can test the command parsing logic
+		result, err := handleCommand(args, scriptPath, logPath, configPath, 100)
+		if err != nil {
+			t.Errorf("Expected handleCommand to succeed, got error: %v", err)
+		}
+
+		if !result.shouldRunService {
+			t.Error("Expected 'run' command to set shouldRunService=true")
+		}
+	})
 }
