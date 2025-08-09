@@ -1627,3 +1627,35 @@ func TestRunMultiScriptService(t *testing.T) {
 		}
 	})
 }
+
+// 🔴 Red Phase: Test for main function behavior
+func TestMainFunctionWrapper(t *testing.T) {
+	// Red phase - this test should fail until we create a testable main wrapper
+	t.Run("should_handle_valid_arguments_without_exiting", func(t *testing.T) {
+		// Create temp directory for test
+		tempDir := t.TempDir()
+
+		// Create test script
+		scriptPath := filepath.Join(tempDir, "run.sh")
+		scriptContent := "#!/bin/bash\necho 'test output'"
+		err := os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+		if err != nil {
+			t.Fatalf("Failed to create test script: %v", err)
+		}
+
+		// Test arguments that should work without exiting
+		args := []string{"program", "show-config"}
+		configPath := filepath.Join(tempDir, "service_config.json")
+		logPath := filepath.Join(tempDir, "run.log")
+
+		// This should work without calling os.Exit
+		exitCode, err := runMainTestable(args, scriptPath, logPath, configPath, 100)
+		if err != nil {
+			t.Errorf("Expected runMainTestable to succeed, got error: %v", err)
+		}
+
+		if exitCode != 0 {
+			t.Errorf("Expected exit code 0, got %d", exitCode)
+		}
+	})
+}

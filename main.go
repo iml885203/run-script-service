@@ -125,10 +125,22 @@ func main() {
 	configPath := filepath.Join(dir, "service_config.json")
 	maxLines := 100
 
-	result, err := handleCommand(os.Args, scriptPath, logPath, configPath, maxLines)
+	exitCode, err := runMainTestable(os.Args, scriptPath, logPath, configPath, maxLines)
 	if err != nil {
 		fmt.Printf("%v\n", err)
 		os.Exit(1)
+	}
+
+	if exitCode != 0 {
+		os.Exit(exitCode)
+	}
+}
+
+// 🟢 Green Phase: Minimal implementation to make test pass
+func runMainTestable(args []string, scriptPath, logPath, configPath string, maxLines int) (int, error) {
+	result, err := handleCommand(args, scriptPath, logPath, configPath, maxLines)
+	if err != nil {
+		return 1, err
 	}
 
 	if result.shouldRunService {
@@ -138,6 +150,8 @@ func main() {
 			runMultiScriptService(configPath)
 		}
 	}
+
+	return 0, nil
 }
 
 func runService(svc *service.Service) {
