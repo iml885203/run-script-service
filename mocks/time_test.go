@@ -160,16 +160,55 @@ func TestMockFileSystem_ReadFile_WithCustomFunc(t *testing.T) {
 }
 
 func TestMockFileSystem_OpenFile(t *testing.T) {
-	fs := NewMockFileSystem()
+	t.Run("OpenFile with existing file should succeed", func(t *testing.T) {
+		fs := NewMockFileSystem()
+		// Add a file to the mock filesystem
+		fs.Files["test.txt"] = []byte("test content")
 
-	// OpenFile is not implemented in mock, should always return error
-	file, err := fs.OpenFile("test.txt", os.O_RDONLY, 0644)
-	if file != nil {
-		t.Error("OpenFile should return nil file in mock")
-	}
-	if err != os.ErrNotExist {
-		t.Errorf("Expected os.ErrNotExist, got %v", err)
-	}
+		file, err := fs.OpenFile("test.txt", os.O_RDONLY, 0644)
+		if err != nil {
+			t.Errorf("Expected no error for existing file, got %v", err)
+		}
+		// Note: file will be nil in mock implementation - that's expected for mock
+		_ = file
+	})
+
+	t.Run("OpenFile with non-existing file should return error", func(t *testing.T) {
+		fs := NewMockFileSystem()
+
+		file, err := fs.OpenFile("nonexistent.txt", os.O_RDONLY, 0644)
+		if file != nil {
+			t.Error("Expected nil file for non-existing file")
+		}
+		if err != os.ErrNotExist {
+			t.Errorf("Expected os.ErrNotExist, got %v", err)
+		}
+	})
+
+	t.Run("OpenFile with custom function should use custom behavior", func(t *testing.T) {
+		fs := NewMockFileSystem()
+		customErr := os.ErrPermission
+		openFileCalled := false
+
+		fs.OpenFileFunc = func(name string, flag int, perm os.FileMode) (*os.File, error) {
+			openFileCalled = true
+			if name == "custom.txt" {
+				return nil, customErr
+			}
+			return nil, os.ErrNotExist
+		}
+
+		file, err := fs.OpenFile("custom.txt", os.O_RDONLY, 0644)
+		if file != nil {
+			t.Error("Expected nil file from custom function")
+		}
+		if err != customErr {
+			t.Errorf("Expected custom error %v, got %v", customErr, err)
+		}
+		if !openFileCalled {
+			t.Error("Expected OpenFileFunc to be called")
+		}
+	})
 }
 
 func TestMockFileSystem_Stat(t *testing.T) {
