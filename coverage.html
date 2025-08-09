@@ -79,7 +79,7 @@
 
 				<option value="file11">run-script-service/service/git_discovery.go (88.2%)</option>
 
-				<option value="file12">run-script-service/service/log_manager.go (33.0%)</option>
+				<option value="file12">run-script-service/service/log_manager.go (69.7%)</option>
 
 				<option value="file13">run-script-service/service/monitor.go (70.4%)</option>
 
@@ -3158,58 +3158,58 @@ func (sl *ScriptLogger) GetEntries() []LogEntry <span class="cov8" title="1">{
 }</span>
 
 // QueryLogs queries logs across all managed scripts
-func (lm *LogManager) QueryLogs(query *LogQuery) ([]LogEntry, error) <span class="cov0" title="0">{
+func (lm *LogManager) QueryLogs(query *LogQuery) ([]LogEntry, error) <span class="cov8" title="1">{
         lm.mutex.RLock()
         defer lm.mutex.RUnlock()
 
         var results []LogEntry
 
         // If specific script is requested
-        if query.ScriptName != "" </span><span class="cov0" title="0">{
-                if logger, exists := lm.loggers[query.ScriptName]; exists </span><span class="cov0" title="0">{
+        if query.ScriptName != "" </span><span class="cov8" title="1">{
+                if logger, exists := lm.loggers[query.ScriptName]; exists </span><span class="cov8" title="1">{
                         entries := logger.GetEntries()
                         results = append(results, entries...)
                 }</span>
-        } else<span class="cov0" title="0"> {
+        } else<span class="cov8" title="1"> {
                 // Query all scripts
-                for _, logger := range lm.loggers </span><span class="cov0" title="0">{
+                for _, logger := range lm.loggers </span><span class="cov8" title="1">{
                         entries := logger.GetEntries()
                         results = append(results, entries...)
                 }</span>
         }
 
         // Apply filters
-        <span class="cov0" title="0">filtered := make([]LogEntry, 0)
-        for i := range results </span><span class="cov0" title="0">{
-                if lm.matchesQuery(&amp;results[i], query) </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">filtered := make([]LogEntry, 0)
+        for i := range results </span><span class="cov8" title="1">{
+                if lm.matchesQuery(&amp;results[i], query) </span><span class="cov8" title="1">{
                         filtered = append(filtered, results[i])
                 }</span>
         }
 
         // Apply limit
-        <span class="cov0" title="0">if query.Limit &gt; 0 &amp;&amp; len(filtered) &gt; query.Limit </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if query.Limit &gt; 0 &amp;&amp; len(filtered) &gt; query.Limit </span><span class="cov8" title="1">{
                 filtered = filtered[len(filtered)-query.Limit:]
         }</span>
 
-        <span class="cov0" title="0">return filtered, nil</span>
+        <span class="cov8" title="1">return filtered, nil</span>
 }
 
 // matchesQuery checks if a log entry matches the query criteria
-func (lm *LogManager) matchesQuery(entry *LogEntry, query *LogQuery) bool <span class="cov0" title="0">{
+func (lm *LogManager) matchesQuery(entry *LogEntry, query *LogQuery) bool <span class="cov8" title="1">{
         // Check time range
-        if !query.StartTime.IsZero() &amp;&amp; entry.Timestamp.Before(query.StartTime) </span><span class="cov0" title="0">{
+        if !query.StartTime.IsZero() &amp;&amp; entry.Timestamp.Before(query.StartTime) </span><span class="cov8" title="1">{
                 return false
         }</span>
-        <span class="cov0" title="0">if !query.EndTime.IsZero() &amp;&amp; entry.Timestamp.After(query.EndTime) </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if !query.EndTime.IsZero() &amp;&amp; entry.Timestamp.After(query.EndTime) </span><span class="cov0" title="0">{
                 return false
         }</span>
 
         // Check exit code
-        <span class="cov0" title="0">if query.ExitCode != nil &amp;&amp; entry.ExitCode != *query.ExitCode </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if query.ExitCode != nil &amp;&amp; entry.ExitCode != *query.ExitCode </span><span class="cov8" title="1">{
                 return false
         }</span>
 
-        <span class="cov0" title="0">return true</span>
+        <span class="cov8" title="1">return true</span>
 }
 
 // LoadExistingLogs loads log entries from existing log file
@@ -3218,22 +3218,56 @@ func (sl *ScriptLogger) LoadExistingLogs() <span class="cov8" title="1">{
                 return // No existing log file
         }</span>
 
-        <span class="cov0" title="0">file, err := os.Open(sl.logPath)
+        <span class="cov8" title="1">file, err := os.Open(sl.logPath)
         if err != nil </span><span class="cov0" title="0">{
                 return // Can't open file, continue without loading
         }</span>
-        <span class="cov0" title="0">defer file.Close()
+        <span class="cov8" title="1">defer file.Close()
 
         scanner := bufio.NewScanner(file)
+
+        for scanner.Scan() </span><span class="cov8" title="1">{
+                line := strings.TrimSpace(scanner.Text())
+                if line == "" </span><span class="cov0" title="0">{
+                        continue</span> // Skip empty lines
+                }
+
+                // Try to parse as JSON first (current format)
+                <span class="cov8" title="1">var entry LogEntry
+                if err := json.Unmarshal([]byte(line), &amp;entry); err == nil </span><span class="cov8" title="1">{
+                        sl.entries = append(sl.entries, entry)
+                        continue</span>
+                }
+
+                // Check if this looks like legacy format - has specific pattern
+                <span class="cov8" title="1">timestampRegex := regexp.MustCompile(`^\[([^\]]+)\] Exit code: (\d+)$`)
+                if timestampRegex.MatchString(line) </span><span class="cov0" title="0">{
+                        // Fall back to legacy format parsing for backward compatibility
+                        sl.parseLegacyFormat(scanner, line)
+                        break</span> // parseLegacyFormat handles the rest of the file
+                }
+
+                // Otherwise, skip malformed lines (not JSON and not legacy format)
+                <span class="cov8" title="1">continue</span>
+        }
+
+        // Maintain maxLines limit
+        <span class="cov8" title="1">if len(sl.entries) &gt; sl.maxLines </span><span class="cov8" title="1">{
+                sl.entries = sl.entries[len(sl.entries)-sl.maxLines:]
+        }</span>
+}
+
+// parseLegacyFormat handles the old log format for backward compatibility
+func (sl *ScriptLogger) parseLegacyFormat(scanner *bufio.Scanner, firstLine string) <span class="cov0" title="0">{
         var currentEntry *LogEntry
         var stdoutLines []string
 
         // Regex to match timestamp and exit code line: [2025-08-02 11:26:16] Exit code: 0
         timestampRegex := regexp.MustCompile(`^\[([^\]]+)\] Exit code: (\d+)$`)
 
-        for scanner.Scan() </span><span class="cov0" title="0">{
-                line := strings.TrimSpace(scanner.Text())
-
+        // Process the first line
+        line := firstLine
+        for </span><span class="cov0" title="0">{
                 if line == "--------------------------------------------------" </span><span class="cov0" title="0">{
                         // End of entry
                         if currentEntry != nil </span><span class="cov0" title="0">{
@@ -3264,6 +3298,12 @@ func (sl *ScriptLogger) LoadExistingLogs() <span class="cov8" title="1">{
                         // Continuation of stdout (multi-line output)
                         stdoutLines = append(stdoutLines, line)
                 }</span>
+
+                // Read next line
+                <span class="cov0" title="0">if !scanner.Scan() </span><span class="cov0" title="0">{
+                        break</span>
+                }
+                <span class="cov0" title="0">line = strings.TrimSpace(scanner.Text())</span>
         }
 
         // Handle last entry if file doesn't end with separator
@@ -3271,27 +3311,22 @@ func (sl *ScriptLogger) LoadExistingLogs() <span class="cov8" title="1">{
                 currentEntry.Stdout = strings.Join(stdoutLines, "\n")
                 sl.entries = append(sl.entries, *currentEntry)
         }</span>
-
-        // Maintain maxLines limit
-        <span class="cov0" title="0">if len(sl.entries) &gt; sl.maxLines </span><span class="cov0" title="0">{
-                sl.entries = sl.entries[len(sl.entries)-sl.maxLines:]
-        }</span>
 }
 
 // ClearLogs clears all log entries for a specific script
-func (lm *LogManager) ClearLogs(scriptName string) error <span class="cov0" title="0">{
+func (lm *LogManager) ClearLogs(scriptName string) error <span class="cov8" title="1">{
         lm.mutex.Lock()
         defer lm.mutex.Unlock()
 
-        if logger, exists := lm.loggers[scriptName]; exists </span><span class="cov0" title="0">{
+        if logger, exists := lm.loggers[scriptName]; exists </span><span class="cov8" title="1">{
                 return logger.ClearEntries()
         }</span>
 
-        <span class="cov0" title="0">return fmt.Errorf("script '%s' not found", scriptName)</span>
+        <span class="cov8" title="1">return fmt.Errorf("script '%s' not found", scriptName)</span>
 }
 
 // ClearEntries clears all log entries for this script logger
-func (sl *ScriptLogger) ClearEntries() error <span class="cov0" title="0">{
+func (sl *ScriptLogger) ClearEntries() error <span class="cov8" title="1">{
         sl.mutex.Lock()
         defer sl.mutex.Unlock()
 
@@ -3303,7 +3338,7 @@ func (sl *ScriptLogger) ClearEntries() error <span class="cov0" title="0">{
                 return fmt.Errorf("failed to clear log file: %v", err)
         }</span>
 
-        <span class="cov0" title="0">return nil</span>
+        <span class="cov8" title="1">return nil</span>
 }
 </pre>
 
