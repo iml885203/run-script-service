@@ -61,7 +61,7 @@
 
 				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
 
-				<option value="file3">run-script-service/main.go (66.7%)</option>
+				<option value="file3">run-script-service/main.go (67.2%)</option>
 
 				<option value="file4">run-script-service/mocks/filesystem.go (100.0%)</option>
 
@@ -593,25 +593,50 @@ func runService(svc *service.Service) <span class="cov8" title="1">{
         }
 }
 
-func runMultiScriptService(configPath string) <span class="cov0" title="0">{
-        // Load service configuration
+// runMultiScriptServiceTestable contains the testable business logic for service initialization.
+// It separates configuration loading and manager creation from OS-level concerns like
+// signal handling and process management, making it suitable for unit testing.
+//
+// Returns:
+//   - *service.ServiceConfig: The loaded and validated service configuration
+//   - *service.ScriptManager: The initialized script manager
+//   - error: Any error that occurred during initialization
+func runMultiScriptServiceTestable(configPath string) (*service.ServiceConfig, *service.ScriptManager, error) <span class="cov8" title="1">{
+        config, err := loadConfigWithDefaults(configPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, nil, fmt.Errorf("failed to load configuration: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">manager := service.NewScriptManager(config)
+        return config, manager, nil</span>
+}
+
+// loadConfigWithDefaults loads the service configuration from the specified path
+// and applies default values where necessary.
+func loadConfigWithDefaults(configPath string) (*service.ServiceConfig, error) <span class="cov8" title="1">{
         var config service.ServiceConfig
         err := service.LoadServiceConfig(configPath, &amp;config)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        // Apply default values
+        <span class="cov8" title="1">if config.WebPort == 0 </span><span class="cov8" title="1">{
+                config.WebPort = 8080
+        }</span>
+
+        <span class="cov8" title="1">return &amp;config, nil</span>
+}
+
+func runMultiScriptService(configPath string) <span class="cov0" title="0">{
+        _, manager, err := runMultiScriptServiceTestable(configPath)
         if err != nil </span><span class="cov0" title="0">{
                 fmt.Printf("Failed to load config: %v\n", err)
                 os.Exit(1)
         }</span>
 
-        // Set default web port if not configured
-        <span class="cov0" title="0">if config.WebPort == 0 </span><span class="cov0" title="0">{
-                config.WebPort = 8080
-        }</span>
-
-        // Create script manager
-        <span class="cov0" title="0">manager := service.NewScriptManager(&amp;config)
-
         // Set up signal handling
-        sigChan := make(chan os.Signal, 1)
+        <span class="cov0" title="0">sigChan := make(chan os.Signal, 1)
         signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
 
         ctx, cancel := context.WithCancel(context.Background())
@@ -637,40 +662,6 @@ func runMultiScriptService(configPath string) <span class="cov0" title="0">{
         cancel()
 
         fmt.Println("Service stopped")</span>
-}
-
-// Testable version of runMultiScriptService that returns results instead of calling os.Exit
-type ServiceResult struct {
-        Manager *service.ScriptManager
-        Config  *service.ServiceConfig
-}
-
-func runMultiScriptServiceTestable(configPath string, ctx context.Context) (*ServiceResult, error) <span class="cov8" title="1">{
-        // Load service configuration
-        var config service.ServiceConfig
-        err := service.LoadServiceConfig(configPath, &amp;config)
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, err
-        }</span>
-
-        // Set default web port if not configured
-        <span class="cov8" title="1">if config.WebPort == 0 </span><span class="cov8" title="1">{
-                config.WebPort = 8080
-        }</span>
-
-        // Create script manager
-        <span class="cov8" title="1">manager := service.NewScriptManager(&amp;config)
-
-        // Start all enabled scripts
-        err = manager.StartAllEnabled(ctx)
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, err
-        }</span>
-
-        <span class="cov8" title="1">return &amp;ServiceResult{
-                Manager: manager,
-                Config:  &amp;config,
-        }, nil</span>
 }
 
 func parseInterval(intervalStr string) (int, error) <span class="cov8" title="1">{
