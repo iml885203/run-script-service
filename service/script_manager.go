@@ -387,9 +387,8 @@ func (sm *ScriptManager) applyConfigChanges(name string, runner *ScriptRunner, o
 				return nil
 			}
 		case "interval", "path":
-			// Changes that require restart - for now, just note that restart is needed
-			// In a full implementation, this would trigger graceful restart
-			return fmt.Errorf("configuration change (%s) requires restart - not yet implemented", change.Field)
+			// Changes that require restart - implement graceful restart
+			return sm.gracefulRestartScript(name, runner, newConfig)
 		case "timeout", "max_log_lines":
 			// These changes can be applied without restart
 			// For now, just log that they would be applied
@@ -505,4 +504,28 @@ func (sm *ScriptManager) UpdateScriptWithFeedback(name string, updatedConfig Scr
 		Scheduled: anyScheduled,
 		Changes:   changeInfos,
 	}
+}
+
+// gracefulRestartScript stops a running script and starts it again with the new configuration
+func (sm *ScriptManager) gracefulRestartScript(name string, runner *ScriptRunner, newConfig ScriptConfig) error {
+	// Stop the current script
+	runner.Stop()
+	delete(sm.scripts, name)
+
+	// Create and start a new script runner with updated configuration
+	logPath := fmt.Sprintf("%s.log", name)
+	newRunner := NewScriptRunner(newConfig, logPath)
+	sm.scripts[name] = newRunner
+
+	// Start the new runner in a goroutine
+	go func() {
+		ctx := context.Background() // Use background context for restart
+		newRunner.Start(ctx)
+		// Clean up when runner stops
+		sm.mutex.Lock()
+		delete(sm.scripts, name)
+		sm.mutex.Unlock()
+	}()
+
+	return nil
 }

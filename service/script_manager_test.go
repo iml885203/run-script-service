@@ -545,3 +545,71 @@ func TestScriptManager_UpdateScript_WithImmediateApplication(t *testing.T) {
 		t.Error("Script test1 not found in configuration after update")
 	}
 }
+
+func TestScriptManager_UpdateScriptWithImmediateApplication_RestartRequiredChanges(t *testing.T) {
+	config := &ServiceConfig{
+		Scripts: []ScriptConfig{
+			{
+				Name:        "test1",
+				Path:        "./test1.sh",
+				Interval:    60,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     30,
+			},
+		},
+		WebPort: 8080,
+	}
+
+	manager := NewScriptManager(config)
+	ctx := context.Background()
+
+	// Start the script first
+	err := manager.StartScript(ctx, "test1")
+	if err != nil {
+		t.Fatalf("Error starting script: %v", err)
+	}
+
+	// Verify script is running
+	if !manager.IsScriptRunning("test1") {
+		t.Fatal("Expected script to be running before update")
+	}
+
+	// Update with changes that require restart (interval and path)
+	updatedScript := ScriptConfig{
+		Name:        "test1",
+		Path:        "./test1_updated.sh", // path change requires restart
+		Interval:    120,                  // interval change requires restart
+		Enabled:     true,
+		MaxLogLines: 100,
+		Timeout:     30,
+	}
+
+	// This should gracefully restart the script with new config
+	err = manager.UpdateScriptWithImmediateApplication("test1", updatedScript)
+	if err != nil {
+		t.Errorf("Expected graceful restart to work, but got error: %v", err)
+	}
+
+	// Verify script is still running after graceful restart
+	if !manager.IsScriptRunning("test1") {
+		t.Error("Expected script to still be running after graceful restart")
+	}
+
+	// Verify configuration was updated
+	found := false
+	for _, script := range manager.config.Scripts {
+		if script.Name == "test1" {
+			found = true
+			if script.Interval != 120 {
+				t.Errorf("Expected interval 120 after restart, got %d", script.Interval)
+			}
+			if script.Path != "./test1_updated.sh" {
+				t.Errorf("Expected path ./test1_updated.sh after restart, got %s", script.Path)
+			}
+		}
+	}
+	if !found {
+		t.Error("Script test1 not found in configuration after graceful restart")
+	}
+}

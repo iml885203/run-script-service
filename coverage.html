@@ -59,7 +59,7 @@
 
 				<option value="file1">run-script-service/auth/middleware.go (100.0%)</option>
 
-				<option value="file2">run-script-service/auth/session.go (93.5%)</option>
+				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
 
 				<option value="file3">run-script-service/main.go (65.5%)</option>
 
@@ -87,7 +87,7 @@
 
 				<option value="file15">run-script-service/service/script_generator.go (84.8%)</option>
 
-				<option value="file16">run-script-service/service/script_manager.go (44.3%)</option>
+				<option value="file16">run-script-service/service/script_manager.go (49.3%)</option>
 
 				<option value="file17">run-script-service/service/script_runner.go (76.1%)</option>
 
@@ -393,7 +393,7 @@ func (sm *SessionManager) ValidateSession(token string) (string, bool) <span cla
         // Check if session has expired
         <span class="cov8" title="1">if time.Now().After(session.ExpiresAt) </span><span class="cov8" title="1">{
                 // Clean up expired session
-                go func() </span><span class="cov8" title="1">{
+                go func() </span><span class="cov0" title="0">{
                         sm.mutex.Lock()
                         defer sm.mutex.Unlock()
                         delete(sm.sessions, token)
@@ -4251,7 +4251,7 @@ func (sm *ScriptManager) UpdateScriptWithImmediateApplication(name string, updat
         <span class="cov8" title="1">changes := sm.detectChanges(*oldConfig, updatedConfig)
 
         // Apply changes immediately if script is running
-        if runner, exists := sm.scripts[name]; exists </span><span class="cov0" title="0">{
+        if runner, exists := sm.scripts[name]; exists </span><span class="cov8" title="1">{
                 return sm.applyConfigChanges(name, runner, *oldConfig, updatedConfig, changes)
         }</span>
 
@@ -4260,9 +4260,9 @@ func (sm *ScriptManager) UpdateScriptWithImmediateApplication(name string, updat
 }
 
 // applyConfigChanges applies configuration changes to a running script
-func (sm *ScriptManager) applyConfigChanges(name string, runner *ScriptRunner, oldConfig, newConfig ScriptConfig, changes []ConfigChange) error <span class="cov0" title="0">{
+func (sm *ScriptManager) applyConfigChanges(name string, runner *ScriptRunner, oldConfig, newConfig ScriptConfig, changes []ConfigChange) error <span class="cov8" title="1">{
         // For now, implement basic logic - this will be enhanced in subsequent steps
-        for _, change := range changes </span><span class="cov0" title="0">{
+        for _, change := range changes </span><span class="cov8" title="1">{
                 switch change.Field </span>{
                 case "enabled":<span class="cov0" title="0">
                         if newConfig.Enabled &amp;&amp; !oldConfig.Enabled </span><span class="cov0" title="0">{
@@ -4274,10 +4274,9 @@ func (sm *ScriptManager) applyConfigChanges(name string, runner *ScriptRunner, o
                                 delete(sm.scripts, name)
                                 return nil
                         }</span>
-                case "interval", "path":<span class="cov0" title="0">
-                        // Changes that require restart - for now, just note that restart is needed
-                        // In a full implementation, this would trigger graceful restart
-                        return fmt.Errorf("configuration change (%s) requires restart - not yet implemented", change.Field)</span>
+                case "interval", "path":<span class="cov8" title="1">
+                        // Changes that require restart - implement graceful restart
+                        return sm.gracefulRestartScript(name, runner, newConfig)</span>
                 case "timeout", "max_log_lines":<span class="cov0" title="0">
                         // These changes can be applied without restart
                         // For now, just log that they would be applied
@@ -4393,6 +4392,30 @@ func (sm *ScriptManager) UpdateScriptWithFeedback(name string, updatedConfig Scr
                 Scheduled: anyScheduled,
                 Changes:   changeInfos,
         }</span>
+}
+
+// gracefulRestartScript stops a running script and starts it again with the new configuration
+func (sm *ScriptManager) gracefulRestartScript(name string, runner *ScriptRunner, newConfig ScriptConfig) error <span class="cov8" title="1">{
+        // Stop the current script
+        runner.Stop()
+        delete(sm.scripts, name)
+
+        // Create and start a new script runner with updated configuration
+        logPath := fmt.Sprintf("%s.log", name)
+        newRunner := NewScriptRunner(newConfig, logPath)
+        sm.scripts[name] = newRunner
+
+        // Start the new runner in a goroutine
+        go func() </span><span class="cov8" title="1">{
+                ctx := context.Background() // Use background context for restart
+                newRunner.Start(ctx)
+                // Clean up when runner stops
+                sm.mutex.Lock()
+                delete(sm.scripts, name)
+                sm.mutex.Unlock()
+        }</span>()
+
+        <span class="cov8" title="1">return nil</span>
 }
 </pre>
 
