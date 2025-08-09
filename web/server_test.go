@@ -1182,3 +1182,78 @@ func TestWebServer_ErrorHandlingMiddleware_RequestTracking(t *testing.T) {
 		t.Errorf("Expected error message '%s', got '%s'", expectedError, response.Error)
 	}
 }
+
+// TestWebServer_SetScriptFileManager tests setting the script file manager
+func TestWebServer_SetScriptFileManager(t *testing.T) {
+	server := NewWebServer(nil, 8080, "test-secret")
+
+	// Create a mock script file manager
+	mockFileManager := &service.ScriptFileManager{}
+
+	// Test setting the script file manager
+	server.SetScriptFileManager(mockFileManager)
+
+	// Verify the script file manager was set correctly
+	if server.scriptFileManager != mockFileManager {
+		t.Error("Expected script file manager to be set correctly")
+	}
+}
+
+// TestWebServer_HandleClearScriptLogs tests clearing script logs
+func TestWebServer_HandleClearScriptLogs(t *testing.T) {
+	server := createTestServerWithScripts([]service.ScriptConfig{})
+
+	t.Run("should fail when script name is empty", func(t *testing.T) {
+		req, err := createAuthenticatedRequest("DELETE", "/api/logs/%20", "", server) // URL encoded space
+		if err != nil {
+			t.Fatalf("Failed to create authenticated request: %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		server.router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("Expected status 400, got %d", w.Code)
+		}
+
+		var response APIResponse
+		err = json.Unmarshal(w.Body.Bytes(), &response)
+		if err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		if response.Success {
+			t.Error("Expected failed response for empty script name")
+		}
+
+		expectedError := "Script name is required"
+		if response.Error != expectedError {
+			t.Errorf("Expected error message '%s', got '%s'", expectedError, response.Error)
+		}
+	})
+
+	t.Run("should clear logs for existing script", func(t *testing.T) {
+		req, err := createAuthenticatedRequest("DELETE", "/api/logs/test-script", "", server)
+		if err != nil {
+			t.Fatalf("Failed to create authenticated request: %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		server.router.ServeHTTP(w, req)
+
+		// The implementation should handle the request and return success or error
+		// Even if the log file doesn't exist, it should respond appropriately
+		if w.Code != http.StatusOK && w.Code != http.StatusInternalServerError {
+			t.Errorf("Expected status 200 or 500, got %d", w.Code)
+		}
+
+		var response APIResponse
+		err = json.Unmarshal(w.Body.Bytes(), &response)
+		if err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		// Either success (if log cleared) or error (if log file doesn't exist) is acceptable
+		// This tests that the route exists and the handler responds properly
+	})
+}

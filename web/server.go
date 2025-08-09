@@ -911,7 +911,7 @@ func (ws *WebServer) handleGetScriptLogs(c *gin.Context) {
 
 // handleClearScriptLogs clears logs for a specific script (simplified)
 func (ws *WebServer) handleClearScriptLogs(c *gin.Context) {
-	scriptName := c.Param("script")
+	scriptName := strings.TrimSpace(c.Param("script"))
 	if scriptName == "" {
 		c.JSON(http.StatusBadRequest, APIResponse{
 			Success: false,
