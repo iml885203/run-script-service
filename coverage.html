@@ -59,7 +59,7 @@
 
 				<option value="file1">run-script-service/auth/middleware.go (100.0%)</option>
 
-				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
+				<option value="file2">run-script-service/auth/session.go (93.5%)</option>
 
 				<option value="file3">run-script-service/main.go (66.7%)</option>
 
@@ -103,7 +103,7 @@
 
 				<option value="file23">run-script-service/web/handlers_script_files.go (68.0%)</option>
 
-				<option value="file24">run-script-service/web/server.go (59.3%)</option>
+				<option value="file24">run-script-service/web/server.go (61.5%)</option>
 
 				<option value="file25">run-script-service/web/vue_build_manager.go (31.8%)</option>
 
@@ -393,7 +393,7 @@ func (sm *SessionManager) ValidateSession(token string) (string, bool) <span cla
         // Check if session has expired
         <span class="cov8" title="1">if time.Now().After(session.ExpiresAt) </span><span class="cov8" title="1">{
                 // Clean up expired session
-                go func() </span><span class="cov0" title="0">{
+                go func() </span><span class="cov8" title="1">{
                         sm.mutex.Lock()
                         defer sm.mutex.Unlock()
                         delete(sm.sessions, token)
@@ -7008,7 +7008,7 @@ func (ws *WebServer) handleUpdateConfig(c *gin.Context) <span class="cov8" title
 }
 
 // Start starts the web server
-func (ws *WebServer) Start() error <span class="cov0" title="0">{
+func (ws *WebServer) Start() error <span class="cov8" title="1">{
         addr := fmt.Sprintf(":%d", ws.port)
         return ws.router.Run(addr)
 }</span>
@@ -7038,7 +7038,7 @@ func (ws *WebServer) getAggregatedLogs(maxEntries int) []LogEntry <span class="c
 }
 
 // getScriptLogs returns logs for a specific script in LogEntry format
-func (ws *WebServer) getScriptLogs(scriptName string, maxEntries int) []LogEntry <span class="cov0" title="0">{
+func (ws *WebServer) getScriptLogs(scriptName string, maxEntries int) []LogEntry <span class="cov8" title="1">{
         // Initialize with non-nil slice to ensure JSON serializes as [] not null
         logs := make([]LogEntry, 0)
 
@@ -7046,14 +7046,14 @@ func (ws *WebServer) getScriptLogs(scriptName string, maxEntries int) []LogEntry
         dir, err := os.Executable()
         if err != nil </span><span class="cov0" title="0">{
                 dir, _ = os.Getwd()
-        }</span> else<span class="cov0" title="0"> {
+        }</span> else<span class="cov8" title="1"> {
                 dir = filepath.Dir(dir)
         }</span>
 
-        <span class="cov0" title="0">logFile := filepath.Join(dir, fmt.Sprintf("%s.log", scriptName))
+        <span class="cov8" title="1">logFile := filepath.Join(dir, fmt.Sprintf("%s.log", scriptName))
 
         // Check if log file exists
-        if _, err := os.Stat(logFile); os.IsNotExist(err) </span><span class="cov0" title="0">{
+        if _, err := os.Stat(logFile); os.IsNotExist(err) </span><span class="cov8" title="1">{
                 return logs // Return empty array
         }</span>
 
