@@ -59,13 +59,13 @@
 
 				<option value="file1">run-script-service/auth/middleware.go (100.0%)</option>
 
-				<option value="file2">run-script-service/auth/session.go (93.5%)</option>
+				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
 
 				<option value="file3">run-script-service/main.go (67.3%)</option>
 
 				<option value="file4">run-script-service/mocks/filesystem.go (100.0%)</option>
 
-				<option value="file5">run-script-service/service/config.go (68.1%)</option>
+				<option value="file5">run-script-service/service/config.go (73.6%)</option>
 
 				<option value="file6">run-script-service/service/debug_logger.go (100.0%)</option>
 
@@ -393,7 +393,7 @@ func (sm *SessionManager) ValidateSession(token string) (string, bool) <span cla
         // Check if session has expired
         <span class="cov8" title="1">if time.Now().After(session.ExpiresAt) </span><span class="cov8" title="1">{
                 // Clean up expired session
-                go func() </span><span class="cov8" title="1">{
+                go func() </span><span class="cov0" title="0">{
                         sm.mutex.Lock()
                         defer sm.mutex.Unlock()
                         delete(sm.sessions, token)
@@ -2019,17 +2019,17 @@ func LoadServiceConfig(configPath string, config *ServiceConfig) error <span cla
 }
 
 // SaveServiceConfig saves the service configuration to file
-func SaveServiceConfig(configPath string, config *ServiceConfig) error <span class="cov0" title="0">{
+func SaveServiceConfig(configPath string, config *ServiceConfig) error <span class="cov8" title="1">{
         data, err := json.MarshalIndent(config, "", "  ")
         if err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("error marshaling config: %v", err)
         }</span>
 
-        <span class="cov0" title="0">if err := os.WriteFile(configPath, data, 0600); err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if err := os.WriteFile(configPath, data, 0600); err != nil </span><span class="cov8" title="1">{
                 return fmt.Errorf("error writing config: %v", err)
         }</span>
 
-        <span class="cov0" title="0">return nil</span>
+        <span class="cov8" title="1">return nil</span>
 }
 
 // NewEnhancedConfig creates a new enhanced configuration manager
