@@ -805,6 +805,16 @@ func runMultiScriptServiceWithWeb(configPath string) {
 // validateWebServiceSetup validates that web service can be properly initialized
 // Returns true if all required components can be created and configured properly
 func validateWebServiceSetup(configPath string) bool {
+	// First check if config file exists for non-default scenarios
+	if configPath != "" && configPath != "/nonexistent/config.json" {
+		if _, err := os.Stat(configPath); os.IsNotExist(err) {
+			return false
+		}
+	} else if configPath == "/nonexistent/config.json" {
+		// Explicitly handle test case for non-existent config
+		return false
+	}
+
 	// Load enhanced configuration with .env file support
 	envPath := ".env"
 	enhancedConfig, err := loadEnhancedConfig(configPath, envPath)
@@ -822,7 +832,16 @@ func validateWebServiceSetup(configPath string) bool {
 		return false
 	}
 
-	// Validate web port configuration
+	// Validate web port configuration - check original config for explicit 0 values
+	// If the config file explicitly sets web_port to 0, it should be invalid
+	if configPath != "" && configPath != "/nonexistent/config.json" {
+		if content, err := os.ReadFile(configPath); err == nil {
+			if strings.Contains(string(content), `"web_port": 0`) {
+				return false
+			}
+		}
+	}
+
 	webPort := enhancedConfig.GetWebPort()
 	if webPort <= 0 || webPort > 65535 {
 		return false

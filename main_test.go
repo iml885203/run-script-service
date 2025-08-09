@@ -1292,3 +1292,169 @@ func TestEnsureFrontendBuilt(t *testing.T) {
 		})
 	}
 }
+
+// RED PHASE: Test validateServiceConfig function error paths
+func TestValidateServiceConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      *service.ServiceConfig
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "nil config",
+			config:      nil,
+			expectError: true,
+			errorMsg:    "config cannot be nil",
+		},
+		{
+			name: "script with empty name",
+			config: &service.ServiceConfig{
+				Scripts: []service.ScriptConfig{
+					{Name: "", Path: "/test.sh", Interval: 60},
+				},
+			},
+			expectError: true,
+			errorMsg:    "script name cannot be empty",
+		},
+		{
+			name: "script with empty path",
+			config: &service.ServiceConfig{
+				Scripts: []service.ScriptConfig{
+					{Name: "test", Path: "", Interval: 60},
+				},
+			},
+			expectError: true,
+			errorMsg:    "script path cannot be empty",
+		},
+		{
+			name: "script with zero interval",
+			config: &service.ServiceConfig{
+				Scripts: []service.ScriptConfig{
+					{Name: "test", Path: "/test.sh", Interval: 0},
+				},
+			},
+			expectError: true,
+			errorMsg:    "script interval must be positive",
+		},
+		{
+			name: "script with negative interval",
+			config: &service.ServiceConfig{
+				Scripts: []service.ScriptConfig{
+					{Name: "test", Path: "/test.sh", Interval: -1},
+				},
+			},
+			expectError: true,
+			errorMsg:    "script interval must be positive",
+		},
+		{
+			name: "valid config",
+			config: &service.ServiceConfig{
+				Scripts: []service.ScriptConfig{
+					{Name: "test", Path: "/test.sh", Interval: 60},
+				},
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateServiceConfig(tt.config)
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				} else if tt.errorMsg != "" && !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("Expected error message to contain %q, got %q", tt.errorMsg, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// RED PHASE: Test getPidFilePath error handling
+func TestGetPidFilePath(t *testing.T) {
+	// This tests the getPidFilePath function which has some error handling paths
+	pidPath := getPidFilePath()
+	if pidPath == "" {
+		t.Error("PID file path should not be empty")
+	}
+
+	// Should end with the expected filename
+	if !strings.HasSuffix(pidPath, "run-script-service.pid") {
+		t.Errorf("PID file path should end with 'run-script-service.pid', got %s", pidPath)
+	}
+}
+
+// RED PHASE: Test validateWebServiceSetup error paths
+func TestValidateWebServiceSetup(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func() string // Returns config path
+		expected bool
+	}{
+		{
+			name: "invalid config path",
+			setup: func() string {
+				return "/nonexistent/config.json"
+			},
+			expected: false,
+		},
+		{
+			name: "invalid web port - too high",
+			setup: func() string {
+				tempDir, _ := os.MkdirTemp("", "test")
+				configPath := filepath.Join(tempDir, "service_config.json")
+				configContent := `{"scripts": [], "web_port": 99999}`
+				os.WriteFile(configPath, []byte(configContent), 0644)
+				return configPath
+			},
+			expected: false,
+		},
+		{
+			name: "invalid web port - zero",
+			setup: func() string {
+				tempDir, _ := os.MkdirTemp("", "test")
+				configPath := filepath.Join(tempDir, "service_config.json")
+				configContent := `{"scripts": [], "web_port": 0}`
+				os.WriteFile(configPath, []byte(configContent), 0644)
+				return configPath
+			},
+			expected: false,
+		},
+		{
+			name: "valid config",
+			setup: func() string {
+				tempDir, _ := os.MkdirTemp("", "test")
+				configPath := filepath.Join(tempDir, "service_config.json")
+				configContent := `{"scripts": [], "web_port": 8080}`
+				os.WriteFile(configPath, []byte(configContent), 0644)
+				return configPath
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			configPath := tt.setup()
+			defer func() {
+				if strings.Contains(configPath, "/tmp/") {
+					os.RemoveAll(filepath.Dir(configPath))
+				}
+			}()
+
+			result := validateWebServiceSetup(configPath)
+			if result != tt.expected {
+				t.Errorf("Expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
