@@ -103,11 +103,11 @@
 
 				<option value="file23">run-script-service/web/handlers_script_files.go (68.0%)</option>
 
-				<option value="file24">run-script-service/web/server.go (55.4%)</option>
+				<option value="file24">run-script-service/web/server.go (57.6%)</option>
 
-				<option value="file25">run-script-service/web/vue_build_manager.go (13.6%)</option>
+				<option value="file25">run-script-service/web/vue_build_manager.go (31.8%)</option>
 
-				<option value="file26">run-script-service/web/websocket.go (18.3%)</option>
+				<option value="file26">run-script-service/web/websocket.go (19.7%)</option>
 
 				</select>
 			</div>
@@ -6823,7 +6823,7 @@ func (ws *WebServer) handleClearScriptLogs(c *gin.Context) <span class="cov8" ti
 }
 
 // handleGetRawLogs returns raw log file content (simple approach)
-func (ws *WebServer) handleGetRawLogs(c *gin.Context) <span class="cov0" title="0">{
+func (ws *WebServer) handleGetRawLogs(c *gin.Context) <span class="cov8" title="1">{
         scriptName := c.Param("script")
         if scriptName == "" </span><span class="cov0" title="0">{
                 c.JSON(http.StatusBadRequest, APIResponse{
@@ -6834,17 +6834,17 @@ func (ws *WebServer) handleGetRawLogs(c *gin.Context) <span class="cov0" title="
         }</span>
 
         // Get log file path
-        <span class="cov0" title="0">dir, err := os.Executable()
+        <span class="cov8" title="1">dir, err := os.Executable()
         if err != nil </span><span class="cov0" title="0">{
                 dir, _ = os.Getwd()
-        }</span> else<span class="cov0" title="0"> {
+        }</span> else<span class="cov8" title="1"> {
                 dir = filepath.Dir(dir)
         }</span>
 
-        <span class="cov0" title="0">logFile := filepath.Join(dir, fmt.Sprintf("%s.log", scriptName))
+        <span class="cov8" title="1">logFile := filepath.Join(dir, fmt.Sprintf("%s.log", scriptName))
 
         // Check if log file exists
-        if _, err := os.Stat(logFile); os.IsNotExist(err) </span><span class="cov0" title="0">{
+        if _, err := os.Stat(logFile); os.IsNotExist(err) </span><span class="cov8" title="1">{
                 c.JSON(http.StatusOK, APIResponse{
                         Success: true,
                         Data: map[string]interface{}{
@@ -7211,7 +7211,7 @@ func (vbm *VueBuildManager) GetStaticDir() string <span class="cov8" title="1">{
 }</span>
 
 // CheckFrontendExists checks if the frontend directory structure exists
-func (vbm *VueBuildManager) CheckFrontendExists() bool <span class="cov0" title="0">{
+func (vbm *VueBuildManager) CheckFrontendExists() bool <span class="cov8" title="1">{
         requiredPaths := []string{
                 filepath.Join(vbm.FrontendDir, "package.json"),
                 filepath.Join(vbm.FrontendDir, "src", "main.ts"),
@@ -7220,8 +7220,8 @@ func (vbm *VueBuildManager) CheckFrontendExists() bool <span class="cov0" title=
                 filepath.Join(vbm.FrontendDir, "vite.config.ts"),
         }
 
-        for _, path := range requiredPaths </span><span class="cov0" title="0">{
-                if _, err := os.Stat(path); os.IsNotExist(err) </span><span class="cov0" title="0">{
+        for _, path := range requiredPaths </span><span class="cov8" title="1">{
+                if _, err := os.Stat(path); os.IsNotExist(err) </span><span class="cov8" title="1">{
                         return false
                 }</span>
         }
@@ -7356,7 +7356,7 @@ func (h *WebSocketHub) BroadcastMessage(msgType string, data map[string]interfac
 }
 
 // GetConnectionCount returns the number of active connections
-func (h *WebSocketHub) GetConnectionCount() int <span class="cov0" title="0">{
+func (h *WebSocketHub) GetConnectionCount() int <span class="cov8" title="1">{
         return len(h.clients)
 }</span>
 
