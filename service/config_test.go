@@ -545,3 +545,62 @@ func TestScriptConfig_Validate(t *testing.T) {
 		})
 	}
 }
+
+// 🔴 Red Phase: Test SaveServiceConfig function
+func TestSaveServiceConfig(t *testing.T) {
+	t.Run("should_save_config_to_file_successfully", func(t *testing.T) {
+		// Create temp directory for test
+		tempDir := t.TempDir()
+		configPath := filepath.Join(tempDir, "test_config.json")
+
+		// Create test config
+		config := &ServiceConfig{
+			WebPort: 8080,
+			Scripts: []ScriptConfig{
+				{
+					Name:     "test-script",
+					Path:     "/path/to/script.sh",
+					Interval: 300,
+					Enabled:  true,
+				},
+			},
+		}
+
+		// Test saving config
+		err := SaveServiceConfig(configPath, config)
+		if err != nil {
+			t.Errorf("Expected SaveServiceConfig to succeed, got error: %v", err)
+		}
+
+		// Verify file was created and has correct content
+		if _, err := os.Stat(configPath); os.IsNotExist(err) {
+			t.Error("Expected config file to be created")
+		}
+
+		// Load and verify content
+		var loadedConfig ServiceConfig
+		err = LoadServiceConfig(configPath, &loadedConfig)
+		if err != nil {
+			t.Errorf("Failed to load saved config: %v", err)
+		}
+
+		if loadedConfig.WebPort != config.WebPort {
+			t.Errorf("Expected WebPort %d, got %d", config.WebPort, loadedConfig.WebPort)
+		}
+
+		if len(loadedConfig.Scripts) != 1 {
+			t.Errorf("Expected 1 script, got %d", len(loadedConfig.Scripts))
+		}
+	})
+
+	t.Run("should_return_error_for_invalid_path", func(t *testing.T) {
+		// Test saving to invalid path
+		config := &ServiceConfig{WebPort: 8080}
+		invalidPath := "/nonexistent/directory/config.json"
+
+		err := SaveServiceConfig(invalidPath, config)
+		if err == nil {
+			t.Error("Expected error when saving to invalid path")
+		}
+	})
+}
