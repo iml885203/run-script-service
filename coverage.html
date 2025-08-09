@@ -103,7 +103,7 @@
 
 				<option value="file23">run-script-service/web/handlers_script_files.go (68.0%)</option>
 
-				<option value="file24">run-script-service/web/server.go (54.0%)</option>
+				<option value="file24">run-script-service/web/server.go (55.4%)</option>
 
 				<option value="file25">run-script-service/web/vue_build_manager.go (13.6%)</option>
 
@@ -6884,8 +6884,8 @@ type ConfigResponse struct {
 }
 
 // handleGetConfig returns system configuration
-func (ws *WebServer) handleGetConfig(c *gin.Context) <span class="cov0" title="0">{
-        if ws.scriptManager == nil </span><span class="cov0" title="0">{
+func (ws *WebServer) handleGetConfig(c *gin.Context) <span class="cov8" title="1">{
+        if ws.scriptManager == nil </span><span class="cov8" title="1">{
                 c.JSON(http.StatusInternalServerError, APIResponse{
                         Success: false,
                         Error:   "Script manager not initialized",
@@ -6893,7 +6893,7 @@ func (ws *WebServer) handleGetConfig(c *gin.Context) <span class="cov0" title="0
                 return
         }</span>
 
-        <span class="cov0" title="0">config := ws.scriptManager.GetConfig()
+        <span class="cov8" title="1">config := ws.scriptManager.GetConfig()
 
         // Convert to frontend-expected format
         response := ConfigResponse{

@@ -1292,3 +1292,93 @@ func TestWebServer_StartSystemMetricsBroadcasting_ErrorCases(t *testing.T) {
 		}
 	})
 }
+
+// 🔴 Red Phase: Test for handleGetConfig function
+func TestWebServer_HandleGetConfig(t *testing.T) {
+	t.Run("should return config when script manager is available", func(t *testing.T) {
+		// Create server with script manager
+		scripts := []service.ScriptConfig{
+			{Name: "test-script", Path: "./test.sh", Interval: 300, Enabled: true},
+		}
+		server := createTestServerWithScripts(scripts)
+
+		// Make authenticated GET request to config endpoint
+		req, err := createAuthenticatedRequest("GET", "/api/config", "", server)
+		if err != nil {
+			t.Fatalf("Failed to create authenticated request: %v", err)
+		}
+
+		rr := httptest.NewRecorder()
+		server.router.ServeHTTP(rr, req)
+
+		// Expect 200 OK status
+		if rr.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d", rr.Code)
+		}
+
+		// Parse response
+		var response APIResponse
+		err = json.Unmarshal(rr.Body.Bytes(), &response)
+		if err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		// Verify response structure
+		if !response.Success {
+			t.Error("Expected successful response")
+		}
+
+		// Verify that Data contains ConfigResponse fields
+		data, ok := response.Data.(map[string]interface{})
+		if !ok {
+			t.Error("Expected response data to be a map")
+		}
+
+		// Check for expected config fields
+		if _, exists := data["webPort"]; !exists {
+			t.Error("Expected webPort in response data")
+		}
+		if _, exists := data["interval"]; !exists {
+			t.Error("Expected interval in response data")
+		}
+		if _, exists := data["logRetention"]; !exists {
+			t.Error("Expected logRetention in response data")
+		}
+		if _, exists := data["autoRefresh"]; !exists {
+			t.Error("Expected autoRefresh in response data")
+		}
+	})
+
+	t.Run("should return error when script manager is not initialized", func(t *testing.T) {
+		// Create server without script manager
+		server := NewWebServer(nil, 8080, "test-secret")
+
+		req, err := createAuthenticatedRequest("GET", "/api/config", "", server)
+		if err != nil {
+			t.Fatalf("Failed to create authenticated request: %v", err)
+		}
+
+		rr := httptest.NewRecorder()
+		server.router.ServeHTTP(rr, req)
+
+		// Expect 500 Internal Server Error
+		if rr.Code != http.StatusInternalServerError {
+			t.Errorf("Expected status 500, got %d", rr.Code)
+		}
+
+		var response APIResponse
+		err = json.Unmarshal(rr.Body.Bytes(), &response)
+		if err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		// Should be a failed response
+		if response.Success {
+			t.Error("Expected failed response when script manager is not initialized")
+		}
+
+		if response.Error != "Script manager not initialized" {
+			t.Errorf("Expected specific error message, got: %s", response.Error)
+		}
+	})
+}
