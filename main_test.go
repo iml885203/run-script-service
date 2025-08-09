@@ -725,52 +725,53 @@ func TestRunMultiScriptService_ConfigurationHandling(t *testing.T) {
 
 		// This test will fail initially since runMultiScriptService is not testable
 		// We need to refactor it to accept dependencies and return errors instead of calling os.Exit
-		result, err := runMultiScriptServiceTestable(configPath, context.Background())
+		loadedConfig, scriptManager, err := runMultiScriptServiceTestable(configPath)
 		if err != nil {
 			t.Fatalf("Expected successful service initialization, got error: %v", err)
 		}
 
-		if result == nil {
-			t.Fatal("Expected non-nil result from service initialization")
+		if loadedConfig == nil {
+			t.Fatal("Expected non-nil config from service initialization")
 		}
 
 		// Verify manager was created
-		if result.Manager == nil {
+		if scriptManager == nil {
 			t.Error("Expected non-nil script manager")
 		}
 
 		// Verify config was loaded properly
-		if result.Config == nil {
-			t.Error("Expected non-nil config")
+		if loadedConfig.WebPort != 9090 {
+			t.Errorf("Expected WebPort 9090, got %d", loadedConfig.WebPort)
 		}
 
-		if result.Config.WebPort != 9090 {
-			t.Errorf("Expected WebPort 9090, got %d", result.Config.WebPort)
-		}
-
-		if len(result.Config.Scripts) != 1 {
-			t.Errorf("Expected 1 script, got %d", len(result.Config.Scripts))
+		if len(loadedConfig.Scripts) != 1 {
+			t.Errorf("Expected 1 script, got %d", len(loadedConfig.Scripts))
 		}
 	})
 
 	t.Run("should handle missing config file with default config", func(t *testing.T) {
 		// Test with non-existent config file - should use default config
-		result, err := runMultiScriptServiceTestable("/nonexistent/config.json", context.Background())
+		loadedConfig, scriptManager, err := runMultiScriptServiceTestable("/nonexistent/config.json")
 		if err != nil {
 			t.Errorf("Expected no error for missing config file, got: %v", err)
 		}
-		if result == nil {
-			t.Error("Expected non-nil result with default config")
+		if loadedConfig == nil {
+			t.Error("Expected non-nil config with default config")
 		}
 
 		// Should have default web port
-		if result.Config.WebPort != 8080 {
-			t.Errorf("Expected default WebPort 8080, got %d", result.Config.WebPort)
+		if loadedConfig.WebPort != 8080 {
+			t.Errorf("Expected default WebPort 8080, got %d", loadedConfig.WebPort)
+		}
+
+		// Verify manager was created
+		if scriptManager == nil {
+			t.Error("Expected non-nil script manager")
 		}
 
 		// Should have no scripts in default config
-		if len(result.Config.Scripts) != 0 {
-			t.Errorf("Expected 0 scripts in default config, got %d", len(result.Config.Scripts))
+		if len(loadedConfig.Scripts) != 0 {
+			t.Errorf("Expected 0 scripts in default config, got %d", len(loadedConfig.Scripts))
 		}
 	})
 
@@ -809,13 +810,18 @@ func TestRunMultiScriptService_ConfigurationHandling(t *testing.T) {
 			t.Fatalf("Failed to save config: %v", err)
 		}
 
-		result, err := runMultiScriptServiceTestable(configPath, context.Background())
+		loadedConfig, scriptManager, err := runMultiScriptServiceTestable(configPath)
 		if err != nil {
 			t.Fatalf("Expected successful service initialization, got error: %v", err)
 		}
 
-		if result.Config.WebPort != 8080 {
-			t.Errorf("Expected default WebPort 8080, got %d", result.Config.WebPort)
+		// Verify manager was created
+		if scriptManager == nil {
+			t.Error("Expected non-nil script manager")
+		}
+
+		if loadedConfig.WebPort != 8080 {
+			t.Errorf("Expected default WebPort 8080, got %d", loadedConfig.WebPort)
 		}
 	})
 }
@@ -1496,8 +1502,32 @@ func TestRunMultiScriptService(t *testing.T) {
 			t.Fatalf("Failed to save config: %v", err)
 		}
 
-		// This test will initially fail because runMultiScriptService is not testable
-		// We need to extract testable logic from runMultiScriptService
-		t.Skip("runMultiScriptService not yet testable - needs refactoring for TDD")
+		// Test the extracted testable logic
+		config, manager, err := runMultiScriptServiceTestable(configPath)
+		if err != nil {
+			t.Fatalf("runMultiScriptServiceTestable failed: %v", err)
+		}
+
+		if config == nil {
+			t.Error("Expected config to be non-nil")
+		}
+
+		if manager == nil {
+			t.Error("Expected manager to be non-nil")
+		}
+
+		// Verify config loaded correctly
+		if len(config.Scripts) != 1 {
+			t.Errorf("Expected 1 script, got %d", len(config.Scripts))
+		}
+
+		if config.Scripts[0].Name != "test" {
+			t.Errorf("Expected script name 'test', got '%s'", config.Scripts[0].Name)
+		}
+
+		// Verify default web port is set
+		if config.WebPort != 8080 {
+			t.Errorf("Expected WebPort 8080, got %d", config.WebPort)
+		}
 	})
 }

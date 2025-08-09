@@ -167,13 +167,13 @@ func runService(svc *service.Service) {
 	}
 }
 
-func runMultiScriptService(configPath string) {
+// runMultiScriptServiceTestable contains the testable business logic
+func runMultiScriptServiceTestable(configPath string) (*service.ServiceConfig, *service.ScriptManager, error) {
 	// Load service configuration
 	var config service.ServiceConfig
 	err := service.LoadServiceConfig(configPath, &config)
 	if err != nil {
-		fmt.Printf("Failed to load config: %v\n", err)
-		os.Exit(1)
+		return nil, nil, err
 	}
 
 	// Set default web port if not configured
@@ -183,6 +183,16 @@ func runMultiScriptService(configPath string) {
 
 	// Create script manager
 	manager := service.NewScriptManager(&config)
+
+	return &config, manager, nil
+}
+
+func runMultiScriptService(configPath string) {
+	_, manager, err := runMultiScriptServiceTestable(configPath)
+	if err != nil {
+		fmt.Printf("Failed to load config: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Set up signal handling
 	sigChan := make(chan os.Signal, 1)
@@ -211,40 +221,6 @@ func runMultiScriptService(configPath string) {
 	cancel()
 
 	fmt.Println("Service stopped")
-}
-
-// Testable version of runMultiScriptService that returns results instead of calling os.Exit
-type ServiceResult struct {
-	Manager *service.ScriptManager
-	Config  *service.ServiceConfig
-}
-
-func runMultiScriptServiceTestable(configPath string, ctx context.Context) (*ServiceResult, error) {
-	// Load service configuration
-	var config service.ServiceConfig
-	err := service.LoadServiceConfig(configPath, &config)
-	if err != nil {
-		return nil, err
-	}
-
-	// Set default web port if not configured
-	if config.WebPort == 0 {
-		config.WebPort = 8080
-	}
-
-	// Create script manager
-	manager := service.NewScriptManager(&config)
-
-	// Start all enabled scripts
-	err = manager.StartAllEnabled(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ServiceResult{
-		Manager: manager,
-		Config:  &config,
-	}, nil
 }
 
 func parseInterval(intervalStr string) (int, error) {
