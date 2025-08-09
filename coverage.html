@@ -63,7 +63,7 @@
 
 				<option value="file3">run-script-service/main.go (65.5%)</option>
 
-				<option value="file4">run-script-service/mocks/filesystem.go (26.7%)</option>
+				<option value="file4">run-script-service/mocks/filesystem.go (100.0%)</option>
 
 				<option value="file5">run-script-service/service/config.go (68.1%)</option>
 
@@ -103,7 +103,7 @@
 
 				<option value="file23">run-script-service/web/handlers_script_files.go (68.0%)</option>
 
-				<option value="file24">run-script-service/web/server.go (50.6%)</option>
+				<option value="file24">run-script-service/web/server.go (53.5%)</option>
 
 				<option value="file25">run-script-service/web/vue_build_manager.go (13.6%)</option>
 
@@ -1665,59 +1665,59 @@ type MockFileSystem struct {
 }
 
 // NewMockFileSystem creates a new mock file system for testing.
-func NewMockFileSystem() *MockFileSystem <span class="cov0" title="0">{
+func NewMockFileSystem() *MockFileSystem <span class="cov8" title="1">{
         return &amp;MockFileSystem{
                 Files: make(map[string][]byte),
         }
 }</span>
 
 // WriteFile implements the FileSystem interface for mock testing.
-func (m *MockFileSystem) WriteFile(filename string, data []byte, perm os.FileMode) error <span class="cov0" title="0">{
-        if m.WriteFileFunc != nil </span><span class="cov0" title="0">{
+func (m *MockFileSystem) WriteFile(filename string, data []byte, perm os.FileMode) error <span class="cov8" title="1">{
+        if m.WriteFileFunc != nil </span><span class="cov8" title="1">{
                 return m.WriteFileFunc(filename, data, perm)
         }</span>
-        <span class="cov0" title="0">m.Files[filename] = data
+        <span class="cov8" title="1">m.Files[filename] = data
         return nil</span>
 }
 
 // ReadFile implements the FileSystem interface for mock testing.
-func (m *MockFileSystem) ReadFile(filename string) ([]byte, error) <span class="cov0" title="0">{
-        if m.ReadFileFunc != nil </span><span class="cov0" title="0">{
+func (m *MockFileSystem) ReadFile(filename string) ([]byte, error) <span class="cov8" title="1">{
+        if m.ReadFileFunc != nil </span><span class="cov8" title="1">{
                 return m.ReadFileFunc(filename)
         }</span>
-        <span class="cov0" title="0">if data, exists := m.Files[filename]; exists </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if data, exists := m.Files[filename]; exists </span><span class="cov8" title="1">{
                 return data, nil
         }</span>
-        <span class="cov0" title="0">return nil, os.ErrNotExist</span>
+        <span class="cov8" title="1">return nil, os.ErrNotExist</span>
 }
 
 // OpenFile implements the FileSystem interface for mock testing.
-func (m *MockFileSystem) OpenFile(name string, flag int, perm os.FileMode) (*os.File, error) <span class="cov0" title="0">{
+func (m *MockFileSystem) OpenFile(name string, flag int, perm os.FileMode) (*os.File, error) <span class="cov8" title="1">{
         // For simplicity, this mock doesn't implement OpenFile
         return nil, os.ErrNotExist
 }</span>
 
 // Stat implements the FileSystem interface for mock testing.
-func (m *MockFileSystem) Stat(name string) (os.FileInfo, error) <span class="cov0" title="0">{
-        if m.StatFunc != nil </span><span class="cov0" title="0">{
+func (m *MockFileSystem) Stat(name string) (os.FileInfo, error) <span class="cov8" title="1">{
+        if m.StatFunc != nil </span><span class="cov8" title="1">{
                 return m.StatFunc(name)
         }</span>
-        <span class="cov0" title="0">if _, exists := m.Files[name]; exists </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if _, exists := m.Files[name]; exists </span><span class="cov8" title="1">{
                 return &amp;mockFileInfo{name: name}, nil
         }</span>
-        <span class="cov0" title="0">return nil, os.ErrNotExist</span>
+        <span class="cov8" title="1">return nil, os.ErrNotExist</span>
 }
 
 type mockFileInfo struct {
         name string
 }
 
-func (m *mockFileInfo) Name() string       <span class="cov0" title="0">{ return m.name }</span>
-func (m *mockFileInfo) Size() int64        <span class="cov0" title="0">{ return 0 }</span>
-func (m *mockFileInfo) Mode() os.FileMode  <span class="cov0" title="0">{ return 0644 }</span>
-func (m *mockFileInfo) ModTime() time.Time <span class="cov0" title="0">{ return time.Time{} }</span>
-func (m *mockFileInfo) IsDir() bool        <span class="cov0" title="0">{ return false }</span>
-func (m *mockFileInfo) Sys() interface{}   <span class="cov0" title="0">{ return nil }</span>
+func (m *mockFileInfo) Name() string       <span class="cov8" title="1">{ return m.name }</span>
+func (m *mockFileInfo) Size() int64        <span class="cov8" title="1">{ return 0 }</span>
+func (m *mockFileInfo) Mode() os.FileMode  <span class="cov8" title="1">{ return 0644 }</span>
+func (m *mockFileInfo) ModTime() time.Time <span class="cov8" title="1">{ return time.Time{} }</span>
+func (m *mockFileInfo) IsDir() bool        <span class="cov8" title="1">{ return false }</span>
+func (m *mockFileInfo) Sys() interface{}   <span class="cov8" title="1">{ return nil }</span>
 
 // TimeProvider interface abstracts time operations for testing
 type TimeProvider interface {
@@ -5987,7 +5987,7 @@ func (ws *WebServer) SetScriptManager(sm *service.ScriptManager) <span class="co
 }</span>
 
 // SetScriptFileManager sets the script file manager for the web server
-func (ws *WebServer) SetScriptFileManager(sfm *service.ScriptFileManager) <span class="cov0" title="0">{
+func (ws *WebServer) SetScriptFileManager(sfm *service.ScriptFileManager) <span class="cov8" title="1">{
         ws.scriptFileManager = sfm
 }</span>
 
@@ -6775,9 +6775,9 @@ func (ws *WebServer) handleGetScriptLogs(c *gin.Context) <span class="cov8" titl
 }
 
 // handleClearScriptLogs clears logs for a specific script (simplified)
-func (ws *WebServer) handleClearScriptLogs(c *gin.Context) <span class="cov0" title="0">{
-        scriptName := c.Param("script")
-        if scriptName == "" </span><span class="cov0" title="0">{
+func (ws *WebServer) handleClearScriptLogs(c *gin.Context) <span class="cov8" title="1">{
+        scriptName := strings.TrimSpace(c.Param("script"))
+        if scriptName == "" </span><span class="cov8" title="1">{
                 c.JSON(http.StatusBadRequest, APIResponse{
                         Success: false,
                         Error:   "Script name is required",
@@ -6786,17 +6786,17 @@ func (ws *WebServer) handleClearScriptLogs(c *gin.Context) <span class="cov0" ti
         }</span>
 
         // Get log file path
-        <span class="cov0" title="0">dir, err := os.Executable()
+        <span class="cov8" title="1">dir, err := os.Executable()
         if err != nil </span><span class="cov0" title="0">{
                 dir, _ = os.Getwd()
-        }</span> else<span class="cov0" title="0"> {
+        }</span> else<span class="cov8" title="1"> {
                 dir = filepath.Dir(dir)
         }</span>
 
-        <span class="cov0" title="0">logFile := filepath.Join(dir, fmt.Sprintf("%s.log", scriptName))
+        <span class="cov8" title="1">logFile := filepath.Join(dir, fmt.Sprintf("%s.log", scriptName))
 
         // Clear the log file by truncating it
-        if err := os.Truncate(logFile, 0); err != nil </span><span class="cov0" title="0">{
+        if err := os.Truncate(logFile, 0); err != nil </span><span class="cov8" title="1">{
                 c.JSON(http.StatusInternalServerError, APIResponse{
                         Success: false,
                         Error:   fmt.Sprintf("Failed to clear log file: %v", err),
