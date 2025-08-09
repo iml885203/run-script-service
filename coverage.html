@@ -59,7 +59,7 @@
 
 				<option value="file1">run-script-service/auth/middleware.go (100.0%)</option>
 
-				<option value="file2">run-script-service/auth/session.go (93.5%)</option>
+				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
 
 				<option value="file3">run-script-service/main.go (65.5%)</option>
 
@@ -87,7 +87,7 @@
 
 				<option value="file15">run-script-service/service/script_generator.go (84.8%)</option>
 
-				<option value="file16">run-script-service/service/script_manager.go (49.3%)</option>
+				<option value="file16">run-script-service/service/script_manager.go (70.9%)</option>
 
 				<option value="file17">run-script-service/service/script_runner.go (76.1%)</option>
 
@@ -393,7 +393,7 @@ func (sm *SessionManager) ValidateSession(token string) (string, bool) <span cla
         // Check if session has expired
         <span class="cov8" title="1">if time.Now().After(session.ExpiresAt) </span><span class="cov8" title="1">{
                 // Clean up expired session
-                go func() </span><span class="cov8" title="1">{
+                go func() </span><span class="cov0" title="0">{
                         sm.mutex.Lock()
                         defer sm.mutex.Unlock()
                         delete(sm.sessions, token)
@@ -3929,7 +3929,7 @@ func NewScriptManager(config *ServiceConfig) *ScriptManager <span class="cov8" t
 }</span>
 
 // NewScriptManagerWithPath creates a new script manager with configuration and config path
-func NewScriptManagerWithPath(config *ServiceConfig, configPath string) *ScriptManager <span class="cov0" title="0">{
+func NewScriptManagerWithPath(config *ServiceConfig, configPath string) *ScriptManager <span class="cov8" title="1">{
         return &amp;ScriptManager{
                 scripts:    make(map[string]*ScriptRunner),
                 config:     config,
@@ -4016,7 +4016,7 @@ func (sm *ScriptManager) StopAll() <span class="cov8" title="1">{
 }
 
 // GetScripts returns all configured scripts
-func (sm *ScriptManager) GetScripts() ([]ScriptConfig, error) <span class="cov0" title="0">{
+func (sm *ScriptManager) GetScripts() ([]ScriptConfig, error) <span class="cov8" title="1">{
         sm.mutex.RLock()
         defer sm.mutex.RUnlock()
 
@@ -4028,15 +4028,15 @@ func (sm *ScriptManager) GetScripts() ([]ScriptConfig, error) <span class="cov0"
 }</span>
 
 // GetRunningScripts returns a list of currently running script names
-func (sm *ScriptManager) GetRunningScripts() []string <span class="cov0" title="0">{
+func (sm *ScriptManager) GetRunningScripts() []string <span class="cov8" title="1">{
         sm.mutex.RLock()
         defer sm.mutex.RUnlock()
 
         var running []string
-        for name := range sm.scripts </span><span class="cov0" title="0">{
+        for name := range sm.scripts </span><span class="cov8" title="1">{
                 running = append(running, name)
         }</span>
-        <span class="cov0" title="0">return running</span>
+        <span class="cov8" title="1">return running</span>
 }
 
 // IsScriptRunning checks if a specific script is running
@@ -4049,7 +4049,7 @@ func (sm *ScriptManager) IsScriptRunning(name string) bool <span class="cov8" ti
 }</span>
 
 // GetConfig returns the script manager's configuration
-func (sm *ScriptManager) GetConfig() *ServiceConfig <span class="cov0" title="0">{
+func (sm *ScriptManager) GetConfig() *ServiceConfig <span class="cov8" title="1">{
         return sm.config
 }</span>
 
@@ -4062,77 +4062,77 @@ func (sm *ScriptManager) SaveConfig() error <span class="cov0" title="0">{
 }
 
 // AddScript adds a new script configuration
-func (sm *ScriptManager) AddScript(scriptConfig ScriptConfig) error <span class="cov0" title="0">{
+func (sm *ScriptManager) AddScript(scriptConfig ScriptConfig) error <span class="cov8" title="1">{
         sm.mutex.Lock()
         defer sm.mutex.Unlock()
 
         // Check if script with same name already exists
-        for _, existing := range sm.config.Scripts </span><span class="cov0" title="0">{
-                if existing.Name == scriptConfig.Name </span><span class="cov0" title="0">{
+        for _, existing := range sm.config.Scripts </span><span class="cov8" title="1">{
+                if existing.Name == scriptConfig.Name </span><span class="cov8" title="1">{
                         return fmt.Errorf("script with name %s already exists", scriptConfig.Name)
                 }</span>
         }
 
         // Add the script to configuration
-        <span class="cov0" title="0">sm.config.Scripts = append(sm.config.Scripts, scriptConfig)
+        <span class="cov8" title="1">sm.config.Scripts = append(sm.config.Scripts, scriptConfig)
         return nil</span>
 }
 
 // RunScriptOnce executes a script once by name
-func (sm *ScriptManager) RunScriptOnce(ctx context.Context, name string) error <span class="cov0" title="0">{
+func (sm *ScriptManager) RunScriptOnce(ctx context.Context, name string) error <span class="cov8" title="1">{
         sm.mutex.RLock()
         defer sm.mutex.RUnlock()
 
         // Find the script config
         var scriptConfig *ScriptConfig
-        for i, sc := range sm.config.Scripts </span><span class="cov0" title="0">{
-                if sc.Name == name </span><span class="cov0" title="0">{
+        for i, sc := range sm.config.Scripts </span><span class="cov8" title="1">{
+                if sc.Name == name </span><span class="cov8" title="1">{
                         scriptConfig = &amp;sm.config.Scripts[i]
                         break</span>
                 }
         }
 
-        <span class="cov0" title="0">if scriptConfig == nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if scriptConfig == nil </span><span class="cov8" title="1">{
                 return fmt.Errorf("script %s not found in configuration", name)
         }</span>
 
         // Create a temporary script runner for one-time execution
-        <span class="cov0" title="0">logPath := fmt.Sprintf("%s.log", name)
+        <span class="cov8" title="1">logPath := fmt.Sprintf("%s.log", name)
         runner := NewScriptRunner(*scriptConfig, logPath)
 
         return runner.RunOnce(ctx)</span>
 }
 
 // EnableScript enables a script by name
-func (sm *ScriptManager) EnableScript(name string) error <span class="cov0" title="0">{
+func (sm *ScriptManager) EnableScript(name string) error <span class="cov8" title="1">{
         sm.mutex.Lock()
         defer sm.mutex.Unlock()
 
         // Find the script config
-        for i, sc := range sm.config.Scripts </span><span class="cov0" title="0">{
-                if sc.Name == name </span><span class="cov0" title="0">{
+        for i, sc := range sm.config.Scripts </span><span class="cov8" title="1">{
+                if sc.Name == name </span><span class="cov8" title="1">{
                         sm.config.Scripts[i].Enabled = true
                         return nil
                 }</span>
         }
 
-        <span class="cov0" title="0">return fmt.Errorf("script %s not found in configuration", name)</span>
+        <span class="cov8" title="1">return fmt.Errorf("script %s not found in configuration", name)</span>
 }
 
 // DisableScript disables a script by name
-func (sm *ScriptManager) DisableScript(name string) error <span class="cov0" title="0">{
+func (sm *ScriptManager) DisableScript(name string) error <span class="cov8" title="1">{
         sm.mutex.Lock()
         defer sm.mutex.Unlock()
 
         // Find the script config
-        for i, sc := range sm.config.Scripts </span><span class="cov0" title="0">{
-                if sc.Name == name </span><span class="cov0" title="0">{
+        for i, sc := range sm.config.Scripts </span><span class="cov8" title="1">{
+                if sc.Name == name </span><span class="cov8" title="1">{
                         sm.config.Scripts[i].Enabled = false
                         return nil
                 }</span>
         }
 
-        <span class="cov0" title="0">return fmt.Errorf("script %s not found in configuration", name)</span>
+        <span class="cov8" title="1">return fmt.Errorf("script %s not found in configuration", name)</span>
 }
 
 // UpdateScript updates an existing script configuration

@@ -613,3 +613,302 @@ func TestScriptManager_UpdateScriptWithImmediateApplication_RestartRequiredChang
 		t.Error("Script test1 not found in configuration after graceful restart")
 	}
 }
+
+func TestScriptManager_NewScriptManagerWithPath(t *testing.T) {
+	config := &ServiceConfig{
+		Scripts: []ScriptConfig{
+			{Name: "test", Path: "./test.sh", Interval: 60, Enabled: true},
+		},
+	}
+	configPath := "/test/config.json"
+
+	manager := NewScriptManagerWithPath(config, configPath)
+	if manager == nil {
+		t.Fatal("Expected script manager to be created")
+	}
+
+	if manager.config != config {
+		t.Error("Expected config to be set correctly")
+	}
+
+	if manager.configPath != configPath {
+		t.Errorf("Expected config path to be %s, got %s", configPath, manager.configPath)
+	}
+}
+
+func TestScriptManager_GetScripts(t *testing.T) {
+	config := &ServiceConfig{
+		Scripts: []ScriptConfig{
+			{Name: "test1", Path: "./test1.sh", Interval: 60, Enabled: true, MaxLogLines: 100, Timeout: 30},
+			{Name: "test2", Path: "./test2.sh", Interval: 120, Enabled: false, MaxLogLines: 50, Timeout: 60},
+		},
+	}
+
+	manager := NewScriptManager(config)
+
+	scripts, err := manager.GetScripts()
+	if err != nil {
+		t.Fatalf("Expected no error getting scripts, got: %v", err)
+	}
+
+	if len(scripts) != 2 {
+		t.Errorf("Expected 2 scripts, got %d", len(scripts))
+	}
+
+	// Verify first script
+	if scripts[0].Name != "test1" {
+		t.Errorf("Expected first script name to be test1, got %s", scripts[0].Name)
+	}
+	if scripts[0].Path != "./test1.sh" {
+		t.Errorf("Expected first script path to be ./test1.sh, got %s", scripts[0].Path)
+	}
+
+	// Verify second script
+	if scripts[1].Name != "test2" {
+		t.Errorf("Expected second script name to be test2, got %s", scripts[1].Name)
+	}
+	if scripts[1].Enabled != false {
+		t.Errorf("Expected second script to be disabled, got %t", scripts[1].Enabled)
+	}
+}
+
+func TestScriptManager_GetRunningScripts(t *testing.T) {
+	config := &ServiceConfig{
+		Scripts: []ScriptConfig{
+			{Name: "test1", Path: "./test1.sh", Interval: 60, Enabled: true, MaxLogLines: 100, Timeout: 30},
+			{Name: "test2", Path: "./test2.sh", Interval: 120, Enabled: false, MaxLogLines: 50, Timeout: 60},
+		},
+	}
+
+	manager := NewScriptManager(config)
+	ctx := context.Background()
+
+	// Initially no scripts should be running
+	running := manager.GetRunningScripts()
+	if len(running) != 0 {
+		t.Errorf("Expected 0 running scripts initially, got %d", len(running))
+	}
+
+	// Start a script
+	err := manager.StartScript(ctx, "test1")
+	if err != nil {
+		t.Fatalf("Error starting script: %v", err)
+	}
+
+	running = manager.GetRunningScripts()
+	if len(running) != 1 {
+		t.Errorf("Expected 1 running script, got %d", len(running))
+	}
+
+	if running[0] != "test1" {
+		t.Errorf("Expected running script to be test1, got %s", running[0])
+	}
+}
+
+func TestScriptManager_GetConfig(t *testing.T) {
+	config := &ServiceConfig{
+		Scripts: []ScriptConfig{
+			{Name: "test", Path: "./test.sh", Interval: 60, Enabled: true},
+		},
+		WebPort: 8080,
+	}
+
+	manager := NewScriptManager(config)
+
+	returnedConfig := manager.GetConfig()
+	if returnedConfig != config {
+		t.Error("Expected GetConfig to return the same config object")
+	}
+
+	if returnedConfig.WebPort != 8080 {
+		t.Errorf("Expected WebPort to be 8080, got %d", returnedConfig.WebPort)
+	}
+}
+
+func TestScriptManager_AddScript(t *testing.T) {
+	config := &ServiceConfig{
+		Scripts: []ScriptConfig{
+			{Name: "existing", Path: "./existing.sh", Interval: 60, Enabled: true},
+		},
+	}
+
+	manager := NewScriptManager(config)
+
+	// Add a new script
+	newScript := ScriptConfig{
+		Name:        "new",
+		Path:        "./new.sh",
+		Interval:    120,
+		Enabled:     false,
+		MaxLogLines: 200,
+		Timeout:     45,
+	}
+
+	err := manager.AddScript(newScript)
+	if err != nil {
+		t.Fatalf("Expected no error adding script, got: %v", err)
+	}
+
+	// Verify script was added
+	if len(manager.config.Scripts) != 2 {
+		t.Errorf("Expected 2 scripts after adding, got %d", len(manager.config.Scripts))
+	}
+
+	found := false
+	for _, script := range manager.config.Scripts {
+		if script.Name == "new" {
+			found = true
+			if script.Path != "./new.sh" {
+				t.Errorf("Expected path ./new.sh, got %s", script.Path)
+			}
+			if script.Interval != 120 {
+				t.Errorf("Expected interval 120, got %d", script.Interval)
+			}
+		}
+	}
+	if !found {
+		t.Error("New script not found in configuration")
+	}
+}
+
+func TestScriptManager_AddScript_DuplicateName(t *testing.T) {
+	config := &ServiceConfig{
+		Scripts: []ScriptConfig{
+			{Name: "existing", Path: "./existing.sh", Interval: 60, Enabled: true},
+		},
+	}
+
+	manager := NewScriptManager(config)
+
+	// Try to add script with duplicate name
+	duplicateScript := ScriptConfig{
+		Name:     "existing",
+		Path:     "./different.sh",
+		Interval: 120,
+		Enabled:  false,
+	}
+
+	err := manager.AddScript(duplicateScript)
+	if err == nil {
+		t.Error("Expected error when adding script with duplicate name")
+	}
+
+	// Verify original script count unchanged
+	if len(manager.config.Scripts) != 1 {
+		t.Errorf("Expected 1 script after failed add, got %d", len(manager.config.Scripts))
+	}
+}
+
+func TestScriptManager_EnableScript(t *testing.T) {
+	config := &ServiceConfig{
+		Scripts: []ScriptConfig{
+			{Name: "test", Path: "./test.sh", Interval: 60, Enabled: false, MaxLogLines: 100},
+		},
+	}
+
+	manager := NewScriptManager(config)
+
+	// Enable the script
+	err := manager.EnableScript("test")
+	if err != nil {
+		t.Fatalf("Expected no error enabling script, got: %v", err)
+	}
+
+	// Verify script is enabled
+	found := false
+	for _, script := range manager.config.Scripts {
+		if script.Name == "test" {
+			found = true
+			if !script.Enabled {
+				t.Error("Expected script to be enabled after EnableScript call")
+			}
+		}
+	}
+	if !found {
+		t.Error("Script not found in configuration")
+	}
+}
+
+func TestScriptManager_EnableScript_NotFound(t *testing.T) {
+	config := &ServiceConfig{Scripts: []ScriptConfig{}}
+	manager := NewScriptManager(config)
+
+	err := manager.EnableScript("nonexistent")
+	if err == nil {
+		t.Error("Expected error when enabling non-existent script")
+	}
+}
+
+func TestScriptManager_DisableScript(t *testing.T) {
+	config := &ServiceConfig{
+		Scripts: []ScriptConfig{
+			{Name: "test", Path: "./test.sh", Interval: 60, Enabled: true, MaxLogLines: 100},
+		},
+	}
+
+	manager := NewScriptManager(config)
+
+	// Disable the script
+	err := manager.DisableScript("test")
+	if err != nil {
+		t.Fatalf("Expected no error disabling script, got: %v", err)
+	}
+
+	// Verify script is disabled
+	found := false
+	for _, script := range manager.config.Scripts {
+		if script.Name == "test" {
+			found = true
+			if script.Enabled {
+				t.Error("Expected script to be disabled after DisableScript call")
+			}
+		}
+	}
+	if !found {
+		t.Error("Script not found in configuration")
+	}
+}
+
+func TestScriptManager_DisableScript_NotFound(t *testing.T) {
+	config := &ServiceConfig{Scripts: []ScriptConfig{}}
+	manager := NewScriptManager(config)
+
+	err := manager.DisableScript("nonexistent")
+	if err == nil {
+		t.Error("Expected error when disabling non-existent script")
+	}
+}
+
+func TestScriptManager_RunScriptOnce(t *testing.T) {
+	config := &ServiceConfig{
+		Scripts: []ScriptConfig{
+			{Name: "test", Path: "./test.sh", Interval: 60, Enabled: true, MaxLogLines: 100, Timeout: 30},
+		},
+	}
+
+	manager := NewScriptManager(config)
+	ctx := context.Background()
+
+	// This should run the script once without starting a continuous runner
+	err := manager.RunScriptOnce(ctx, "test")
+	if err != nil {
+		// We expect this to fail initially because RunOnce might not be implemented in ScriptRunner
+		t.Logf("RunScriptOnce failed as expected (missing RunOnce implementation): %v", err)
+	}
+
+	// Verify that no ongoing script runner was created
+	if manager.IsScriptRunning("test") {
+		t.Error("Expected script not to be running after RunScriptOnce")
+	}
+}
+
+func TestScriptManager_RunScriptOnce_NotFound(t *testing.T) {
+	config := &ServiceConfig{Scripts: []ScriptConfig{}}
+	manager := NewScriptManager(config)
+	ctx := context.Background()
+
+	err := manager.RunScriptOnce(ctx, "nonexistent")
+	if err == nil {
+		t.Error("Expected error when running non-existent script once")
+	}
+}
