@@ -1,13 +1,23 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
+import { authGuard } from './guards'
 
 const routes: RouteRecordRaw[] = [
   {
+    path: '/login',
+    name: 'login',
+    component: () => import('@/views/Login.vue'),
+    meta: {
+      title: 'Login'
+    }
+  },
+  {
     path: '/',
-    name: 'Dashboard',
+    name: 'dashboard',
     component: () => import('@/views/Dashboard.vue'),
     meta: {
-      title: 'Dashboard'
+      title: 'Dashboard',
+      requiresAuth: true
     }
   },
   {
@@ -15,7 +25,8 @@ const routes: RouteRecordRaw[] = [
     name: 'Scripts',
     component: () => import('@/views/Scripts.vue'),
     meta: {
-      title: 'Scripts'
+      title: 'Scripts',
+      requiresAuth: true
     }
   },
   {
@@ -23,7 +34,8 @@ const routes: RouteRecordRaw[] = [
     name: 'Logs',
     component: () => import('@/views/Logs.vue'),
     meta: {
-      title: 'Logs'
+      title: 'Logs',
+      requiresAuth: true
     }
   },
   {
@@ -31,7 +43,8 @@ const routes: RouteRecordRaw[] = [
     name: 'Settings',
     component: () => import('@/views/Settings.vue'),
     meta: {
-      title: 'Settings'
+      title: 'Settings',
+      requiresAuth: true
     }
   },
   {
@@ -44,6 +57,9 @@ const router = createRouter({
   history: createWebHistory('/'),
   routes
 })
+
+// Authentication guard - must come before title guard
+router.beforeEach(authGuard)
 
 // Update document title on route change
 router.beforeEach((to, _from, next) => {

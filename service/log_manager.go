@@ -208,15 +208,49 @@ func (sl *ScriptLogger) LoadExistingLogs() {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue // Skip empty lines
+		}
+
+		// Try to parse as JSON first (current format)
+		var entry LogEntry
+		if err := json.Unmarshal([]byte(line), &entry); err == nil {
+			sl.entries = append(sl.entries, entry)
+			continue
+		}
+
+		// Check if this looks like legacy format - has specific pattern
+		timestampRegex := regexp.MustCompile(`^\[([^\]]+)\] Exit code: (\d+)$`)
+		if timestampRegex.MatchString(line) {
+			// Fall back to legacy format parsing for backward compatibility
+			sl.parseLegacyFormat(scanner, line)
+			break // parseLegacyFormat handles the rest of the file
+		}
+
+		// Otherwise, skip malformed lines (not JSON and not legacy format)
+		continue
+	}
+
+	// Maintain maxLines limit
+	if len(sl.entries) > sl.maxLines {
+		sl.entries = sl.entries[len(sl.entries)-sl.maxLines:]
+	}
+}
+
+// parseLegacyFormat handles the old log format for backward compatibility
+func (sl *ScriptLogger) parseLegacyFormat(scanner *bufio.Scanner, firstLine string) {
 	var currentEntry *LogEntry
 	var stdoutLines []string
 
 	// Regex to match timestamp and exit code line: [2025-08-02 11:26:16] Exit code: 0
 	timestampRegex := regexp.MustCompile(`^\[([^\]]+)\] Exit code: (\d+)$`)
 
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-
+	// Process the first line
+	line := firstLine
+	for {
 		if line == "--------------------------------------------------" {
 			// End of entry
 			if currentEntry != nil {
@@ -247,17 +281,18 @@ func (sl *ScriptLogger) LoadExistingLogs() {
 			// Continuation of stdout (multi-line output)
 			stdoutLines = append(stdoutLines, line)
 		}
+
+		// Read next line
+		if !scanner.Scan() {
+			break
+		}
+		line = strings.TrimSpace(scanner.Text())
 	}
 
 	// Handle last entry if file doesn't end with separator
 	if currentEntry != nil {
 		currentEntry.Stdout = strings.Join(stdoutLines, "\n")
 		sl.entries = append(sl.entries, *currentEntry)
-	}
-
-	// Maintain maxLines limit
-	if len(sl.entries) > sl.maxLines {
-		sl.entries = sl.entries[len(sl.entries)-sl.maxLines:]
 	}
 }
 

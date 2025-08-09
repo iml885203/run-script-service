@@ -3,6 +3,7 @@ package service
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -256,6 +257,290 @@ func TestScriptConfig_Validation(t *testing.T) {
 
 			if isValid != tt.expectValid {
 				t.Errorf("expected valid=%v, got valid=%v, error=%v", tt.expectValid, isValid, err)
+			}
+		})
+	}
+}
+
+func TestEnhancedConfig_LoadWithEnvFile(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create .env file
+	envFile := filepath.Join(tempDir, ".env")
+	envContent := `WEB_SECRET_KEY=test-secret-from-env
+LOG_LEVEL=debug
+WEB_PORT=9090
+`
+	err := os.WriteFile(envFile, []byte(envContent), 0600)
+	if err != nil {
+		t.Fatalf("Failed to create .env file: %v", err)
+	}
+
+	// Create service config file
+	configFile := filepath.Join(tempDir, "service_config.json")
+	configContent := `{
+  "scripts": [
+    {
+      "name": "test-script",
+      "path": "./test.sh",
+      "interval": 300,
+      "enabled": true,
+      "max_log_lines": 100,
+      "timeout": 0
+    }
+  ],
+  "web_port": 8080
+}`
+	err = os.WriteFile(configFile, []byte(configContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	// Test enhanced configuration loading
+	enhancedConfig := NewEnhancedConfig()
+	err = enhancedConfig.LoadWithEnv(configFile, envFile)
+	if err != nil {
+		t.Fatalf("LoadWithEnv failed: %v", err)
+	}
+
+	// Test that service config was loaded
+	if len(enhancedConfig.Config.Scripts) != 1 {
+		t.Errorf("Expected 1 script, got %d", len(enhancedConfig.Config.Scripts))
+	}
+
+	if enhancedConfig.Config.Scripts[0].Name != "test-script" {
+		t.Errorf("Expected script name 'test-script', got %s", enhancedConfig.Config.Scripts[0].Name)
+	}
+
+	// Test that env values are accessible
+	if secret := enhancedConfig.GetEnv("WEB_SECRET_KEY"); secret != "test-secret-from-env" {
+		t.Errorf("Expected WEB_SECRET_KEY='test-secret-from-env', got '%s'", secret)
+	}
+
+	if logLevel := enhancedConfig.GetEnv("LOG_LEVEL"); logLevel != "debug" {
+		t.Errorf("Expected LOG_LEVEL='debug', got '%s'", logLevel)
+	}
+}
+
+func TestEnhancedConfig_GetWebPort(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create .env file with WEB_PORT
+	envFile := filepath.Join(tempDir, ".env")
+	envContent := `WEB_PORT=9090`
+	err := os.WriteFile(envFile, []byte(envContent), 0600)
+	if err != nil {
+		t.Fatalf("Failed to create .env file: %v", err)
+	}
+
+	// Create service config with different port
+	configFile := filepath.Join(tempDir, "service_config.json")
+	configContent := `{"scripts": [], "web_port": 8080}`
+	err = os.WriteFile(configFile, []byte(configContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	enhancedConfig := NewEnhancedConfig()
+	err = enhancedConfig.LoadWithEnv(configFile, envFile)
+	if err != nil {
+		t.Fatalf("LoadWithEnv failed: %v", err)
+	}
+
+	// Environment variable should take priority over JSON config
+	webPort := enhancedConfig.GetWebPort()
+	if webPort != 9090 {
+		t.Errorf("Expected web port 9090 (from env), got %d", webPort)
+	}
+}
+
+func TestEnhancedConfig_GetSecretKey(t *testing.T) {
+	// Test using environment variable (cleaner approach than file I/O)
+	os.Setenv("WEB_SECRET_KEY", "test-secret-key-12345")
+	defer os.Unsetenv("WEB_SECRET_KEY")
+
+	config := NewEnhancedConfig()
+	config.envLoader = NewEnvLoader()
+
+	if key := config.GetSecretKey(); key != "test-secret-key-12345" {
+		t.Errorf("Expected secret key 'test-secret-key-12345', got '%s'", key)
+	}
+}
+
+func TestEnhancedConfig_GetEnvWithDefault(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create .env file with one variable
+	envFile := filepath.Join(tempDir, ".env")
+	envContent := `EXISTING_VAR=existing_value`
+	err := os.WriteFile(envFile, []byte(envContent), 0600)
+	if err != nil {
+		t.Fatalf("Failed to create .env file: %v", err)
+	}
+
+	// Create service config file
+	configFile := filepath.Join(tempDir, "service_config.json")
+	configContent := `{"scripts": []}`
+	err = os.WriteFile(configFile, []byte(configContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	enhancedConfig := NewEnhancedConfig()
+	err = enhancedConfig.LoadWithEnv(configFile, envFile)
+	if err != nil {
+		t.Fatalf("LoadWithEnv failed: %v", err)
+	}
+
+	// Test existing variable returns its value
+	existingValue := enhancedConfig.GetEnvWithDefault("EXISTING_VAR", "default_fallback")
+	if existingValue != "existing_value" {
+		t.Errorf("Expected 'existing_value', got '%s'", existingValue)
+	}
+
+	// Test missing variable returns default
+	missingValue := enhancedConfig.GetEnvWithDefault("MISSING_VAR", "default_fallback")
+	if missingValue != "default_fallback" {
+		t.Errorf("Expected 'default_fallback', got '%s'", missingValue)
+	}
+}
+
+func TestScriptConfig_Validate(t *testing.T) {
+	// Red phase: Test the Validate() method which includes file existence check
+
+	// Create temporary directory for test files
+	tempDir, err := os.MkdirTemp("", "validate_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create a test script file
+	scriptPath := filepath.Join(tempDir, "test.sh")
+	err = os.WriteFile(scriptPath, []byte("#!/bin/bash\necho 'test'"), 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a non-executable file for testing
+	nonExecutablePath := filepath.Join(tempDir, "nonexec.sh")
+	err = os.WriteFile(nonExecutablePath, []byte("#!/bin/bash\necho 'test'"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name        string
+		script      ScriptConfig
+		expectValid bool
+		errorMsg    string
+	}{
+		{
+			name: "valid script with existing file",
+			script: ScriptConfig{
+				Name:        "test",
+				Path:        scriptPath,
+				Interval:    3600,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     300,
+			},
+			expectValid: true,
+		},
+		{
+			name: "script with non-existent file",
+			script: ScriptConfig{
+				Name:        "test",
+				Path:        filepath.Join(tempDir, "nonexistent.sh"),
+				Interval:    3600,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     300,
+			},
+			expectValid: false,
+			errorMsg:    "script file does not exist",
+		},
+		{
+			name: "script with invalid name",
+			script: ScriptConfig{
+				Name:        "",
+				Path:        scriptPath,
+				Interval:    3600,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     300,
+			},
+			expectValid: false,
+			errorMsg:    "script name cannot be empty",
+		},
+		{
+			name: "script with negative MaxLogLines",
+			script: ScriptConfig{
+				Name:        "test",
+				Path:        scriptPath,
+				Interval:    3600,
+				Enabled:     true,
+				MaxLogLines: -1,
+				Timeout:     300,
+			},
+			expectValid: false,
+			errorMsg:    "max_log_lines cannot be negative",
+		},
+		{
+			name: "script with negative Timeout",
+			script: ScriptConfig{
+				Name:        "test",
+				Path:        scriptPath,
+				Interval:    3600,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     -1,
+			},
+			expectValid: false,
+			errorMsg:    "timeout cannot be negative",
+		},
+		{
+			name: "script with directory instead of file",
+			script: ScriptConfig{
+				Name:        "test",
+				Path:        tempDir, // directory instead of file
+				Interval:    3600,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     300,
+			},
+			expectValid: false,
+			errorMsg:    "script path is a directory",
+		},
+		{
+			name: "script with non-executable file",
+			script: ScriptConfig{
+				Name:        "test",
+				Path:        nonExecutablePath,
+				Interval:    3600,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     300,
+			},
+			expectValid: false,
+			errorMsg:    "script file is not executable",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.script.Validate()
+			isValid := err == nil
+
+			if isValid != tt.expectValid {
+				t.Errorf("expected valid=%v, got valid=%v, error=%v", tt.expectValid, isValid, err)
+			}
+
+			if !tt.expectValid && tt.errorMsg != "" && err != nil {
+				if !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("expected error message to contain '%s', got: %v", tt.errorMsg, err)
+				}
 			}
 		})
 	}

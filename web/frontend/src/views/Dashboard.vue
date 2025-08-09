@@ -51,17 +51,17 @@
       <!-- System resource metrics -->
       <div v-if="metrics.cpu_percent !== undefined" class="metric-card" data-testid="cpu-card">
         <h3>CPU Usage</h3>
-        <div class="metric-value cpu-metric">{{ metrics.cpu_percent }}%</div>
+        <div class="metric-value cpu-metric">{{ formatCpuUsage(metrics.cpu_percent) }}</div>
       </div>
 
       <div v-if="metrics.memory_percent !== undefined" class="metric-card" data-testid="memory-card">
         <h3>Memory Usage</h3>
-        <div class="metric-value memory-metric">{{ metrics.memory_percent }}%</div>
+        <div class="metric-value memory-metric">{{ formatMemoryUsage(metrics.memory_percent) }}</div>
       </div>
 
       <div v-if="metrics.disk_percent !== undefined" class="metric-card" data-testid="disk-card">
         <h3>Disk Usage</h3>
-        <div class="metric-value disk-metric">{{ metrics.disk_percent }}%</div>
+        <div class="metric-value disk-metric">{{ formatDiskUsage(metrics.disk_percent) }}</div>
       </div>
     </div>
 
@@ -115,6 +115,7 @@ import { onMounted, onUnmounted } from 'vue'
 import { useSystemMetrics } from '@/composables/useSystemMetrics'
 import { useScripts } from '@/composables/useScripts'
 import { useWebSocket } from '@/composables/useWebSocket'
+import { formatCpuUsage, formatMemoryUsage, formatDiskUsage } from '@/utils/formatters'
 
 const {
   metrics,

@@ -100,6 +100,7 @@ describe('useScripts', () => {
 
   it('should add script and refresh list', async () => {
     const newScript = {
+      name: 'new-script',
       path: '/path/to/new-script.sh',
       interval: 900,
       enabled: true

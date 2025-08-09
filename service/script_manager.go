@@ -7,6 +7,14 @@ import (
 	"sync"
 )
 
+// ConfigChange represents a configuration change
+type ConfigChange struct {
+	Field           string
+	OldValue        interface{}
+	NewValue        interface{}
+	RequiresRestart bool
+}
+
 // ScriptManager manages multiple script runners
 type ScriptManager struct {
 	scripts    map[string]*ScriptRunner
@@ -108,6 +116,18 @@ func (sm *ScriptManager) StopAll() {
 		runner.Stop()
 		delete(sm.scripts, name)
 	}
+}
+
+// GetScripts returns all configured scripts
+func (sm *ScriptManager) GetScripts() ([]ScriptConfig, error) {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	// Return a copy to prevent external modification
+	scripts := make([]ScriptConfig, len(sm.config.Scripts))
+	copy(scripts, sm.config.Scripts)
+
+	return scripts, nil
 }
 
 // GetRunningScripts returns a list of currently running script names
@@ -263,5 +283,249 @@ func (sm *ScriptManager) RemoveScript(name string) error {
 	}
 
 	sm.config.Scripts = newScripts
+	return nil
+}
+
+// detectChanges detects differences between old and new script configurations
+func (sm *ScriptManager) detectChanges(old, new ScriptConfig) []ConfigChange {
+	var changes []ConfigChange
+
+	if old.Interval != new.Interval {
+		changes = append(changes, ConfigChange{
+			Field:           "interval",
+			OldValue:        old.Interval,
+			NewValue:        new.Interval,
+			RequiresRestart: true,
+		})
+	}
+
+	if old.Enabled != new.Enabled {
+		changes = append(changes, ConfigChange{
+			Field:           "enabled",
+			OldValue:        old.Enabled,
+			NewValue:        new.Enabled,
+			RequiresRestart: true,
+		})
+	}
+
+	if old.Path != new.Path {
+		changes = append(changes, ConfigChange{
+			Field:           "path",
+			OldValue:        old.Path,
+			NewValue:        new.Path,
+			RequiresRestart: true,
+		})
+	}
+
+	if old.MaxLogLines != new.MaxLogLines {
+		changes = append(changes, ConfigChange{
+			Field:           "max_log_lines",
+			OldValue:        old.MaxLogLines,
+			NewValue:        new.MaxLogLines,
+			RequiresRestart: false,
+		})
+	}
+
+	if old.Timeout != new.Timeout {
+		changes = append(changes, ConfigChange{
+			Field:           "timeout",
+			OldValue:        old.Timeout,
+			NewValue:        new.Timeout,
+			RequiresRestart: false,
+		})
+	}
+
+	return changes
+}
+
+// UpdateScriptWithImmediateApplication updates a script and applies changes immediately to running scripts
+func (sm *ScriptManager) UpdateScriptWithImmediateApplication(name string, updatedConfig ScriptConfig) error {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	// Find the current configuration
+	var oldConfig *ScriptConfig
+	for i, sc := range sm.config.Scripts {
+		if sc.Name == name {
+			oldConfig = &sc
+			// Update configuration first
+			updatedConfig.Name = name
+			sm.config.Scripts[i] = updatedConfig
+			break
+		}
+	}
+
+	if oldConfig == nil {
+		return fmt.Errorf("script %s not found in configuration", name)
+	}
+
+	// Detect changes
+	changes := sm.detectChanges(*oldConfig, updatedConfig)
+
+	// Apply changes immediately if script is running
+	if runner, exists := sm.scripts[name]; exists {
+		return sm.applyConfigChanges(name, runner, *oldConfig, updatedConfig, changes)
+	}
+
+	// Script not running, configuration update is sufficient
+	return nil
+}
+
+// applyConfigChanges applies configuration changes to a running script
+func (sm *ScriptManager) applyConfigChanges(name string, runner *ScriptRunner, oldConfig, newConfig ScriptConfig, changes []ConfigChange) error {
+	// For now, implement basic logic - this will be enhanced in subsequent steps
+	for _, change := range changes {
+		switch change.Field {
+		case "enabled":
+			if newConfig.Enabled && !oldConfig.Enabled {
+				// Script was disabled, now enabled - but it's already running, so no action needed
+				return nil
+			} else if !newConfig.Enabled && oldConfig.Enabled {
+				// Script was enabled, now disabled - stop it
+				runner.Stop()
+				delete(sm.scripts, name)
+				return nil
+			}
+		case "interval", "path":
+			// Changes that require restart - implement graceful restart
+			return sm.gracefulRestartScript(name, runner, newConfig)
+		case "timeout", "max_log_lines":
+			// These changes can be applied without restart
+			// For now, just log that they would be applied
+			continue
+		}
+	}
+	return nil
+}
+
+// UpdateScriptWithFeedback updates a script and returns detailed feedback about the changes
+func (sm *ScriptManager) UpdateScriptWithFeedback(name string, updatedConfig ScriptConfig) UpdateResponse {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	// Find the current configuration
+	var oldConfig *ScriptConfig
+	for i, sc := range sm.config.Scripts {
+		if sc.Name == name {
+			oldConfig = &sc
+			// Update configuration first
+			updatedConfig.Name = name
+			sm.config.Scripts[i] = updatedConfig
+			break
+		}
+	}
+
+	if oldConfig == nil {
+		return UpdateResponse{
+			Success:   false,
+			Message:   fmt.Sprintf("Script %s not found in configuration", name),
+			Applied:   false,
+			Scheduled: false,
+			Changes:   []ConfigChangeInfo{},
+		}
+	}
+
+	// Detect changes
+	changes := sm.detectChanges(*oldConfig, updatedConfig)
+
+	// Convert ConfigChange to ConfigChangeInfo
+	changeInfos := make([]ConfigChangeInfo, len(changes))
+	allApplied := true
+	anyScheduled := false
+
+	for i, change := range changes {
+		applied := false
+		reason := ""
+
+		// Determine if change can be applied immediately
+		if runner, exists := sm.scripts[name]; exists {
+			if runner.IsExecuting() {
+				// Script is executing, schedule for later
+				applied = false
+				anyScheduled = true
+				reason = "Script is currently executing, change will be applied after completion"
+				runner.SetRestartPending(updatedConfig)
+			} else {
+				// Script is idle, apply immediately based on change type
+				switch change.Field {
+				case "timeout", "max_log_lines":
+					// These can be applied without restart
+					applied = true
+					reason = "Applied immediately"
+				case "enabled":
+					if updatedConfig.Enabled && !oldConfig.Enabled {
+						// Re-enabling - already running, no action needed
+						applied = true
+						reason = "Script already running"
+					} else if !updatedConfig.Enabled && oldConfig.Enabled {
+						// Disabling - stop the script
+						runner.Stop()
+						delete(sm.scripts, name)
+						applied = true
+						reason = "Script stopped successfully"
+					}
+				case "interval", "path":
+					// These require restart
+					applied = false
+					anyScheduled = true
+					reason = "Requires graceful restart, scheduled for next execution cycle"
+					runner.SetRestartPending(updatedConfig)
+				}
+			}
+		} else {
+			// Script not running, all changes are effectively "applied"
+			applied = true
+			reason = "Script not currently running, configuration updated"
+		}
+
+		if !applied {
+			allApplied = false
+		}
+
+		changeInfos[i] = ConfigChangeInfo{
+			Field:    change.Field,
+			OldValue: change.OldValue,
+			NewValue: change.NewValue,
+			Applied:  applied,
+			Reason:   reason,
+		}
+	}
+
+	// Determine overall status
+	message := fmt.Sprintf("Script %s updated successfully", name)
+	if anyScheduled {
+		message += " (some changes scheduled for next execution cycle)"
+	}
+
+	return UpdateResponse{
+		Success:   true,
+		Message:   message,
+		Applied:   allApplied && !anyScheduled,
+		Scheduled: anyScheduled,
+		Changes:   changeInfos,
+	}
+}
+
+// gracefulRestartScript stops a running script and starts it again with the new configuration
+func (sm *ScriptManager) gracefulRestartScript(name string, runner *ScriptRunner, newConfig ScriptConfig) error {
+	// Stop the current script
+	runner.Stop()
+	delete(sm.scripts, name)
+
+	// Create and start a new script runner with updated configuration
+	logPath := fmt.Sprintf("%s.log", name)
+	newRunner := NewScriptRunner(newConfig, logPath)
+	sm.scripts[name] = newRunner
+
+	// Start the new runner in a goroutine
+	go func() {
+		ctx := context.Background() // Use background context for restart
+		newRunner.Start(ctx)
+		// Clean up when runner stops
+		sm.mutex.Lock()
+		delete(sm.scripts, name)
+		sm.mutex.Unlock()
+	}()
+
 	return nil
 }

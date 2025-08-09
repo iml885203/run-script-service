@@ -47,7 +47,9 @@ describe('Scripts Component', () => {
       addScript: vi.fn(),
       runScript: vi.fn(),
       toggleScript: vi.fn(),
-      deleteScript: vi.fn()
+      deleteScript: vi.fn(),
+      updateScript: vi.fn(),
+      updateScript: vi.fn()
     })
   })
 
@@ -65,7 +67,9 @@ describe('Scripts Component', () => {
       addScript: vi.fn(),
       runScript: vi.fn(),
       toggleScript: vi.fn(),
-      deleteScript: vi.fn()
+      deleteScript: vi.fn(),
+      updateScript: vi.fn(),
+      updateScript: vi.fn()
     })
 
     mount(Scripts, {
@@ -113,7 +117,8 @@ describe('Scripts Component', () => {
       addScript: vi.fn(),
       runScript: vi.fn(),
       toggleScript: vi.fn(),
-      deleteScript: vi.fn()
+      deleteScript: vi.fn(),
+      updateScript: vi.fn()
     })
 
     const wrapper = mount(Scripts, {
@@ -136,7 +141,8 @@ describe('Scripts Component', () => {
       addScript: vi.fn(),
       runScript: vi.fn(),
       toggleScript: vi.fn(),
-      deleteScript: vi.fn()
+      deleteScript: vi.fn(),
+      updateScript: vi.fn()
     })
 
     const wrapper = mount(Scripts, {
@@ -158,7 +164,8 @@ describe('Scripts Component', () => {
       addScript: vi.fn(),
       runScript: vi.fn(),
       toggleScript: vi.fn(),
-      deleteScript: vi.fn()
+      deleteScript: vi.fn(),
+      updateScript: vi.fn()
     })
 
     const wrapper = mount(Scripts, {
@@ -169,5 +176,84 @@ describe('Scripts Component', () => {
 
     expect(wrapper.find('.error').exists()).toBe(true)
     expect(wrapper.text()).toContain('Failed to fetch scripts')
+  })
+
+  it('should show edit modal when edit button is clicked', async () => {
+    const wrapper = mount(Scripts, {
+      global: {
+        plugins: [router]
+      }
+    })
+
+    // Find and click the edit button for the first script
+    const editButton = wrapper.findAll('.btn-secondary').find(btn => btn.text() === 'Edit')
+    expect(editButton).toBeDefined()
+
+    await editButton!.trigger('click')
+
+    // Check that edit modal is shown
+    const editModal = wrapper.find('[data-testid="edit-modal"]')
+    expect(editModal.exists()).toBe(true)
+
+    // Check that form is pre-populated with script data
+    const nameInput = wrapper.find('[data-testid="edit-name-input"]')
+    const pathInput = wrapper.find('[data-testid="edit-path-input"]')
+    const intervalInput = wrapper.find('[data-testid="edit-interval-input"]')
+
+    expect(nameInput.element.value).toBe('test1')
+    expect(pathInput.element.value).toBe('/home/logan/run-script-service-develop/test1.sh')
+    expect(intervalInput.element.value).toBe('300')
+  })
+
+  it('should call updateScript when edit form is submitted', async () => {
+    const mockUpdateScript = vi.fn()
+    mockUseScripts.mockReturnValue({
+      scripts: ref([
+        {
+          name: 'test1',
+          path: '/home/logan/run-script-service-develop/test1.sh',
+          interval: 300,
+          enabled: true,
+          timeout: 0
+        }
+      ]),
+      loading: ref(false),
+      error: ref(null),
+      fetchScripts: vi.fn(),
+      addScript: vi.fn(),
+      runScript: vi.fn(),
+      toggleScript: vi.fn(),
+      deleteScript: vi.fn(),
+      updateScript: mockUpdateScript
+    })
+
+    const wrapper = mount(Scripts, {
+      global: {
+        plugins: [router]
+      }
+    })
+
+    // Click edit button
+    const editButton = wrapper.findAll('.btn-secondary').find(btn => btn.text() === 'Edit')
+    await editButton!.trigger('click')
+
+    // Modify form data
+    const pathInput = wrapper.find('[data-testid="edit-path-input"]')
+    await pathInput.setValue('/new/path/script.sh')
+
+    const intervalInput = wrapper.find('[data-testid="edit-interval-input"]')
+    await intervalInput.setValue('600')
+
+    // Submit form
+    const editForm = wrapper.find('[data-testid="edit-form"]')
+    await editForm.trigger('submit.prevent')
+
+    // Verify updateScript was called with correct data
+    expect(mockUpdateScript).toHaveBeenCalledWith('test1', {
+      path: '/new/path/script.sh',
+      interval: 600,
+      enabled: true,
+      timeout: 0
+    })
   })
 })

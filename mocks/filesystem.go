@@ -19,6 +19,7 @@ type MockFileSystem struct {
 	Files         map[string][]byte
 	WriteFileFunc func(filename string, data []byte, perm os.FileMode) error
 	ReadFileFunc  func(filename string) ([]byte, error)
+	OpenFileFunc  func(name string, flag int, perm os.FileMode) (*os.File, error)
 	StatFunc      func(name string) (os.FileInfo, error)
 }
 
@@ -51,7 +52,15 @@ func (m *MockFileSystem) ReadFile(filename string) ([]byte, error) {
 
 // OpenFile implements the FileSystem interface for mock testing.
 func (m *MockFileSystem) OpenFile(name string, flag int, perm os.FileMode) (*os.File, error) {
-	// For simplicity, this mock doesn't implement OpenFile
+	if m.OpenFileFunc != nil {
+		return m.OpenFileFunc(name, flag, perm)
+	}
+
+	// Check if file exists in mock filesystem
+	if _, exists := m.Files[name]; exists {
+		// For mock testing, we return nil file but no error to indicate success
+		return nil, nil
+	}
 	return nil, os.ErrNotExist
 }
 

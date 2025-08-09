@@ -29,7 +29,7 @@ export function useScripts() {
     }
   }
 
-  const addScript = async (scriptData: Omit<ScriptConfig, 'name'>): Promise<void> => {
+  const addScript = async (scriptData: ScriptConfig): Promise<void> => {
     loading.value = true
     error.value = null
 
