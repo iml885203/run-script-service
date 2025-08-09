@@ -1257,3 +1257,38 @@ func TestWebServer_HandleClearScriptLogs(t *testing.T) {
 		// This tests that the route exists and the handler responds properly
 	})
 }
+
+// Test for GetWebSocketHub function to improve coverage
+func TestWebServer_GetWebSocketHub(t *testing.T) {
+	server := NewWebServer(nil, 8080, "test-secret")
+
+	hub := server.GetWebSocketHub()
+	if hub == nil {
+		t.Error("Expected GetWebSocketHub to return a non-nil WebSocket hub")
+	}
+
+	// Test that the same hub is returned consistently
+	hub2 := server.GetWebSocketHub()
+	if hub != hub2 {
+		t.Error("Expected GetWebSocketHub to return the same hub instance")
+	}
+}
+
+// Test for StartSystemMetricsBroadcasting to improve coverage
+func TestWebServer_StartSystemMetricsBroadcasting_ErrorCases(t *testing.T) {
+	t.Run("should return error when system monitor is nil", func(t *testing.T) {
+		server := NewWebServer(nil, 8080, "test-secret")
+
+		ctx := context.Background()
+		interval := 5 * time.Second
+
+		err := server.StartSystemMetricsBroadcasting(ctx, interval)
+
+		expectedError := "system monitor not configured"
+		if err == nil {
+			t.Error("Expected error when system monitor is nil, got nil")
+		} else if err.Error() != expectedError {
+			t.Errorf("Expected error message '%s', got '%s'", expectedError, err.Error())
+		}
+	})
+}

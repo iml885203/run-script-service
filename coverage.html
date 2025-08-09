@@ -103,7 +103,7 @@
 
 				<option value="file23">run-script-service/web/handlers_script_files.go (68.0%)</option>
 
-				<option value="file24">run-script-service/web/server.go (53.5%)</option>
+				<option value="file24">run-script-service/web/server.go (54.0%)</option>
 
 				<option value="file25">run-script-service/web/vue_build_manager.go (13.6%)</option>
 
@@ -1661,6 +1661,7 @@ type MockFileSystem struct {
         Files         map[string][]byte
         WriteFileFunc func(filename string, data []byte, perm os.FileMode) error
         ReadFileFunc  func(filename string) ([]byte, error)
+        OpenFileFunc  func(name string, flag int, perm os.FileMode) (*os.File, error)
         StatFunc      func(name string) (os.FileInfo, error)
 }
 
@@ -1693,9 +1694,17 @@ func (m *MockFileSystem) ReadFile(filename string) ([]byte, error) <span class="
 
 // OpenFile implements the FileSystem interface for mock testing.
 func (m *MockFileSystem) OpenFile(name string, flag int, perm os.FileMode) (*os.File, error) <span class="cov8" title="1">{
-        // For simplicity, this mock doesn't implement OpenFile
-        return nil, os.ErrNotExist
-}</span>
+        if m.OpenFileFunc != nil </span><span class="cov8" title="1">{
+                return m.OpenFileFunc(name, flag, perm)
+        }</span>
+
+        // Check if file exists in mock filesystem
+        <span class="cov8" title="1">if _, exists := m.Files[name]; exists </span><span class="cov8" title="1">{
+                // For mock testing, we return nil file but no error to indicate success
+                return nil, nil
+        }</span>
+        <span class="cov8" title="1">return nil, os.ErrNotExist</span>
+}
 
 // Stat implements the FileSystem interface for mock testing.
 func (m *MockFileSystem) Stat(name string) (os.FileInfo, error) <span class="cov8" title="1">{
@@ -5992,7 +6001,7 @@ func (ws *WebServer) SetScriptFileManager(sfm *service.ScriptFileManager) <span 
 }</span>
 
 // GetWebSocketHub returns the WebSocket hub for broadcasting messages
-func (ws *WebServer) GetWebSocketHub() *WebSocketHub <span class="cov0" title="0">{
+func (ws *WebServer) GetWebSocketHub() *WebSocketHub <span class="cov8" title="1">{
         return ws.wsHub
 }</span>
 
@@ -6003,7 +6012,7 @@ func (ws *WebServer) SetSystemMonitor(monitor *service.SystemMonitor) <span clas
 
 // StartSystemMetricsBroadcasting starts periodic system metrics broadcasting via WebSocket
 func (ws *WebServer) StartSystemMetricsBroadcasting(ctx context.Context, interval time.Duration) error <span class="cov8" title="1">{
-        if ws.systemMonitor == nil </span><span class="cov0" title="0">{
+        if ws.systemMonitor == nil </span><span class="cov8" title="1">{
                 return fmt.Errorf("system monitor not configured")
         }</span>
 
