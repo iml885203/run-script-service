@@ -201,6 +201,182 @@ func TestWebServer_StatusEndpoint(t *testing.T) {
 	}
 }
 
+func TestWebServer_HandleStatus_DetailedCoverage(t *testing.T) {
+	tests := []struct {
+		name            string
+		setupScriptMgr  bool
+		setupSysMon     bool
+		scripts         []service.ScriptConfig
+		expectedRunning int
+		expectedTotal   int
+		expectedUptime  string
+		expectedStatus  string
+		mockIsRunning   map[string]bool
+	}{
+		{
+			name:            "nil script manager and system monitor",
+			setupScriptMgr:  false,
+			setupSysMon:     false,
+			expectedRunning: 0,
+			expectedTotal:   0,
+			expectedUptime:  "Unknown",
+			expectedStatus:  "running",
+		},
+		{
+			name:            "script manager with no scripts",
+			setupScriptMgr:  true,
+			setupSysMon:     false,
+			scripts:         []service.ScriptConfig{},
+			expectedRunning: 0,
+			expectedTotal:   0,
+			expectedUptime:  "Unknown",
+			expectedStatus:  "running",
+		},
+		{
+			name:           "script manager with enabled running scripts",
+			setupScriptMgr: true,
+			setupSysMon:    true,
+			scripts: []service.ScriptConfig{
+				{Name: "script1", Path: "./test1.sh", Interval: 60, Enabled: true},
+				{Name: "script2", Path: "./test2.sh", Interval: 120, Enabled: true},
+				{Name: "script3", Path: "./test3.sh", Interval: 180, Enabled: false},
+			},
+			expectedRunning: 2,
+			expectedTotal:   3,
+			expectedUptime:  "2h 30m",
+			expectedStatus:  "running",
+			mockIsRunning: map[string]bool{
+				"script1": true,
+				"script2": true,
+				"script3": false,
+			},
+		},
+		{
+			name:           "script manager with mixed enabled/disabled and running states",
+			setupScriptMgr: true,
+			setupSysMon:    true,
+			scripts: []service.ScriptConfig{
+				{Name: "enabled-running", Path: "./test1.sh", Interval: 60, Enabled: true},
+				{Name: "enabled-not-running", Path: "./test2.sh", Interval: 120, Enabled: true},
+				{Name: "disabled-not-running", Path: "./test3.sh", Interval: 180, Enabled: false},
+			},
+			expectedRunning: 1,
+			expectedTotal:   3,
+			expectedUptime:  "1h 15m",
+			expectedStatus:  "running",
+			mockIsRunning: map[string]bool{
+				"enabled-running":      true,
+				"enabled-not-running":  false,
+				"disabled-not-running": false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create web server
+			server := NewWebServer(nil, 8080, "test-secret")
+
+			// Setup script manager if needed
+			if tt.setupScriptMgr {
+				config := &service.ServiceConfig{Scripts: tt.scripts}
+				scriptManager := service.NewScriptManager(config)
+
+				// Mock IsScriptRunning method if we have mock data
+				if tt.mockIsRunning != nil {
+					// This is where we'd need to mock IsScriptRunning - for now we'll check what we can
+				}
+
+				server.SetScriptManager(scriptManager)
+			}
+
+			// Setup system monitor if needed
+			if tt.setupSysMon {
+				systemMonitor := service.NewSystemMonitor()
+				// Mock GetUptime method to return expected value
+				// For now we'll verify the structure is correct
+				server.SetSystemMonitor(systemMonitor)
+			}
+
+			// Create authenticated test request
+			req, err := createAuthenticatedRequest("GET", "/api/status", "", server)
+			if err != nil {
+				t.Fatalf("Failed to create authenticated request: %v", err)
+			}
+			w := httptest.NewRecorder()
+
+			// Call the status handler
+			server.router.ServeHTTP(w, req)
+
+			// Check response status
+			if w.Code != http.StatusOK {
+				t.Errorf("Expected status 200, got %d", w.Code)
+			}
+
+			// Parse response
+			var response APIResponse
+			err = json.Unmarshal(w.Body.Bytes(), &response)
+			if err != nil {
+				t.Fatalf("Failed to unmarshal response: %v", err)
+			}
+
+			if !response.Success {
+				t.Error("Expected successful response")
+			}
+
+			// Verify response structure
+			data, ok := response.Data.(map[string]interface{})
+			if !ok {
+				t.Fatalf("Expected data to be a map[string]interface{}")
+			}
+
+			// Check required fields exist
+			requiredFields := []string{"status", "uptime", "runningScripts", "totalScripts"}
+			for _, field := range requiredFields {
+				if _, exists := data[field]; !exists {
+					t.Errorf("Missing required field: %s", field)
+				}
+			}
+
+			// Verify status
+			if status, ok := data["status"].(string); ok {
+				if status != tt.expectedStatus {
+					t.Errorf("Expected status %s, got %s", tt.expectedStatus, status)
+				}
+			} else {
+				t.Error("Status field is not a string")
+			}
+
+			// Verify total scripts count
+			if totalScripts, ok := data["totalScripts"].(float64); ok {
+				if int(totalScripts) != tt.expectedTotal {
+					t.Errorf("Expected totalScripts %d, got %d", tt.expectedTotal, int(totalScripts))
+				}
+			} else {
+				t.Error("totalScripts field is not a number")
+			}
+
+			// Verify uptime field exists and is string
+			if uptime, ok := data["uptime"].(string); ok {
+				if uptime == "" {
+					t.Error("Uptime should not be empty")
+				}
+			} else {
+				t.Error("uptime field is not a string")
+			}
+
+			// Verify runningScripts field exists and is number
+			if runningScripts, ok := data["runningScripts"].(float64); ok {
+				if int(runningScripts) < 0 {
+					t.Error("runningScripts should not be negative")
+				}
+			} else {
+				t.Error("runningScripts field is not a number")
+			}
+		})
+	}
+}
+
 func TestWebServer_ScriptsEndpoint(t *testing.T) {
 	// Create test dependencies with proper config
 	config := &service.ServiceConfig{

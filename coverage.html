@@ -103,7 +103,7 @@
 
 				<option value="file23">run-script-service/web/handlers_script_files.go (68.0%)</option>
 
-				<option value="file24">run-script-service/web/server.go (57.6%)</option>
+				<option value="file24">run-script-service/web/server.go (59.3%)</option>
 
 				<option value="file25">run-script-service/web/vue_build_manager.go (31.8%)</option>
 
@@ -6180,12 +6180,12 @@ func (ws *WebServer) handleStatus(c *gin.Context) <span class="cov8" title="1">{
         totalScripts := 0
 
         // Get script counts if script manager is available
-        if ws.scriptManager != nil </span><span class="cov0" title="0">{
+        if ws.scriptManager != nil </span><span class="cov8" title="1">{
                 config := ws.scriptManager.GetConfig()
                 totalScripts = len(config.Scripts)
 
                 // Count running/enabled scripts
-                for _, script := range config.Scripts </span><span class="cov0" title="0">{
+                for _, script := range config.Scripts </span><span class="cov8" title="1">{
                         if script.Enabled &amp;&amp; ws.scriptManager.IsScriptRunning(script.Name) </span><span class="cov0" title="0">{
                                 runningScripts++
                         }</span>
@@ -6193,9 +6193,9 @@ func (ws *WebServer) handleStatus(c *gin.Context) <span class="cov8" title="1">{
         }
 
         // Calculate uptime if system monitor is available
-        <span class="cov8" title="1">if ws.systemMonitor != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if ws.systemMonitor != nil </span><span class="cov8" title="1">{
                 uptimeStr := ws.systemMonitor.GetUptime()
-                if uptimeStr != "" </span><span class="cov0" title="0">{
+                if uptimeStr != "" </span><span class="cov8" title="1">{
                         uptime = uptimeStr
                 }</span>
         }
