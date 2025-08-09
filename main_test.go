@@ -826,6 +826,102 @@ func TestRunMultiScriptService_ConfigurationHandling(t *testing.T) {
 	})
 }
 
+// Test the extracted loadConfigWithDefaults function
+func TestLoadConfigWithDefaults(t *testing.T) {
+	t.Run("should_apply_default_web_port", func(t *testing.T) {
+		// Create temporary directory
+		tempDir, err := ioutil.TempDir("", "test_load_config_defaults")
+		if err != nil {
+			t.Fatalf("Failed to create temp dir: %v", err)
+		}
+		defer os.RemoveAll(tempDir)
+
+		// Create test configuration without WebPort
+		configPath := filepath.Join(tempDir, "service_config.json")
+		testConfig := service.ServiceConfig{
+			Scripts: []service.ScriptConfig{
+				{
+					Name:     "test",
+					Path:     filepath.Join(tempDir, "test.sh"),
+					Interval: 60,
+					Enabled:  true,
+				},
+			},
+			// WebPort intentionally omitted (0 value)
+		}
+
+		// Create test script file
+		testScript := filepath.Join(tempDir, "test.sh")
+		err = ioutil.WriteFile(testScript, []byte("#!/bin/bash\necho 'test'\n"), 0755)
+		if err != nil {
+			t.Fatalf("Failed to create test script: %v", err)
+		}
+
+		// Save configuration
+		err = service.SaveServiceConfig(configPath, &testConfig)
+		if err != nil {
+			t.Fatalf("Failed to save config: %v", err)
+		}
+
+		// Test loadConfigWithDefaults
+		config, err := loadConfigWithDefaults(configPath)
+		if err != nil {
+			t.Fatalf("loadConfigWithDefaults failed: %v", err)
+		}
+
+		if config == nil {
+			t.Fatal("Expected non-nil config")
+		}
+
+		// Verify default web port was set
+		if config.WebPort != 8080 {
+			t.Errorf("Expected WebPort 8080, got %d", config.WebPort)
+		}
+
+		// Verify other config values are preserved
+		if len(config.Scripts) != 1 {
+			t.Errorf("Expected 1 script, got %d", len(config.Scripts))
+		}
+
+		if config.Scripts[0].Name != "test" {
+			t.Errorf("Expected script name 'test', got '%s'", config.Scripts[0].Name)
+		}
+	})
+
+	t.Run("should_preserve_existing_web_port", func(t *testing.T) {
+		// Create temporary directory
+		tempDir, err := ioutil.TempDir("", "test_load_config_preserve")
+		if err != nil {
+			t.Fatalf("Failed to create temp dir: %v", err)
+		}
+		defer os.RemoveAll(tempDir)
+
+		// Create test configuration with custom WebPort
+		configPath := filepath.Join(tempDir, "service_config.json")
+		testConfig := service.ServiceConfig{
+			Scripts: []service.ScriptConfig{},
+			WebPort: 9090, // Custom port
+		}
+
+		// Save configuration
+		err = service.SaveServiceConfig(configPath, &testConfig)
+		if err != nil {
+			t.Fatalf("Failed to save config: %v", err)
+		}
+
+		// Test loadConfigWithDefaults
+		config, err := loadConfigWithDefaults(configPath)
+		if err != nil {
+			t.Fatalf("loadConfigWithDefaults failed: %v", err)
+		}
+
+		// Verify custom web port was preserved
+		if config.WebPort != 9090 {
+			t.Errorf("Expected WebPort 9090, got %d", config.WebPort)
+		}
+	})
+}
+
 func TestRunCommand(t *testing.T) {
 	tests := []struct {
 		name        string

@@ -167,24 +167,39 @@ func runService(svc *service.Service) {
 	}
 }
 
-// runMultiScriptServiceTestable contains the testable business logic
+// runMultiScriptServiceTestable contains the testable business logic for service initialization.
+// It separates configuration loading and manager creation from OS-level concerns like
+// signal handling and process management, making it suitable for unit testing.
+//
+// Returns:
+//   - *service.ServiceConfig: The loaded and validated service configuration
+//   - *service.ScriptManager: The initialized script manager
+//   - error: Any error that occurred during initialization
 func runMultiScriptServiceTestable(configPath string) (*service.ServiceConfig, *service.ScriptManager, error) {
-	// Load service configuration
+	config, err := loadConfigWithDefaults(configPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	manager := service.NewScriptManager(config)
+	return config, manager, nil
+}
+
+// loadConfigWithDefaults loads the service configuration from the specified path
+// and applies default values where necessary.
+func loadConfigWithDefaults(configPath string) (*service.ServiceConfig, error) {
 	var config service.ServiceConfig
 	err := service.LoadServiceConfig(configPath, &config)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	// Set default web port if not configured
+	// Apply default values
 	if config.WebPort == 0 {
 		config.WebPort = 8080
 	}
 
-	// Create script manager
-	manager := service.NewScriptManager(&config)
-
-	return &config, manager, nil
+	return &config, nil
 }
 
 func runMultiScriptService(configPath string) {
