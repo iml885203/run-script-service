@@ -1726,3 +1726,86 @@ func TestMainFunctionWrapper(t *testing.T) {
 		}
 	})
 }
+
+// 🔴 Red Phase: Test for main function behavior
+func TestMainFunction(t *testing.T) {
+	t.Run("should_handle_basic_command_without_panic", func(t *testing.T) {
+		// This test is to cover the main function execution path
+		// We cannot directly test main() since it calls os.Exit
+		// But we can test the testable wrapper that main() calls
+		tempDir := t.TempDir()
+
+		scriptPath := filepath.Join(tempDir, "run.sh")
+		logPath := filepath.Join(tempDir, "run.log")
+		configPath := filepath.Join(tempDir, "service_config.json")
+
+		// Create minimal script
+		err := os.WriteFile(scriptPath, []byte("#!/bin/bash\necho test"), 0755)
+		if err != nil {
+			t.Fatalf("Failed to create test script: %v", err)
+		}
+
+		// Test a simple command that should work
+		args := []string{"program", "show-config"}
+		exitCode, err := runMainTestable(args, scriptPath, logPath, configPath, 100)
+
+		if err != nil {
+			t.Errorf("runMainTestable failed: %v", err)
+		}
+
+		if exitCode != 0 {
+			t.Errorf("Expected exit code 0, got %d", exitCode)
+		}
+	})
+}
+
+// 🔴 Red Phase: Test for runMultiScriptService signal handling
+func TestRunMultiScriptServiceSignalHandling(t *testing.T) {
+	t.Run("should_handle_service_startup_without_blocking", func(t *testing.T) {
+		// This test will fail initially because runMultiScriptService blocks waiting for signals
+		// We need to create a testable version that doesn't block
+		tempDir := t.TempDir()
+		configPath := filepath.Join(tempDir, "service_config.json")
+
+		// Create valid config
+		testConfig := service.ServiceConfig{
+			Scripts: []service.ScriptConfig{
+				{
+					Name:     "test",
+					Path:     filepath.Join(tempDir, "test.sh"),
+					Interval: 60,
+					Enabled:  true,
+				},
+			},
+			WebPort: 8080,
+		}
+
+		// Create test script
+		err := os.WriteFile(testConfig.Scripts[0].Path, []byte("#!/bin/bash\necho test"), 0755)
+		if err != nil {
+			t.Fatalf("Failed to create test script: %v", err)
+		}
+
+		// Save config
+		err = service.SaveServiceConfig(configPath, &testConfig)
+		if err != nil {
+			t.Fatalf("Failed to save config: %v", err)
+		}
+
+		// This should not block - we need to create a testable version
+		// For now, this will demonstrate the need for refactoring
+
+		// We should be able to test the service startup logic without blocking
+		_, manager, err := runMultiScriptServiceTestable(configPath)
+		if err != nil {
+			t.Fatalf("Failed to create service components: %v", err)
+		}
+
+		if manager == nil {
+			t.Error("Expected manager to be created")
+		}
+
+		// The actual runMultiScriptService function currently blocks
+		// This test exposes the need for a testable wrapper
+	})
+}
