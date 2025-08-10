@@ -174,6 +174,13 @@ func TestHandleCommand(t *testing.T) {
 			expectRun: false,
 			expectErr: false,
 		},
+		{
+			name:       "daemon command missing subcommand",
+			args:       []string{"run-script-service", "daemon"},
+			expectRun:  false,
+			expectErr:  true,
+			errMessage: "usage: ./run-script-service daemon <start|stop|status|restart|logs>",
+		},
 	}
 
 	for _, tt := range tests {

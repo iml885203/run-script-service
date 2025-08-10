@@ -61,7 +61,7 @@
 
 				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
 
-				<option value="file3">run-script-service/main.go (67.3%)</option>
+				<option value="file3">run-script-service/main.go (68.5%)</option>
 
 				<option value="file4">run-script-service/mocks/filesystem.go (100.0%)</option>
 
@@ -523,8 +523,8 @@ func handleCommand(args []string, scriptPath, logPath, configPath string, maxLin
                                 fmt.Errorf("usage: ./run-script-service set-web-port &lt;port&gt;")
                 }</span>
                 <span class="cov8" title="1">return handleSetWebPort(args[2], configPath)</span>
-        case "daemon":<span class="cov0" title="0">
-                if len(args) &lt; 3 </span><span class="cov0" title="0">{
+        case "daemon":<span class="cov8" title="1">
+                if len(args) &lt; 3 </span><span class="cov8" title="1">{
                         return CommandResult{shouldRunService: false},
                                 fmt.Errorf("usage: ./run-script-service daemon &lt;start|stop|status|restart|logs&gt;")
                 }</span>
@@ -792,8 +792,8 @@ func handleAddScript(args []string, configPath string) (CommandResult, error) <s
         }</span>
 
         // Check if script name already exists
-        <span class="cov8" title="1">for _, script := range config.Scripts </span><span class="cov0" title="0">{
-                if script.Name == flags["name"] </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">for _, script := range config.Scripts </span><span class="cov8" title="1">{
+                if script.Name == flags["name"] </span><span class="cov8" title="1">{
                         return CommandResult{shouldRunService: false}, fmt.Errorf("script with name '%s' already exists", flags["name"])
                 }</span>
         }
@@ -808,7 +808,7 @@ func handleAddScript(args []string, configPath string) (CommandResult, error) <s
                 Timeout:     timeout,
         }
 
-        if validateErr := newScript.Validate(); validateErr != nil </span><span class="cov0" title="0">{
+        if validateErr := newScript.Validate(); validateErr != nil </span><span class="cov8" title="1">{
                 return CommandResult{shouldRunService: false}, fmt.Errorf("invalid script configuration: %v", validateErr)
         }</span>
 
@@ -998,7 +998,7 @@ func handleLogs(args []string, _ string) (CommandResult, error) <span class="cov
 
         <span class="cov8" title="1">if exitCode, ok := flags["exit-code"]; ok </span><span class="cov8" title="1">{
                 code, parseErr := strconv.Atoi(exitCode)
-                if parseErr != nil </span><span class="cov0" title="0">{
+                if parseErr != nil </span><span class="cov8" title="1">{
                         return CommandResult{shouldRunService: false}, fmt.Errorf("invalid exit-code: %v", parseErr)
                 }</span>
                 <span class="cov8" title="1">query.ExitCode = &amp;code</span>
@@ -1006,7 +1006,7 @@ func handleLogs(args []string, _ string) (CommandResult, error) <span class="cov
 
         <span class="cov8" title="1">if limit, ok := flags["limit"]; ok </span><span class="cov8" title="1">{
                 limitNum, parseErr := strconv.Atoi(limit)
-                if parseErr != nil </span><span class="cov0" title="0">{
+                if parseErr != nil </span><span class="cov8" title="1">{
                         return CommandResult{shouldRunService: false}, fmt.Errorf("invalid limit: %v", parseErr)
                 }</span>
                 <span class="cov8" title="1">query.Limit = limitNum</span>

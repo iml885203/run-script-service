@@ -255,6 +255,75 @@ func TestCLICommands(t *testing.T) {
 			t.Error("Expected error for clear-logs command without --script flag")
 		}
 	})
+
+	t.Run("add-script command - duplicate name", func(t *testing.T) {
+		// First add a script
+		config := &service.ServiceConfig{
+			Scripts: []service.ScriptConfig{
+				{
+					Name:        "existing",
+					Path:        scriptPath,
+					Interval:    60,
+					Enabled:     true,
+					MaxLogLines: 100,
+					Timeout:     0,
+				},
+			},
+			WebPort: 8080,
+		}
+		err := service.SaveServiceConfig(configPath, config)
+		if err != nil {
+			t.Fatalf("Failed to save config: %v", err)
+		}
+
+		// Try to add script with same name
+		args := []string{"run-script-service", "add-script", "--name=existing", "--path=" + scriptPath, "--interval=30s"}
+		_, err = handleCommand(args, scriptPath, logPath, configPath, 100)
+
+		if err == nil {
+			t.Error("Expected error for duplicate script name")
+		}
+		if err != nil && !contains(err.Error(), "already exists") {
+			t.Errorf("Expected 'already exists' error, got: %v", err)
+		}
+	})
+
+	t.Run("add-script command - invalid script path", func(t *testing.T) {
+		// Try to add script with non-existent path
+		args := []string{"run-script-service", "add-script", "--name=invalid", "--path=/nonexistent/script.sh", "--interval=30s"}
+		_, err := handleCommand(args, scriptPath, logPath, configPath, 100)
+
+		if err == nil {
+			t.Error("Expected error for non-existent script path")
+		}
+		if err != nil && !contains(err.Error(), "invalid script configuration") {
+			t.Errorf("Expected 'invalid script configuration' error, got: %v", err)
+		}
+	})
+
+	t.Run("logs command - invalid exit code", func(t *testing.T) {
+		args := []string{"run-script-service", "logs", "--exit-code=invalid"}
+		_, err := handleCommand(args, scriptPath, logPath, configPath, 100)
+
+		if err == nil {
+			t.Error("Expected error for invalid exit-code")
+		}
+		if err != nil && !contains(err.Error(), "invalid exit-code") {
+			t.Errorf("Expected 'invalid exit-code' error, got: %v", err)
+		}
+	})
+
+	t.Run("logs command - invalid limit", func(t *testing.T) {
+		args := []string{"run-script-service", "logs", "--limit=invalid"}
+		_, err := handleCommand(args, scriptPath, logPath, configPath, 100)
+
+		if err == nil {
+			t.Error("Expected error for invalid limit")
+		}
+		if err != nil && !contains(err.Error(), "invalid limit") {
+			t.Errorf("Expected 'invalid limit' error, got: %v", err)
+		}
+	})
 }
 
 func TestParseScriptFlags(t *testing.T) {
