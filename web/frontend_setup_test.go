@@ -160,3 +160,85 @@ func TestVueBuildManager_CheckFrontendExists(t *testing.T) {
 		// The actual logic seems to have some issues, but we've covered the method execution
 	})
 }
+
+// TestVueBuildManager_InitializeFrontendProject tests the InitializeFrontendProject method - TDD
+func TestVueBuildManager_InitializeFrontendProject(t *testing.T) {
+	t.Run("should_fail_when_required_typescript_files_are_missing", func(t *testing.T) {
+		tempDir := t.TempDir()
+		buildManager := NewVueBuildManager(tempDir)
+
+		err := buildManager.InitializeFrontendProject()
+
+		if err == nil {
+			t.Error("Expected InitializeFrontendProject to return error when TypeScript files are missing")
+		}
+
+		if err != nil && !containsString(err.Error(), "missing required TypeScript files") {
+			t.Errorf("Expected error about missing TypeScript files, got: %v", err)
+		}
+	})
+
+	t.Run("should_succeed_when_all_required_typescript_files_exist", func(t *testing.T) {
+		tempDir := t.TempDir()
+		buildManager := NewVueBuildManager(tempDir)
+
+		// Create all required TypeScript files
+		requiredFiles := []string{
+			"package.json",
+			"tsconfig.json",
+			"vite.config.ts",
+			"vitest.config.ts",
+			"index.html",
+			"src/main.ts",
+			"src/App.vue",
+			"src/router/index.ts",
+			"src/types/api.ts",
+			"src/services/api.ts",
+			"src/composables/useScripts.ts",
+			"src/composables/useLogs.ts",
+			"src/composables/useSystemMetrics.ts",
+			"src/composables/useWebSocket.ts",
+			"src/views/Dashboard.vue",
+			"src/style.css",
+			"tests/setup.ts",
+			"tests/unit/services/api.test.ts",
+			"tests/unit/composables/useScripts.test.ts",
+			"tests/unit/components/Dashboard.test.ts",
+		}
+
+		for _, file := range requiredFiles {
+			filePath := filepath.Join(buildManager.FrontendDir, file)
+			dir := filepath.Dir(filePath)
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				t.Fatalf("Failed to create directory %s: %v", dir, err)
+			}
+			if err := os.WriteFile(filePath, []byte("// test file"), 0644); err != nil {
+				t.Fatalf("Failed to create file %s: %v", filePath, err)
+			}
+		}
+
+		err := buildManager.InitializeFrontendProject()
+
+		if err != nil {
+			t.Errorf("Expected InitializeFrontendProject to succeed when all files exist, got error: %v", err)
+		}
+	})
+
+	t.Run("should_create_frontend_directory_if_it_does_not_exist", func(t *testing.T) {
+		tempDir := t.TempDir()
+		buildManager := NewVueBuildManager(tempDir)
+
+		// Ensure frontend directory doesn't exist initially
+		if _, err := os.Stat(buildManager.FrontendDir); !os.IsNotExist(err) {
+			t.Fatalf("Frontend directory should not exist initially")
+		}
+
+		// Call method (will fail due to missing files, but should create directory)
+		buildManager.InitializeFrontendProject()
+
+		// Check that frontend directory was created
+		if _, err := os.Stat(buildManager.FrontendDir); os.IsNotExist(err) {
+			t.Error("Expected InitializeFrontendProject to create frontend directory")
+		}
+	})
+}

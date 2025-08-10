@@ -59,7 +59,7 @@
 
 				<option value="file1">run-script-service/auth/middleware.go (100.0%)</option>
 
-				<option value="file2">run-script-service/auth/session.go (93.5%)</option>
+				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
 
 				<option value="file3">run-script-service/main.go (71.3%)</option>
 
@@ -105,7 +105,7 @@
 
 				<option value="file24">run-script-service/web/server.go (61.5%)</option>
 
-				<option value="file25">run-script-service/web/vue_build_manager.go (31.8%)</option>
+				<option value="file25">run-script-service/web/vue_build_manager.go (90.9%)</option>
 
 				<option value="file26">run-script-service/web/websocket.go (19.7%)</option>
 
@@ -393,7 +393,7 @@ func (sm *SessionManager) ValidateSession(token string) (string, bool) <span cla
         // Check if session has expired
         <span class="cov8" title="1">if time.Now().After(session.ExpiresAt) </span><span class="cov8" title="1">{
                 // Clean up expired session
-                go func() </span><span class="cov8" title="1">{
+                go func() </span><span class="cov0" title="0">{
                         sm.mutex.Lock()
                         defer sm.mutex.Unlock()
                         delete(sm.sessions, token)
@@ -7208,22 +7208,22 @@ func NewVueBuildManager(projectRoot string) *VueBuildManager <span class="cov8" 
 }</span>
 
 // InitializeFrontendProject sets up the complete Vue.js frontend project structure
-func (vbm *VueBuildManager) InitializeFrontendProject() error <span class="cov0" title="0">{
+func (vbm *VueBuildManager) InitializeFrontendProject() error <span class="cov8" title="1">{
         // Create main frontend directory
         if err := os.MkdirAll(vbm.FrontendDir, 0755); err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("failed to create frontend directory: %w", err)
         }</span>
 
         // Initialize TypeScript Vue project (new approach)
-        <span class="cov0" title="0">if err := vbm.initializeTypeScriptProject(); err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if err := vbm.initializeTypeScriptProject(); err != nil </span><span class="cov8" title="1">{
                 return fmt.Errorf("failed to initialize TypeScript project: %w", err)
         }</span>
 
-        <span class="cov0" title="0">return nil</span>
+        <span class="cov8" title="1">return nil</span>
 }
 
 // initializeTypeScriptProject sets up a complete TypeScript + Vue.js project
-func (vbm *VueBuildManager) initializeTypeScriptProject() error <span class="cov0" title="0">{
+func (vbm *VueBuildManager) initializeTypeScriptProject() error <span class="cov8" title="1">{
         // For now, we assume the TypeScript frontend files are already in place
         // This method validates that all required TypeScript files exist
 
@@ -7252,18 +7252,18 @@ func (vbm *VueBuildManager) initializeTypeScriptProject() error <span class="cov
         }
 
         missingFiles := []string{}
-        for _, file := range requiredFiles </span><span class="cov0" title="0">{
+        for _, file := range requiredFiles </span><span class="cov8" title="1">{
                 filePath := filepath.Join(vbm.FrontendDir, file)
-                if _, err := os.Stat(filePath); os.IsNotExist(err) </span><span class="cov0" title="0">{
+                if _, err := os.Stat(filePath); os.IsNotExist(err) </span><span class="cov8" title="1">{
                         missingFiles = append(missingFiles, file)
                 }</span>
         }
 
-        <span class="cov0" title="0">if len(missingFiles) &gt; 0 </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if len(missingFiles) &gt; 0 </span><span class="cov8" title="1">{
                 return fmt.Errorf("missing required TypeScript files: %v", missingFiles)
         }</span>
 
-        <span class="cov0" title="0">return nil</span>
+        <span class="cov8" title="1">return nil</span>
 }
 
 // GetFrontendDir returns the frontend directory path
