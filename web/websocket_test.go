@@ -2,9 +2,13 @@ package web
 
 import (
 	"encoding/json"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -211,5 +215,268 @@ func TestWebSocketHub_BroadcastScriptEvents(t *testing.T) {
 				t.Fatal("Expected message to be sent to broadcast channel")
 			}
 		})
+	}
+}
+
+func TestWebSocketHub_Run_ClientRegistration(t *testing.T) {
+	hub := NewWebSocketHub()
+
+	// Create a mock client
+	mockClient := &WebSocketClient{
+		hub:  hub,
+		send: make(chan []byte, 256),
+	}
+
+	// Start the hub in a goroutine
+	go hub.Run()
+
+	// Register a client
+	hub.register <- mockClient
+
+	// Give the hub a moment to process
+	time.Sleep(10 * time.Millisecond)
+
+	// Verify the client was registered
+	assert.Equal(t, 1, hub.GetConnectionCount())
+}
+
+func TestWebSocketHub_Run_ClientUnregistration(t *testing.T) {
+	hub := NewWebSocketHub()
+
+	// Create and pre-register a mock client
+	mockClient := &WebSocketClient{
+		hub:  hub,
+		send: make(chan []byte, 256),
+	}
+	hub.clients[mockClient] = true
+
+	// Start the hub in a goroutine
+	go hub.Run()
+
+	// Unregister the client
+	hub.unregister <- mockClient
+
+	// Give the hub a moment to process
+	time.Sleep(10 * time.Millisecond)
+
+	// Verify the client was unregistered
+	assert.Equal(t, 0, hub.GetConnectionCount())
+}
+
+func TestWebSocketHub_Run_MessageBroadcast(t *testing.T) {
+	hub := NewWebSocketHub()
+
+	// Create mock clients
+	client1 := &WebSocketClient{
+		hub:  hub,
+		send: make(chan []byte, 256),
+	}
+	client2 := &WebSocketClient{
+		hub:  hub,
+		send: make(chan []byte, 256),
+	}
+
+	// Pre-register clients
+	hub.clients[client1] = true
+	hub.clients[client2] = true
+
+	// Start the hub in a goroutine
+	go hub.Run()
+
+	// Send a broadcast message
+	testMessage := []byte(`{"type":"test","data":{"message":"hello"}}`)
+	hub.broadcast <- testMessage
+
+	// Give the hub a moment to process
+	time.Sleep(10 * time.Millisecond)
+
+	// Verify both clients received the message
+	select {
+	case msg := <-client1.send:
+		assert.Equal(t, testMessage, msg)
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("Client1 should have received broadcast message")
+	}
+
+	select {
+	case msg := <-client2.send:
+		assert.Equal(t, testMessage, msg)
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("Client2 should have received broadcast message")
+	}
+}
+
+func TestWebSocketHub_ConnectionLimit(t *testing.T) {
+	hub := NewWebSocketHub()
+	hub.maxConnections = 2
+
+	// Start the hub in a goroutine
+	go hub.Run()
+
+	// Create clients with proper send channels but without actual WebSocket connections
+	// We'll test the limit logic without involving actual WebSocket operations
+	client1 := &WebSocketClient{hub: hub, send: make(chan []byte, 256)}
+	client2 := &WebSocketClient{hub: hub, send: make(chan []byte, 256)}
+	client3 := &WebSocketClient{hub: hub, send: make(chan []byte, 256)}
+
+	// Register first two clients (should succeed)
+	hub.register <- client1
+	hub.register <- client2
+	time.Sleep(10 * time.Millisecond)
+	assert.Equal(t, 2, hub.GetConnectionCount())
+
+	// For the third client test, we need to account for the fact that
+	// the hub will try to close the connection when limit is reached
+	// Since we don't have real connections, we'll just verify the count doesn't increase
+	originalCount := hub.GetConnectionCount()
+	hub.register <- client3
+	time.Sleep(10 * time.Millisecond)
+
+	// Should still have only the original number of clients (limit enforced)
+	assert.Equal(t, originalCount, hub.GetConnectionCount())
+}
+
+func TestWebSocketClient_Integration(t *testing.T) {
+	// Set up a test WebSocket server
+	hub := NewWebSocketHub()
+	go hub.Run()
+
+	// Set up Gin router with WebSocket handler
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/ws", func(c *gin.Context) {
+		HandleWebSocket(hub, c)
+	})
+
+	// Create test server
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	// Convert HTTP URL to WebSocket URL
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
+
+	// Connect to WebSocket
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	// Give the connection time to register
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify client was registered
+	assert.Equal(t, 1, hub.GetConnectionCount())
+
+	// Test broadcasting a message
+	testData := map[string]interface{}{
+		"test": "message",
+	}
+	err = hub.BroadcastMessage("test_type", testData)
+	require.NoError(t, err)
+
+	// Read message from WebSocket
+	conn.SetReadDeadline(time.Now().Add(1 * time.Second))
+	_, messageBytes, err := conn.ReadMessage()
+	require.NoError(t, err)
+
+	// Verify message content
+	var receivedMessage WebSocketMessage
+	err = json.Unmarshal(messageBytes, &receivedMessage)
+	require.NoError(t, err)
+
+	assert.Equal(t, "test_type", receivedMessage.Type)
+	assert.Equal(t, testData, receivedMessage.Data)
+
+	// Close connection and verify cleanup
+	conn.Close()
+	time.Sleep(50 * time.Millisecond)
+
+	// Connection should be cleaned up
+	assert.Equal(t, 0, hub.GetConnectionCount())
+}
+
+func TestWebSocketClient_MessageHandling(t *testing.T) {
+	// Set up a test WebSocket server
+	hub := NewWebSocketHub()
+	go hub.Run()
+
+	// Set up Gin router with WebSocket handler
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/ws", func(c *gin.Context) {
+		HandleWebSocket(hub, c)
+	})
+
+	// Create test server
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	// Convert HTTP URL to WebSocket URL
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
+
+	// Connect to WebSocket
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	// Give the connection time to register
+	time.Sleep(50 * time.Millisecond)
+
+	// Send multiple messages rapidly to test message queuing
+	messages := []map[string]interface{}{
+		{"id": 1, "message": "first"},
+		{"id": 2, "message": "second"},
+		{"id": 3, "message": "third"},
+	}
+
+	for i, data := range messages {
+		err = hub.BroadcastMessage("batch_test", data)
+		require.NoError(t, err, "Failed to broadcast message %d", i+1)
+	}
+
+	// Read messages (they might be combined into fewer frames due to message queuing)
+	receivedMessages := make([]WebSocketMessage, 0, len(messages))
+
+	// Read up to the number of messages we sent, with timeout for each read
+	for i := 0; i < len(messages); i++ {
+		conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		_, messageBytes, err := conn.ReadMessage()
+		if err != nil {
+			// If we can't read more messages, break (might be combined)
+			break
+		}
+
+		// Messages might be combined with newlines, split them
+		parts := strings.Split(string(messageBytes), "\n")
+		for _, part := range parts {
+			if strings.TrimSpace(part) == "" {
+				continue
+			}
+
+			var msg WebSocketMessage
+			err = json.Unmarshal([]byte(part), &msg)
+			if err != nil {
+				// Skip invalid JSON parts
+				continue
+			}
+			receivedMessages = append(receivedMessages, msg)
+		}
+	}
+
+	// Verify all messages were received
+	assert.Equal(t, len(messages), len(receivedMessages))
+
+	// Verify message content
+	for i, expected := range messages {
+		found := false
+		for _, received := range receivedMessages {
+			if received.Type == "batch_test" {
+				if idVal, ok := received.Data["id"]; ok && idVal == float64(expected["id"].(int)) {
+					assert.Equal(t, expected["message"], received.Data["message"])
+					found = true
+					break
+				}
+			}
+		}
+		assert.True(t, found, "Message %d not found in received messages", i+1)
 	}
 }

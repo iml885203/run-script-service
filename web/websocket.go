@@ -73,7 +73,9 @@ func (h *WebSocketHub) Run() {
 			if len(h.clients) >= h.maxConnections {
 				log.Printf("WebSocket connection limit reached (%d), rejecting new connection", h.maxConnections)
 				close(client.send)
-				client.conn.Close()
+				if client.conn != nil {
+					client.conn.Close()
+				}
 			} else {
 				h.clients[client] = true
 				log.Printf("WebSocket client connected, total: %d", len(h.clients))
@@ -94,7 +96,9 @@ func (h *WebSocketHub) Run() {
 					// Client can't receive message, disconnect it
 					close(client.send)
 					delete(h.clients, client)
-					client.conn.Close()
+					if client.conn != nil {
+						client.conn.Close()
+					}
 				}
 			}
 		}
