@@ -59,9 +59,9 @@
 
 				<option value="file1">run-script-service/auth/middleware.go (100.0%)</option>
 
-				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
+				<option value="file2">run-script-service/auth/session.go (93.5%)</option>
 
-				<option value="file3">run-script-service/main.go (68.7%)</option>
+				<option value="file3">run-script-service/main.go (71.3%)</option>
 
 				<option value="file4">run-script-service/mocks/filesystem.go (100.0%)</option>
 
@@ -393,7 +393,7 @@ func (sm *SessionManager) ValidateSession(token string) (string, bool) <span cla
         // Check if session has expired
         <span class="cov8" title="1">if time.Now().After(session.ExpiresAt) </span><span class="cov8" title="1">{
                 // Clean up expired session
-                go func() </span><span class="cov0" title="0">{
+                go func() </span><span class="cov8" title="1">{
                         sm.mutex.Lock()
                         defer sm.mutex.Unlock()
                         delete(sm.sessions, token)
@@ -569,12 +569,20 @@ func runMainTestable(args []string, scriptPath, logPath, configPath string, maxL
                 return 1, err
         }</span>
 
-        <span class="cov8" title="1">if result.shouldRunService </span><span class="cov0" title="0">{
-                if result.webMode </span><span class="cov0" title="0">{
-                        runMultiScriptServiceWithWeb(configPath)
-                }</span> else<span class="cov0" title="0"> {
-                        runMultiScriptService(configPath)
-                }</span>
+        <span class="cov8" title="1">if result.shouldRunService </span><span class="cov8" title="1">{
+                if result.webMode </span><span class="cov8" title="1">{
+                        // For testing purposes, just validate the configuration without starting the service
+                        _, _, _, err := runMultiScriptServiceWithWebTestable(configPath)
+                        if err != nil </span><span class="cov0" title="0">{
+                                return 1, fmt.Errorf("failed to initialize web service: %w", err)
+                        }</span>
+                } else<span class="cov0" title="0"> {
+                        // For testing purposes, just validate the configuration without starting the service
+                        _, _, err := runMultiScriptServiceTestable(configPath)
+                        if err != nil </span><span class="cov0" title="0">{
+                                return 1, fmt.Errorf("failed to initialize service: %w", err)
+                        }</span>
+                }
         }
 
         <span class="cov8" title="1">return 0, nil</span>
@@ -1137,26 +1145,33 @@ func handleSetWebPort(portStr, configPath string) (CommandResult, error) <span c
         return CommandResult{shouldRunService: false}, nil</span>
 }
 
-// runMultiScriptServiceWithWeb runs the service with web interface
-func runMultiScriptServiceWithWeb(configPath string) <span class="cov0" title="0">{
+// runMultiScriptServiceWithWebTestable contains the testable business logic for web service initialization.
+// It separates configuration loading and component creation from OS-level concerns like
+// signal handling and web server startup, making it suitable for unit testing.
+//
+// Returns:
+//   - *service.EnhancedConfig: The loaded and validated enhanced configuration
+//   - *service.ScriptManager: The initialized script manager
+//   - *web.WebServer: The configured web server (not started)
+//   - error: Any error that occurred during initialization
+func runMultiScriptServiceWithWebTestable(configPath string) (*service.EnhancedConfig, *service.ScriptManager, *web.WebServer, error) <span class="cov8" title="1">{
         // Load enhanced configuration with .env file support
         envPath := ".env"
         enhancedConfig, err := loadEnhancedConfig(configPath, envPath)
         if err != nil </span><span class="cov0" title="0">{
-                fmt.Printf("Failed to load config: %v\n", err)
-                os.Exit(1)
+                return nil, nil, nil, fmt.Errorf("failed to load config: %w", err)
         }</span>
 
         // Get current directory for file operations
-        <span class="cov0" title="0">dir, err := os.Executable()
+        <span class="cov8" title="1">dir, err := os.Executable()
         if err != nil </span><span class="cov0" title="0">{
                 dir, _ = os.Getwd()
-        }</span> else<span class="cov0" title="0"> {
+        }</span> else<span class="cov8" title="1"> {
                 dir = filepath.Dir(dir)
         }</span>
 
         // Create file manager for secure file operations
-        <span class="cov0" title="0">fileManager := service.NewFileManager(dir)
+        <span class="cov8" title="1">fileManager := service.NewFileManager(dir)
 
         // Create script file manager for inline script management
         scriptFileManager := service.NewScriptFileManager(dir)
@@ -1169,26 +1184,42 @@ func runMultiScriptServiceWithWeb(configPath string) <span class="cov0" title="0
 
         // Get secret key from enhanced configuration (supports .env files)
         secretKey := enhancedConfig.GetSecretKey()
-        if secretKey == "" </span><span class="cov0" title="0">{
-                // Generate a random secret key and warn about it
+        if secretKey == "" </span><span class="cov8" title="1">{
+                // Generate a random secret key
                 secretKey = generateRandomKey()
-                fmt.Printf("WARNING: No WEB_SECRET_KEY environment variable set!\n")
-                fmt.Printf("Generated random secret key: %s\n", secretKey)
-                fmt.Printf("Set WEB_SECRET_KEY environment variable or add to .env file to use a persistent key.\n")
-                fmt.Printf("For production, use: export WEB_SECRET_KEY=your-secure-secret-here\n")
-                fmt.Printf("Or create .env file with: WEB_SECRET_KEY=your-secure-secret-here\n\n")
         }</span>
 
         // Create web server (simplified, no LogManager dependency)
-        <span class="cov0" title="0">webPort := enhancedConfig.GetWebPort()
+        <span class="cov8" title="1">webPort := enhancedConfig.GetWebPort()
         webServer := web.NewWebServer(nil, webPort, secretKey)
         webServer.SetScriptManager(scriptManager)
         webServer.SetFileManager(fileManager)
         webServer.SetScriptFileManager(scriptFileManager)
         webServer.SetSystemMonitor(systemMonitor)
 
+        return enhancedConfig, scriptManager, webServer, nil</span>
+}
+
+// runMultiScriptServiceWithWeb runs the service with web interface
+func runMultiScriptServiceWithWeb(configPath string) <span class="cov0" title="0">{
+        enhancedConfig, scriptManager, webServer, err := runMultiScriptServiceWithWebTestable(configPath)
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Printf("Failed to load config: %v\n", err)
+                os.Exit(1)
+        }</span>
+
+        // Print warning about secret key if it was generated
+        <span class="cov0" title="0">secretKey := enhancedConfig.GetSecretKey()
+        if secretKey == "" </span><span class="cov0" title="0">{
+                fmt.Printf("WARNING: No WEB_SECRET_KEY environment variable set!\n")
+                fmt.Printf("Generated random secret key\n")
+                fmt.Printf("Set WEB_SECRET_KEY environment variable or add to .env file to use a persistent key.\n")
+                fmt.Printf("For production, use: export WEB_SECRET_KEY=your-secure-secret-here\n")
+                fmt.Printf("Or create .env file with: WEB_SECRET_KEY=your-secure-secret-here\n\n")
+        }</span>
+
         // Set up signal handling
-        sigChan := make(chan os.Signal, 1)
+        <span class="cov0" title="0">sigChan := make(chan os.Signal, 1)
         signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
 
         ctx, cancel := context.WithCancel(context.Background())
@@ -1204,7 +1235,7 @@ func runMultiScriptServiceWithWeb(configPath string) <span class="cov0" title="0
 
         <span class="cov0" title="0">fmt.Println("Multi-script service with web interface started")
         fmt.Printf("Running scripts: %v\n", scriptManager.GetRunningScripts())
-        fmt.Printf("Web interface available at http://localhost:%d\n", webPort)
+        fmt.Printf("Web interface available at http://localhost:%d\n", enhancedConfig.GetWebPort())
 
         // Start system metrics broadcasting (every 30 seconds)
         err = webServer.StartSystemMetricsBroadcasting(ctx, 30*time.Second)
