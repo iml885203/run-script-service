@@ -2003,3 +2003,49 @@ func TestBuildFrontendValidation(t *testing.T) {
 		})
 	}
 }
+
+// 🔴 RED Phase: Test for direct runMultiScriptService function (currently 0% coverage)
+func TestRunMultiScriptServiceDirectCoverage(t *testing.T) {
+	t.Run("should_handle_signal_interruption_gracefully", func(t *testing.T) {
+		// Create temp directory
+		tempDir, err := ioutil.TempDir("", "TestRunMultiScriptServiceDirect")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.RemoveAll(tempDir)
+
+		// Create config file with disabled scripts to avoid actual execution
+		configPath := filepath.Join(tempDir, "service_config.json")
+		config := `{
+			"scripts": [
+				{
+					"name": "test-script",
+					"path": "` + filepath.Join(tempDir, "test.sh") + `",
+					"interval": 60,
+					"enabled": false,
+					"maxLogLines": 100,
+					"timeout": 0
+				}
+			]
+		}`
+
+		err = ioutil.WriteFile(configPath, []byte(config), 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Create test script
+		scriptPath := filepath.Join(tempDir, "test.sh")
+		err = ioutil.WriteFile(scriptPath, []byte("#!/bin/bash\necho 'test'"), 0755)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// This test will fail initially because runMultiScriptService blocks indefinitely
+		// and calls os.Exit - we need a testable version
+		exitCode := runMultiScriptServiceWithMockSignals(configPath)
+		if exitCode != 0 {
+			t.Errorf("Expected service to exit cleanly with code 0, got %d", exitCode)
+		}
+	})
+}
