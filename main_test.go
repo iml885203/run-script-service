@@ -1725,6 +1725,109 @@ func TestMainFunctionWrapper(t *testing.T) {
 			t.Error("Expected 'run' command to set shouldRunService=true")
 		}
 	})
+
+	// 🔴 Red Phase: Test runMainTestable with web mode and no arguments (should trigger service startup)
+	t.Run("should_handle_no_arguments_triggering_web_mode_service", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		// Create test script and config
+		scriptPath := filepath.Join(tempDir, "run.sh")
+		logPath := filepath.Join(tempDir, "run.log")
+		configPath := filepath.Join(tempDir, "service_config.json")
+
+		// Create minimal script
+		scriptContent := "#!/bin/bash\necho 'test'"
+		err := os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+		if err != nil {
+			t.Fatalf("Failed to create test script: %v", err)
+		}
+
+		// Create valid config with web port
+		configContent := `{
+			"web_port": 0,
+			"scripts": []
+		}`
+		err = os.WriteFile(configPath, []byte(configContent), 0644)
+		if err != nil {
+			t.Fatalf("Failed to create config: %v", err)
+		}
+
+		// Test with no arguments (should trigger web mode service startup)
+		args := []string{"program"}
+
+		// This should fail until we properly handle the webMode in runMainTestable
+		// The test will fail because runMultiScriptServiceWithWeb will try to start a real web server
+		exitCode, err := runMainTestable(args, scriptPath, logPath, configPath, 100)
+
+		// We expect this to work without error for a proper implementation
+		if err != nil {
+			t.Errorf("Expected runMainTestable with no args to work, got error: %v", err)
+		}
+
+		if exitCode != 0 {
+			t.Errorf("Expected exit code 0, got %d", exitCode)
+		}
+	})
+
+	// 🔵 Refactor Phase: Test for the new runMultiScriptServiceWithWebTestable function
+	t.Run("should_test_web_service_testable_function_directly", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		// Create valid config with web port
+		configPath := filepath.Join(tempDir, "service_config.json")
+		configContent := `{
+			"web_port": 8080,
+			"scripts": [
+				{
+					"name": "test-script",
+					"path": "/bin/echo",
+					"interval": 60,
+					"enabled": true,
+					"max_log_lines": 100
+				}
+			]
+		}`
+		err := os.WriteFile(configPath, []byte(configContent), 0644)
+		if err != nil {
+			t.Fatalf("Failed to create config: %v", err)
+		}
+
+		// Test the testable function directly
+		enhancedConfig, scriptManager, webServer, err := runMultiScriptServiceWithWebTestable(configPath)
+
+		if err != nil {
+			t.Errorf("Expected runMultiScriptServiceWithWebTestable to succeed, got error: %v", err)
+		}
+
+		if enhancedConfig == nil {
+			t.Error("Expected enhancedConfig to be non-nil")
+		}
+
+		if scriptManager == nil {
+			t.Error("Expected scriptManager to be non-nil")
+		}
+
+		if webServer == nil {
+			t.Error("Expected webServer to be non-nil")
+		}
+
+		// Verify configuration
+		if enhancedConfig != nil && enhancedConfig.GetWebPort() != 8080 {
+			t.Errorf("Expected web port 8080, got %d", enhancedConfig.GetWebPort())
+		}
+
+		// Verify script manager has the expected script
+		if scriptManager != nil {
+			config := scriptManager.GetConfig()
+			if len(config.Scripts) != 1 {
+				t.Errorf("Expected 1 script, got %d", len(config.Scripts))
+			}
+
+			if len(config.Scripts) > 0 && config.Scripts[0].Name != "test-script" {
+				t.Errorf("Expected script name 'test-script', got '%s'", config.Scripts[0].Name)
+			}
+		}
+	})
 }
 
 // 🔴 Red Phase: Test for main function behavior

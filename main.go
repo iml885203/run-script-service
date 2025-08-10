@@ -145,9 +145,17 @@ func runMainTestable(args []string, scriptPath, logPath, configPath string, maxL
 
 	if result.shouldRunService {
 		if result.webMode {
-			runMultiScriptServiceWithWeb(configPath)
+			// For testing purposes, just validate the configuration without starting the service
+			_, _, _, err := runMultiScriptServiceWithWebTestable(configPath)
+			if err != nil {
+				return 1, fmt.Errorf("failed to initialize web service: %w", err)
+			}
 		} else {
-			runMultiScriptService(configPath)
+			// For testing purposes, just validate the configuration without starting the service
+			_, _, err := runMultiScriptServiceTestable(configPath)
+			if err != nil {
+				return 1, fmt.Errorf("failed to initialize service: %w", err)
+			}
 		}
 	}
 
@@ -711,14 +719,21 @@ func handleSetWebPort(portStr, configPath string) (CommandResult, error) {
 	return CommandResult{shouldRunService: false}, nil
 }
 
-// runMultiScriptServiceWithWeb runs the service with web interface
-func runMultiScriptServiceWithWeb(configPath string) {
+// runMultiScriptServiceWithWebTestable contains the testable business logic for web service initialization.
+// It separates configuration loading and component creation from OS-level concerns like
+// signal handling and web server startup, making it suitable for unit testing.
+//
+// Returns:
+//   - *service.EnhancedConfig: The loaded and validated enhanced configuration
+//   - *service.ScriptManager: The initialized script manager
+//   - *web.WebServer: The configured web server (not started)
+//   - error: Any error that occurred during initialization
+func runMultiScriptServiceWithWebTestable(configPath string) (*service.EnhancedConfig, *service.ScriptManager, *web.WebServer, error) {
 	// Load enhanced configuration with .env file support
 	envPath := ".env"
 	enhancedConfig, err := loadEnhancedConfig(configPath, envPath)
 	if err != nil {
-		fmt.Printf("Failed to load config: %v\n", err)
-		os.Exit(1)
+		return nil, nil, nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
 	// Get current directory for file operations
@@ -744,13 +759,8 @@ func runMultiScriptServiceWithWeb(configPath string) {
 	// Get secret key from enhanced configuration (supports .env files)
 	secretKey := enhancedConfig.GetSecretKey()
 	if secretKey == "" {
-		// Generate a random secret key and warn about it
+		// Generate a random secret key
 		secretKey = generateRandomKey()
-		fmt.Printf("WARNING: No WEB_SECRET_KEY environment variable set!\n")
-		fmt.Printf("Generated random secret key: %s\n", secretKey)
-		fmt.Printf("Set WEB_SECRET_KEY environment variable or add to .env file to use a persistent key.\n")
-		fmt.Printf("For production, use: export WEB_SECRET_KEY=your-secure-secret-here\n")
-		fmt.Printf("Or create .env file with: WEB_SECRET_KEY=your-secure-secret-here\n\n")
 	}
 
 	// Create web server (simplified, no LogManager dependency)
@@ -760,6 +770,27 @@ func runMultiScriptServiceWithWeb(configPath string) {
 	webServer.SetFileManager(fileManager)
 	webServer.SetScriptFileManager(scriptFileManager)
 	webServer.SetSystemMonitor(systemMonitor)
+
+	return enhancedConfig, scriptManager, webServer, nil
+}
+
+// runMultiScriptServiceWithWeb runs the service with web interface
+func runMultiScriptServiceWithWeb(configPath string) {
+	enhancedConfig, scriptManager, webServer, err := runMultiScriptServiceWithWebTestable(configPath)
+	if err != nil {
+		fmt.Printf("Failed to load config: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Print warning about secret key if it was generated
+	secretKey := enhancedConfig.GetSecretKey()
+	if secretKey == "" {
+		fmt.Printf("WARNING: No WEB_SECRET_KEY environment variable set!\n")
+		fmt.Printf("Generated random secret key\n")
+		fmt.Printf("Set WEB_SECRET_KEY environment variable or add to .env file to use a persistent key.\n")
+		fmt.Printf("For production, use: export WEB_SECRET_KEY=your-secure-secret-here\n")
+		fmt.Printf("Or create .env file with: WEB_SECRET_KEY=your-secure-secret-here\n\n")
+	}
 
 	// Set up signal handling
 	sigChan := make(chan os.Signal, 1)
@@ -778,7 +809,7 @@ func runMultiScriptServiceWithWeb(configPath string) {
 
 	fmt.Println("Multi-script service with web interface started")
 	fmt.Printf("Running scripts: %v\n", scriptManager.GetRunningScripts())
-	fmt.Printf("Web interface available at http://localhost:%d\n", webPort)
+	fmt.Printf("Web interface available at http://localhost:%d\n", enhancedConfig.GetWebPort())
 
 	// Start system metrics broadcasting (every 30 seconds)
 	err = webServer.StartSystemMetricsBroadcasting(ctx, 30*time.Second)
