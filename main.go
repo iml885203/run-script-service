@@ -1165,6 +1165,17 @@ func ensureFrontendBuilt(workDir string) error {
 func buildFrontend(frontendDir string) error {
 	fmt.Printf("Building frontend in %s...\n", frontendDir)
 
+	// Validate package.json before attempting build
+	packageJsonPath := filepath.Join(frontendDir, "package.json")
+	packageJsonContent, err := os.ReadFile(packageJsonPath)
+	if err != nil {
+		return fmt.Errorf("failed to read package.json: %v", err)
+	}
+
+	if !validateFrontendPackageJson(packageJsonContent) {
+		return fmt.Errorf("package.json missing required build script or build script is empty")
+	}
+
 	// Check if node_modules exists, install dependencies if not
 	nodeModulesDir := filepath.Join(frontendDir, "node_modules")
 	if _, err := os.Stat(nodeModulesDir); os.IsNotExist(err) {

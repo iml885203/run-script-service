@@ -61,7 +61,7 @@
 
 				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
 
-				<option value="file3">run-script-service/main.go (68.5%)</option>
+				<option value="file3">run-script-service/main.go (68.7%)</option>
 
 				<option value="file4">run-script-service/mocks/filesystem.go (100.0%)</option>
 
@@ -1591,8 +1591,19 @@ func ensureFrontendBuilt(workDir string) error <span class="cov8" title="1">{
 func buildFrontend(frontendDir string) error <span class="cov8" title="1">{
         fmt.Printf("Building frontend in %s...\n", frontendDir)
 
+        // Validate package.json before attempting build
+        packageJsonPath := filepath.Join(frontendDir, "package.json")
+        packageJsonContent, err := os.ReadFile(packageJsonPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to read package.json: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">if !validateFrontendPackageJson(packageJsonContent) </span><span class="cov8" title="1">{
+                return fmt.Errorf("package.json missing required build script or build script is empty")
+        }</span>
+
         // Check if node_modules exists, install dependencies if not
-        nodeModulesDir := filepath.Join(frontendDir, "node_modules")
+        <span class="cov8" title="1">nodeModulesDir := filepath.Join(frontendDir, "node_modules")
         if _, err := os.Stat(nodeModulesDir); os.IsNotExist(err) </span><span class="cov8" title="1">{
                 fmt.Println("Installing frontend dependencies...")
                 if err := runCommand("pnpm", []string{"install"}, frontendDir); err != nil </span><span class="cov0" title="0">{
@@ -1602,7 +1613,7 @@ func buildFrontend(frontendDir string) error <span class="cov8" title="1">{
 
         // Run the build command
         <span class="cov8" title="1">fmt.Println("Running frontend build...")
-        if err := runCommand("pnpm", []string{"build"}, frontendDir); err != nil </span><span class="cov8" title="1">{
+        if err := runCommand("pnpm", []string{"build"}, frontendDir); err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("pnpm build failed: %v", err)
         }</span>
 
@@ -1633,7 +1644,7 @@ func validateFrontendPackageJson(packageJsonContent []byte) bool <span class="co
         }</span>
 
         <span class="cov8" title="1">buildScript, hasBuild := scripts["build"]
-        if !hasBuild </span><span class="cov0" title="0">{
+        if !hasBuild </span><span class="cov8" title="1">{
                 return false
         }</span>
 

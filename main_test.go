@@ -1809,3 +1809,50 @@ func TestRunMultiScriptServiceSignalHandling(t *testing.T) {
 		// This test exposes the need for a testable wrapper
 	})
 }
+
+// 🔴 Red Phase: Test buildFrontend with invalid package.json (should validate before attempting build)
+func TestBuildFrontendValidation(t *testing.T) {
+	testCases := []struct {
+		name        string
+		packageJson string
+		expectError string
+	}{
+		{
+			name:        "should_validate_package_json_before_building",
+			packageJson: `{"name": "test", "scripts": {"dev": "vite"}}`,
+			expectError: "build script",
+		},
+		{
+			name:        "should_validate_package_json_has_valid_build_script",
+			packageJson: `{"name": "test", "scripts": {"build": ""}}`,
+			expectError: "build script",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create temporary frontend directory
+			tempDir := t.TempDir()
+			frontendDir := filepath.Join(tempDir, "web", "frontend")
+			err := os.MkdirAll(frontendDir, 0755)
+			if err != nil {
+				t.Fatalf("Failed to create frontend dir: %v", err)
+			}
+
+			// Create package.json with test case content
+			err = os.WriteFile(filepath.Join(frontendDir, "package.json"), []byte(tc.packageJson), 0644)
+			if err != nil {
+				t.Fatalf("Failed to create package.json: %v", err)
+			}
+
+			// This should fail with a validation error
+			err = buildFrontend(frontendDir)
+
+			if err == nil {
+				t.Error("Expected buildFrontend to fail with validation error")
+			} else if !strings.Contains(err.Error(), tc.expectError) {
+				t.Errorf("Expected validation error containing '%s', got: %v", tc.expectError, err)
+			}
+		})
+	}
+}
