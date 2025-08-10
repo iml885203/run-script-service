@@ -1756,6 +1756,214 @@ func TestWebServer_GetScriptLogsMethod(t *testing.T) {
 			t.Errorf("Expected empty slice for maxEntries=0, got %d entries", len(logs))
 		}
 	})
+
+	// 🔴 Red Phase: Test error handling and log parsing edge cases
+	t.Run("should_handle_log_file_read_errors", func(t *testing.T) {
+		server := NewWebServer(nil, 8080, "test-secret")
+
+		// This test will initially pass because the function is designed to be resilient
+		// and returns empty slice on errors. Let's test the behavior when file exists
+		// but can't be read properly.
+
+		// Get executable directory path
+		execPath, _ := os.Executable()
+		execDir := filepath.Dir(execPath)
+
+		// Create a directory with the same name as expected log file (will cause read error)
+		logName := "test-error-script.log"
+		dirPath := filepath.Join(execDir, logName)
+
+		// Create directory instead of file to trigger read error
+		err := os.MkdirAll(dirPath, 0755)
+		if err != nil {
+			t.Skipf("Cannot create test directory: %v", err)
+		}
+		defer os.RemoveAll(dirPath)
+
+		logs := server.getScriptLogs("test-error-script", 10)
+
+		// Should return empty slice when file read fails
+		if len(logs) != 0 {
+			t.Errorf("Expected empty slice on read error, got %d entries", len(logs))
+		}
+	})
+
+	t.Run("should_parse_logs_with_error_and_warning_levels", func(t *testing.T) {
+		server := NewWebServer(nil, 8080, "test-secret")
+
+		// Get executable directory path
+		execPath, _ := os.Executable()
+		execDir := filepath.Dir(execPath)
+
+		// Create test log file with different levels
+		logContent := "2023-12-01T10:00:00Z ERROR This is an error message\n2023-12-01T10:01:00Z WARN This is a warning message\n2023-12-01T10:02:00Z INFO This is an info message\n"
+		logFile := "test-levels-script.log"
+		logPath := filepath.Join(execDir, logFile)
+
+		err := os.WriteFile(logPath, []byte(logContent), 0644)
+		if err != nil {
+			t.Skipf("Cannot create test log file: %v", err)
+		}
+		defer os.Remove(logPath)
+
+		logs := server.getScriptLogs("test-levels-script", 10)
+
+		if len(logs) < 3 {
+			t.Errorf("Expected at least 3 log entries, got %d", len(logs))
+		}
+
+		// Check that error level is detected
+		errorFound := false
+		warningFound := false
+		for _, log := range logs {
+			if log.Level == "error" {
+				errorFound = true
+			}
+			if log.Level == "warning" {
+				warningFound = true
+			}
+		}
+
+		if !errorFound {
+			t.Error("Expected to find error level log entry")
+		}
+		if !warningFound {
+			t.Error("Expected to find warning level log entry")
+		}
+	})
+}
+
+// 🔴 Red Phase: Test getAggregatedLogs method - should fail initially
+func TestWebServer_GetAggregatedLogsMethod(t *testing.T) {
+	t.Run("should_return_empty_slice_when_script_manager_is_nil", func(t *testing.T) {
+		server := NewWebServer(nil, 8080, "test-secret")
+
+		logs := server.getAggregatedLogs(10)
+
+		if logs == nil {
+			t.Error("Expected non-nil slice, got nil")
+		}
+
+		if len(logs) != 0 {
+			t.Errorf("Expected empty slice, got %d entries", len(logs))
+		}
+	})
+
+	t.Run("should_aggregate_logs_from_multiple_scripts", func(t *testing.T) {
+		// Create script manager with test scripts
+		scripts := []service.ScriptConfig{
+			{
+				Name:     "test-script-1",
+				Path:     "/tmp/test1.sh",
+				Interval: 60,
+				Enabled:  true,
+			},
+			{
+				Name:     "test-script-2",
+				Path:     "/tmp/test2.sh",
+				Interval: 60,
+				Enabled:  true,
+			},
+		}
+
+		config := &service.ServiceConfig{
+			Scripts: scripts,
+			WebPort: 8080,
+		}
+
+		scriptManager := service.NewScriptManager(config)
+		server := NewWebServer(nil, 8080, "test-secret")
+		server.SetScriptManager(scriptManager)
+
+		// Get executable directory path to create test log files
+		execPath, _ := os.Executable()
+		execDir := filepath.Dir(execPath)
+
+		// Create test log files for both scripts
+		logContent1 := "2023-12-01T10:00:00Z INFO Script 1 message\n"
+		logContent2 := "2023-12-01T10:01:00Z ERROR Script 2 error\n"
+
+		logPath1 := filepath.Join(execDir, "test-script-1.log")
+		logPath2 := filepath.Join(execDir, "test-script-2.log")
+
+		err := os.WriteFile(logPath1, []byte(logContent1), 0644)
+		if err != nil {
+			t.Skipf("Cannot create test log file 1: %v", err)
+		}
+		defer os.Remove(logPath1)
+
+		err = os.WriteFile(logPath2, []byte(logContent2), 0644)
+		if err != nil {
+			t.Skipf("Cannot create test log file 2: %v", err)
+		}
+		defer os.Remove(logPath2)
+
+		logs := server.getAggregatedLogs(10)
+
+		if len(logs) != 2 {
+			t.Errorf("Expected 2 aggregated log entries, got %d", len(logs))
+		}
+
+		// Check that logs from both scripts are present
+		script1Found := false
+		script2Found := false
+		for _, log := range logs {
+			if log.Script == "test-script-1" {
+				script1Found = true
+			}
+			if log.Script == "test-script-2" {
+				script2Found = true
+			}
+		}
+
+		if !script1Found {
+			t.Error("Expected to find logs from test-script-1")
+		}
+		if !script2Found {
+			t.Error("Expected to find logs from test-script-2")
+		}
+	})
+
+	t.Run("should_truncate_logs_when_exceeding_maxEntries", func(t *testing.T) {
+		// Create script manager with one script
+		scripts := []service.ScriptConfig{
+			{
+				Name:     "test-script-many-logs",
+				Path:     "/tmp/test.sh",
+				Interval: 60,
+				Enabled:  true,
+			},
+		}
+
+		config := &service.ServiceConfig{
+			Scripts: scripts,
+			WebPort: 8080,
+		}
+
+		scriptManager := service.NewScriptManager(config)
+		server := NewWebServer(nil, 8080, "test-secret")
+		server.SetScriptManager(scriptManager)
+
+		// Get executable directory path
+		execPath, _ := os.Executable()
+		execDir := filepath.Dir(execPath)
+
+		// Create log file with many entries (more than maxEntries)
+		logContent := "2023-12-01T10:00:00Z INFO Log entry 1\n2023-12-01T10:01:00Z INFO Log entry 2\n2023-12-01T10:02:00Z INFO Log entry 3\n2023-12-01T10:03:00Z INFO Log entry 4\n2023-12-01T10:04:00Z INFO Log entry 5\n"
+		logPath := filepath.Join(execDir, "test-script-many-logs.log")
+
+		err := os.WriteFile(logPath, []byte(logContent), 0644)
+		if err != nil {
+			t.Skipf("Cannot create test log file: %v", err)
+		}
+		defer os.Remove(logPath)
+
+		logs := server.getAggregatedLogs(3) // Request only 3 entries
+
+		if len(logs) > 3 {
+			t.Errorf("Expected at most 3 log entries due to truncation, got %d", len(logs))
+		}
+	})
 }
 
 // TestWebServer_StartMethod tests the actual Start method with error handling

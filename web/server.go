@@ -1189,7 +1189,7 @@ func (ws *WebServer) getScriptLogs(scriptName string, maxEntries int) []LogEntry
 
 		// Try to extract timestamp and level from line if possible
 		if len(line) > 19 && line[10] == 'T' { // ISO timestamp format
-			if timestampEnd := strings.Index(line[20:], " "); timestampEnd > 0 {
+			if timestampEnd := strings.Index(line[20:], " "); timestampEnd >= 0 {
 				logEntry.Timestamp = line[:20+timestampEnd]
 				remaining := strings.TrimSpace(line[20+timestampEnd:])
 

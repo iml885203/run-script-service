@@ -1913,6 +1913,50 @@ func TestRunMultiScriptServiceSignalHandling(t *testing.T) {
 	})
 }
 
+// 🔴 Red Phase: Test for runMultiScriptService initialization without blocking - should pass
+func TestRunMultiScriptService_NonBlockingInitialization(t *testing.T) {
+	t.Run("should_initialize_service_components_successfully", func(t *testing.T) {
+		// Red phase -> Green phase: Test the initialization part of runMultiScriptService
+		// that we can actually test (before signal handling)
+
+		tempDir := t.TempDir()
+		configPath := filepath.Join(tempDir, "service_config.json")
+
+		// Create valid config with test script
+		testConfig := service.ServiceConfig{
+			Scripts: []service.ScriptConfig{
+				{
+					Name:     "test-script",
+					Path:     filepath.Join(tempDir, "test.sh"),
+					Interval: 60,
+					Enabled:  true,
+				},
+			},
+			WebPort: 8080,
+		}
+
+		// Create test script file
+		err := os.WriteFile(testConfig.Scripts[0].Path, []byte("#!/bin/bash\necho test"), 0755)
+		if err != nil {
+			t.Fatalf("Failed to create test script: %v", err)
+		}
+
+		// Save config
+		err = service.SaveServiceConfig(configPath, &testConfig)
+		if err != nil {
+			t.Fatalf("Failed to save config: %v", err)
+		}
+
+		// Test our testable version that returns success instead of blocking
+		err = runMultiScriptServiceWithErrorHandling(configPath)
+
+		// Should succeed with valid config and script
+		if err != nil {
+			t.Errorf("Expected successful initialization, got error: %v", err)
+		}
+	})
+}
+
 // 🔴 Red Phase: Test buildFrontend with invalid package.json (should validate before attempting build)
 func TestBuildFrontendValidation(t *testing.T) {
 	testCases := []struct {

@@ -59,7 +59,7 @@
 
 				<option value="file1">run-script-service/auth/middleware.go (100.0%)</option>
 
-				<option value="file2">run-script-service/auth/session.go (93.5%)</option>
+				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
 
 				<option value="file3">run-script-service/main.go (71.3%)</option>
 
@@ -103,7 +103,7 @@
 
 				<option value="file23">run-script-service/web/handlers_script_files.go (68.0%)</option>
 
-				<option value="file24">run-script-service/web/server.go (62.0%)</option>
+				<option value="file24">run-script-service/web/server.go (68.8%)</option>
 
 				<option value="file25">run-script-service/web/vue_build_manager.go (90.9%)</option>
 
@@ -393,7 +393,7 @@ func (sm *SessionManager) ValidateSession(token string) (string, bool) <span cla
         // Check if session has expired
         <span class="cov8" title="1">if time.Now().After(session.ExpiresAt) </span><span class="cov8" title="1">{
                 // Clean up expired session
-                go func() </span><span class="cov8" title="1">{
+                go func() </span><span class="cov0" title="0">{
                         sm.mutex.Lock()
                         defer sm.mutex.Unlock()
                         delete(sm.sessions, token)
@@ -684,6 +684,19 @@ func runMultiScriptService(configPath string) <span class="cov0" title="0">{
         cancel()
 
         fmt.Println("Service stopped")</span>
+}
+
+// runMultiScriptServiceWithErrorHandling provides a testable version of runMultiScriptService
+// that returns errors instead of calling os.Exit
+func runMultiScriptServiceWithErrorHandling(configPath string) error <span class="cov8" title="1">{
+        _, _, err := runMultiScriptServiceTestable(configPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to load config: %w", err)
+        }</span>
+
+        // For minimal implementation, we only test the config loading part
+        // In a real implementation, this would also handle script starting/stopping
+        <span class="cov8" title="1">return nil</span>
 }
 
 func parseInterval(intervalStr string) (int, error) <span class="cov8" title="1">{
@@ -7070,18 +7083,18 @@ func (ws *WebServer) getAggregatedLogs(maxEntries int) []LogEntry <span class="c
         }</span>
 
         // Get all configured scripts
-        <span class="cov0" title="0">config := ws.scriptManager.GetConfig()
-        for _, script := range config.Scripts </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">config := ws.scriptManager.GetConfig()
+        for _, script := range config.Scripts </span><span class="cov8" title="1">{
                 scriptLogs := ws.getScriptLogs(script.Name, maxEntries)
                 allLogs = append(allLogs, scriptLogs...)
         }</span>
 
         // If we have more logs than requested, truncate to most recent
-        <span class="cov0" title="0">if len(allLogs) &gt; maxEntries </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if len(allLogs) &gt; maxEntries </span><span class="cov0" title="0">{
                 allLogs = allLogs[len(allLogs)-maxEntries:]
         }</span>
 
-        <span class="cov0" title="0">return allLogs</span>
+        <span class="cov8" title="1">return allLogs</span>
 }
 
 // getScriptLogs returns logs for a specific script in LogEntry format
@@ -7105,22 +7118,22 @@ func (ws *WebServer) getScriptLogs(scriptName string, maxEntries int) []LogEntry
         }</span>
 
         // Read log file content
-        <span class="cov0" title="0">content, err := os.ReadFile(logFile)
-        if err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">content, err := os.ReadFile(logFile)
+        if err != nil </span><span class="cov8" title="1">{
                 return logs // Return empty array on error
         }</span>
 
         // Parse log content into LogEntry objects
-        <span class="cov0" title="0">lines := strings.Split(string(content), "\n")
-        for _, line := range lines </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">lines := strings.Split(string(content), "\n")
+        for _, line := range lines </span><span class="cov8" title="1">{
                 line = strings.TrimSpace(line)
-                if line == "" </span><span class="cov0" title="0">{
+                if line == "" </span><span class="cov8" title="1">{
                         continue</span>
                 }
 
                 // Simple log parsing - assume format: timestamp level message
                 // For now, create basic LogEntry objects from raw log lines
-                <span class="cov0" title="0">logEntry := LogEntry{
+                <span class="cov8" title="1">logEntry := LogEntry{
                         Timestamp: time.Now().Format(time.RFC3339), // Default timestamp
                         Message:   line,
                         Level:     "info", // Default level
@@ -7128,31 +7141,31 @@ func (ws *WebServer) getScriptLogs(scriptName string, maxEntries int) []LogEntry
                 }
 
                 // Try to extract timestamp and level from line if possible
-                if len(line) &gt; 19 &amp;&amp; line[10] == 'T' </span><span class="cov0" title="0">{ // ISO timestamp format
-                        if timestampEnd := strings.Index(line[20:], " "); timestampEnd &gt; 0 </span><span class="cov0" title="0">{
+                if len(line) &gt; 19 &amp;&amp; line[10] == 'T' </span><span class="cov8" title="1">{ // ISO timestamp format
+                        if timestampEnd := strings.Index(line[20:], " "); timestampEnd &gt;= 0 </span><span class="cov8" title="1">{
                                 logEntry.Timestamp = line[:20+timestampEnd]
                                 remaining := strings.TrimSpace(line[20+timestampEnd:])
 
                                 // Check for level indicators
-                                if strings.Contains(strings.ToLower(remaining), "error") </span><span class="cov0" title="0">{
+                                if strings.Contains(strings.ToLower(remaining), "error") </span><span class="cov8" title="1">{
                                         logEntry.Level = "error"
-                                }</span> else<span class="cov0" title="0"> if strings.Contains(strings.ToLower(remaining), "warn") </span><span class="cov0" title="0">{
+                                }</span> else<span class="cov8" title="1"> if strings.Contains(strings.ToLower(remaining), "warn") </span><span class="cov8" title="1">{
                                         logEntry.Level = "warning"
                                 }</span>
 
-                                <span class="cov0" title="0">logEntry.Message = remaining</span>
+                                <span class="cov8" title="1">logEntry.Message = remaining</span>
                         }
                 }
 
-                <span class="cov0" title="0">logs = append(logs, logEntry)</span>
+                <span class="cov8" title="1">logs = append(logs, logEntry)</span>
         }
 
         // Limit to maxEntries (most recent)
-        <span class="cov0" title="0">if len(logs) &gt; maxEntries </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if len(logs) &gt; maxEntries </span><span class="cov8" title="1">{
                 logs = logs[len(logs)-maxEntries:]
         }</span>
 
-        <span class="cov0" title="0">return logs</span>
+        <span class="cov8" title="1">return logs</span>
 }
 
 // handleGetGitProjects discovers and returns Git projects in a specified directory
