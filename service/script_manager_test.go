@@ -976,3 +976,207 @@ func TestScriptManager_SaveConfig(t *testing.T) {
 		}
 	})
 }
+
+// 🔴 Red Phase: Write failing test for UpdateScriptWithFeedback() method (0% coverage)
+func TestScriptManager_UpdateScriptWithFeedback(t *testing.T) {
+	t.Run("should update non-existent script and return error", func(t *testing.T) {
+		config := &ServiceConfig{
+			Scripts: []ScriptConfig{
+				{
+					Name:        "existing-script",
+					Path:        "./existing.sh",
+					Interval:    60,
+					Enabled:     true,
+					MaxLogLines: 100,
+					Timeout:     30,
+				},
+			},
+		}
+
+		manager := NewScriptManager(config)
+
+		// Try to update a non-existent script
+		updatedConfig := ScriptConfig{
+			Name:        "non-existent",
+			Path:        "./new.sh",
+			Interval:    120,
+			Enabled:     true,
+			MaxLogLines: 200,
+			Timeout:     60,
+		}
+
+		response := manager.UpdateScriptWithFeedback("non-existent", updatedConfig)
+
+		// Should fail because script doesn't exist
+		if response.Success {
+			t.Error("Expected UpdateScriptWithFeedback to fail for non-existent script")
+		}
+		if response.Applied {
+			t.Error("Expected Applied to be false for non-existent script")
+		}
+		if response.Scheduled {
+			t.Error("Expected Scheduled to be false for non-existent script")
+		}
+		if len(response.Changes) != 0 {
+			t.Errorf("Expected 0 changes for non-existent script, got %d", len(response.Changes))
+		}
+		expectedMessage := "Script non-existent not found in configuration"
+		if response.Message != expectedMessage {
+			t.Errorf("Expected message '%s', got '%s'", expectedMessage, response.Message)
+		}
+	})
+
+	t.Run("should handle script enabling and disabling", func(t *testing.T) {
+		config := &ServiceConfig{
+			Scripts: []ScriptConfig{
+				{
+					Name:        "test-script",
+					Path:        "./test.sh",
+					Interval:    60,
+					Enabled:     false, // Initially disabled
+					MaxLogLines: 100,
+					Timeout:     30,
+				},
+			},
+		}
+
+		manager := NewScriptManager(config)
+
+		// Enable the script
+		updatedConfig := ScriptConfig{
+			Name:        "test-script",
+			Path:        "./test.sh",
+			Interval:    60,
+			Enabled:     true, // Enable
+			MaxLogLines: 100,
+			Timeout:     30,
+		}
+
+		response := manager.UpdateScriptWithFeedback("test-script", updatedConfig)
+
+		// Should succeed with enabled change
+		if !response.Success {
+			t.Error("Expected UpdateScriptWithFeedback to succeed")
+		}
+		if len(response.Changes) != 1 {
+			t.Errorf("Expected 1 change (enabled), got %d", len(response.Changes))
+		}
+		if len(response.Changes) > 0 {
+			change := response.Changes[0]
+			if change.Field != "enabled" {
+				t.Errorf("Expected change field 'enabled', got '%s'", change.Field)
+			}
+			if change.OldValue != false {
+				t.Errorf("Expected old value false, got %v", change.OldValue)
+			}
+			if change.NewValue != true {
+				t.Errorf("Expected new value true, got %v", change.NewValue)
+			}
+		}
+	})
+
+	t.Run("should handle changes requiring restart when script not running", func(t *testing.T) {
+		config := &ServiceConfig{
+			Scripts: []ScriptConfig{
+				{
+					Name:        "test-script",
+					Path:        "./test.sh",
+					Interval:    60,
+					Enabled:     true,
+					MaxLogLines: 100,
+					Timeout:     30,
+				},
+			},
+		}
+
+		manager := NewScriptManager(config)
+
+		// Update script with changes that normally require restart (but script not running)
+		updatedConfig := ScriptConfig{
+			Name:        "test-script",
+			Path:        "./new-test.sh", // Changed path - normally requires restart
+			Interval:    120,             // Changed interval - normally requires restart
+			Enabled:     true,
+			MaxLogLines: 100,
+			Timeout:     30,
+		}
+
+		response := manager.UpdateScriptWithFeedback("test-script", updatedConfig)
+
+		// Should succeed because script is not running
+		if !response.Success {
+			t.Error("Expected UpdateScriptWithFeedback to succeed")
+		}
+		if !response.Applied {
+			t.Error("Expected Applied to be true when script not running")
+		}
+		if response.Scheduled {
+			t.Error("Expected Scheduled to be false when script not running")
+		}
+		if len(response.Changes) != 2 {
+			t.Errorf("Expected 2 changes (path, interval), got %d", len(response.Changes))
+		}
+		if response.Message != "Script test-script updated successfully" {
+			t.Errorf("Expected success message, got '%s'", response.Message)
+		}
+	})
+
+	t.Run("should verify configuration is updated in manager", func(t *testing.T) {
+		config := &ServiceConfig{
+			Scripts: []ScriptConfig{
+				{
+					Name:        "test-script",
+					Path:        "./test.sh",
+					Interval:    60,
+					Enabled:     true,
+					MaxLogLines: 100,
+					Timeout:     30,
+				},
+			},
+		}
+
+		manager := NewScriptManager(config)
+
+		// Update script configuration
+		updatedConfig := ScriptConfig{
+			Name:        "test-script",
+			Path:        "./new-test.sh",
+			Interval:    120,
+			Enabled:     false,
+			MaxLogLines: 200,
+			Timeout:     60,
+		}
+
+		response := manager.UpdateScriptWithFeedback("test-script", updatedConfig)
+
+		if !response.Success {
+			t.Error("Expected UpdateScriptWithFeedback to succeed")
+		}
+
+		// Verify the configuration was actually updated
+		scripts, err := manager.GetScripts()
+		if err != nil {
+			t.Fatalf("Expected GetScripts to succeed, got error: %v", err)
+		}
+		if len(scripts) != 1 {
+			t.Fatalf("Expected 1 script, got %d", len(scripts))
+		}
+
+		script := scripts[0]
+		if script.Path != "./new-test.sh" {
+			t.Errorf("Expected path './new-test.sh', got '%s'", script.Path)
+		}
+		if script.Interval != 120 {
+			t.Errorf("Expected interval 120, got %d", script.Interval)
+		}
+		if script.Enabled {
+			t.Error("Expected script to be disabled")
+		}
+		if script.MaxLogLines != 200 {
+			t.Errorf("Expected max log lines 200, got %d", script.MaxLogLines)
+		}
+		if script.Timeout != 60 {
+			t.Errorf("Expected timeout 60, got %d", script.Timeout)
+		}
+	})
+}

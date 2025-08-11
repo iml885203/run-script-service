@@ -1,10 +1,12 @@
 package service
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -508,4 +510,138 @@ func TestLogManager_ClearLogs(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error when clearing logs for nonexistent script")
 	}
+}
+
+// 🔴 Red Phase: Write failing test for parseLegacyFormat() method (0% coverage)
+func TestScriptLogger_parseLegacyFormat(t *testing.T) {
+	t.Run("should parse legacy format with single entry", func(t *testing.T) {
+		// Create legacy format log content
+		legacyContent := `[2025-08-02 11:26:16] Exit code: 0
+STDOUT: Hello World
+STDOUT: This is multi-line
+output from script
+--------------------------------------------------`
+
+		// Create ScriptLogger
+		logger := &ScriptLogger{
+			scriptName: "test-script",
+			entries:    make([]LogEntry, 0),
+		}
+
+		// Create scanner from the content
+		scanner := bufio.NewScanner(strings.NewReader(legacyContent))
+		scanner.Scan()
+		firstLine := strings.TrimSpace(scanner.Text())
+
+		// This test should initially fail because parseLegacyFormat() has 0% coverage
+		logger.parseLegacyFormat(scanner, firstLine)
+
+		// Verify the parsed entry
+		entries := logger.GetEntries()
+		if len(entries) != 1 {
+			t.Errorf("Expected 1 entry, got %d", len(entries))
+		}
+
+		if len(entries) > 0 {
+			entry := entries[0]
+			if entry.ScriptName != "test-script" {
+				t.Errorf("Expected script name 'test-script', got '%s'", entry.ScriptName)
+			}
+			if entry.ExitCode != 0 {
+				t.Errorf("Expected exit code 0, got %d", entry.ExitCode)
+			}
+			expectedStdout := "Hello World\nThis is multi-line\noutput from script"
+			if entry.Stdout != expectedStdout {
+				t.Errorf("Expected stdout '%s', got '%s'", expectedStdout, entry.Stdout)
+			}
+			// Check timestamp parsing
+			expectedTime := time.Date(2025, 8, 2, 11, 26, 16, 0, time.UTC)
+			if !entry.Timestamp.Equal(expectedTime) {
+				t.Errorf("Expected timestamp %v, got %v", expectedTime, entry.Timestamp)
+			}
+		}
+	})
+
+	t.Run("should parse legacy format with multiple entries", func(t *testing.T) {
+		// Create legacy format log content with multiple entries
+		legacyContent := `[2025-08-02 11:26:16] Exit code: 0
+STDOUT: First execution
+--------------------------------------------------
+[2025-08-02 12:30:45] Exit code: 1
+STDOUT: Second execution failed
+STDOUT: Error message
+--------------------------------------------------`
+
+		// Create ScriptLogger
+		logger := &ScriptLogger{
+			scriptName: "test-script",
+			entries:    make([]LogEntry, 0),
+		}
+
+		// Create scanner from the content
+		scanner := bufio.NewScanner(strings.NewReader(legacyContent))
+		scanner.Scan()
+		firstLine := strings.TrimSpace(scanner.Text())
+
+		logger.parseLegacyFormat(scanner, firstLine)
+
+		// Verify the parsed entries
+		entries := logger.GetEntries()
+		if len(entries) != 2 {
+			t.Errorf("Expected 2 entries, got %d", len(entries))
+		}
+
+		if len(entries) >= 2 {
+			// First entry
+			entry1 := entries[0]
+			if entry1.ExitCode != 0 {
+				t.Errorf("Expected first entry exit code 0, got %d", entry1.ExitCode)
+			}
+			if entry1.Stdout != "First execution" {
+				t.Errorf("Expected first entry stdout 'First execution', got '%s'", entry1.Stdout)
+			}
+
+			// Second entry
+			entry2 := entries[1]
+			if entry2.ExitCode != 1 {
+				t.Errorf("Expected second entry exit code 1, got %d", entry2.ExitCode)
+			}
+			expectedStdout2 := "Second execution failed\nError message"
+			if entry2.Stdout != expectedStdout2 {
+				t.Errorf("Expected second entry stdout '%s', got '%s'", expectedStdout2, entry2.Stdout)
+			}
+		}
+	})
+
+	t.Run("should handle legacy format without final separator", func(t *testing.T) {
+		// Create legacy format log content without final separator
+		legacyContent := `[2025-08-02 11:26:16] Exit code: 0
+STDOUT: Output without separator`
+
+		// Create ScriptLogger
+		logger := &ScriptLogger{
+			scriptName: "test-script",
+			entries:    make([]LogEntry, 0),
+		}
+
+		// Create scanner from the content
+		scanner := bufio.NewScanner(strings.NewReader(legacyContent))
+		scanner.Scan()
+		firstLine := strings.TrimSpace(scanner.Text())
+
+		logger.parseLegacyFormat(scanner, firstLine)
+
+		// Verify the parsed entry (should handle missing final separator)
+		entries := logger.GetEntries()
+		if len(entries) != 1 {
+			t.Errorf("Expected 1 entry, got %d", len(entries))
+		}
+
+		if len(entries) > 0 {
+			entry := entries[0]
+			if entry.Stdout != "Output without separator" {
+				t.Errorf("Expected stdout 'Output without separator', got '%s'", entry.Stdout)
+			}
+		}
+	})
 }

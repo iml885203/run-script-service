@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -415,4 +416,82 @@ func TestScriptRunner_SetRestartPending(t *testing.T) {
 	if pendingConfig.Interval != 120 {
 		t.Errorf("Expected pending interval 120, got %d", pendingConfig.Interval)
 	}
+}
+
+// 🔴 Red Phase: Write failing test for ScriptExecutor.Execute() method (0% coverage)
+func TestScriptExecutor_Execute(t *testing.T) {
+	// Create a temporary directory for test scripts
+	tempDir := t.TempDir()
+
+	t.Run("successful script execution should return nil", func(t *testing.T) {
+		// Create a test script that exits successfully
+		scriptPath := filepath.Join(tempDir, "success_script.sh")
+		scriptContent := "#!/bin/bash\necho 'Hello World'\nexit 0\n"
+
+		err := os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+		if err != nil {
+			t.Fatalf("Failed to create test script: %v", err)
+		}
+
+		// Create ScriptExecutor
+		executor := NewScriptExecutorWithoutLogging(scriptPath)
+
+		// Execute the script
+		ctx := context.Background()
+		err = executor.Execute(ctx)
+
+		// This test should fail initially because Execute() has 0% coverage
+		if err != nil {
+			t.Errorf("Expected successful execution, got error: %v", err)
+		}
+	})
+
+	t.Run("failing script execution should return error", func(t *testing.T) {
+		// Create a test script that exits with error
+		scriptPath := filepath.Join(tempDir, "fail_script.sh")
+		scriptContent := "#!/bin/bash\necho 'Error occurred'\nexit 1\n"
+
+		err := os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+		if err != nil {
+			t.Fatalf("Failed to create test script: %v", err)
+		}
+
+		// Create ScriptExecutor
+		executor := NewScriptExecutorWithoutLogging(scriptPath)
+
+		// Execute the script
+		ctx := context.Background()
+		err = executor.Execute(ctx)
+
+		// Should return an error for non-zero exit code
+		if err == nil {
+			t.Error("Expected error for failing script, got nil")
+		}
+	})
+
+	t.Run("context cancellation should return error", func(t *testing.T) {
+		// Create a test script that runs for a long time
+		scriptPath := filepath.Join(tempDir, "long_script.sh")
+		scriptContent := "#!/bin/bash\nsleep 5\nexit 0\n"
+
+		err := os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+		if err != nil {
+			t.Fatalf("Failed to create test script: %v", err)
+		}
+
+		// Create ScriptExecutor
+		executor := NewScriptExecutorWithoutLogging(scriptPath)
+
+		// Create context with short timeout
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+
+		// Execute the script
+		err = executor.Execute(ctx)
+
+		// Should return context deadline exceeded error
+		if err == nil {
+			t.Error("Expected timeout error, got nil")
+		}
+	})
 }

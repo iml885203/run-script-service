@@ -79,7 +79,7 @@
 
 				<option value="file11">run-script-service/service/git_discovery.go (88.2%)</option>
 
-				<option value="file12">run-script-service/service/log_manager.go (69.7%)</option>
+				<option value="file12">run-script-service/service/log_manager.go (92.4%)</option>
 
 				<option value="file13">run-script-service/service/monitor.go (92.6%)</option>
 
@@ -87,9 +87,9 @@
 
 				<option value="file15">run-script-service/service/script_generator.go (84.8%)</option>
 
-				<option value="file16">run-script-service/service/script_manager.go (72.3%)</option>
+				<option value="file16">run-script-service/service/script_manager.go (84.5%)</option>
 
-				<option value="file17">run-script-service/service/script_runner.go (76.1%)</option>
+				<option value="file17">run-script-service/service/script_runner.go (81.4%)</option>
 
 				<option value="file18">run-script-service/service/service.go (89.5%)</option>
 
@@ -3359,7 +3359,7 @@ func (sl *ScriptLogger) LoadExistingLogs() <span class="cov8" title="1">{
 }
 
 // parseLegacyFormat handles the old log format for backward compatibility
-func (sl *ScriptLogger) parseLegacyFormat(scanner *bufio.Scanner, firstLine string) <span class="cov0" title="0">{
+func (sl *ScriptLogger) parseLegacyFormat(scanner *bufio.Scanner, firstLine string) <span class="cov8" title="1">{
         var currentEntry *LogEntry
         var stdoutLines []string
 
@@ -3368,16 +3368,16 @@ func (sl *ScriptLogger) parseLegacyFormat(scanner *bufio.Scanner, firstLine stri
 
         // Process the first line
         line := firstLine
-        for </span><span class="cov0" title="0">{
-                if line == "--------------------------------------------------" </span><span class="cov0" title="0">{
+        for </span><span class="cov8" title="1">{
+                if line == "--------------------------------------------------" </span><span class="cov8" title="1">{
                         // End of entry
-                        if currentEntry != nil </span><span class="cov0" title="0">{
+                        if currentEntry != nil </span><span class="cov8" title="1">{
                                 currentEntry.Stdout = strings.Join(stdoutLines, "\n")
                                 sl.entries = append(sl.entries, *currentEntry)
                                 currentEntry = nil
                                 stdoutLines = nil
                         }</span>
-                } else<span class="cov0" title="0"> if matches := timestampRegex.FindStringSubmatch(line); matches != nil </span><span class="cov0" title="0">{
+                } else<span class="cov8" title="1"> if matches := timestampRegex.FindStringSubmatch(line); matches != nil </span><span class="cov8" title="1">{
                         // Start of new entry
                         timestamp, _ := time.Parse("2006-01-02 15:04:05", matches[1])
                         exitCode, _ := strconv.Atoi(matches[2])
@@ -3391,24 +3391,24 @@ func (sl *ScriptLogger) parseLegacyFormat(scanner *bufio.Scanner, firstLine stri
                                 Duration:   0, // Can't determine from existing logs
                         }
                         stdoutLines = make([]string, 0)
-                }</span> else<span class="cov0" title="0"> if currentEntry != nil &amp;&amp; strings.HasPrefix(line, "STDOUT: ") </span><span class="cov0" title="0">{
+                }</span> else<span class="cov8" title="1"> if currentEntry != nil &amp;&amp; strings.HasPrefix(line, "STDOUT: ") </span><span class="cov8" title="1">{
                         // STDOUT line
                         stdoutContent := strings.TrimPrefix(line, "STDOUT: ")
                         stdoutLines = append(stdoutLines, stdoutContent)
-                }</span> else<span class="cov0" title="0"> if currentEntry != nil &amp;&amp; line != "" &amp;&amp; !strings.HasPrefix(line, "STDERR: ") </span><span class="cov0" title="0">{
+                }</span> else<span class="cov8" title="1"> if currentEntry != nil &amp;&amp; line != "" &amp;&amp; !strings.HasPrefix(line, "STDERR: ") </span><span class="cov8" title="1">{
                         // Continuation of stdout (multi-line output)
                         stdoutLines = append(stdoutLines, line)
                 }</span>
 
                 // Read next line
-                <span class="cov0" title="0">if !scanner.Scan() </span><span class="cov0" title="0">{
+                <span class="cov8" title="1">if !scanner.Scan() </span><span class="cov8" title="1">{
                         break</span>
                 }
-                <span class="cov0" title="0">line = strings.TrimSpace(scanner.Text())</span>
+                <span class="cov8" title="1">line = strings.TrimSpace(scanner.Text())</span>
         }
 
         // Handle last entry if file doesn't end with separator
-        <span class="cov0" title="0">if currentEntry != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if currentEntry != nil </span><span class="cov8" title="1">{
                 currentEntry.Stdout = strings.Join(stdoutLines, "\n")
                 sl.entries = append(sl.entries, *currentEntry)
         }</span>
@@ -4388,14 +4388,14 @@ func (sm *ScriptManager) applyConfigChanges(name string, runner *ScriptRunner, o
 }
 
 // UpdateScriptWithFeedback updates a script and returns detailed feedback about the changes
-func (sm *ScriptManager) UpdateScriptWithFeedback(name string, updatedConfig ScriptConfig) UpdateResponse <span class="cov0" title="0">{
+func (sm *ScriptManager) UpdateScriptWithFeedback(name string, updatedConfig ScriptConfig) UpdateResponse <span class="cov8" title="1">{
         sm.mutex.Lock()
         defer sm.mutex.Unlock()
 
         // Find the current configuration
         var oldConfig *ScriptConfig
-        for i, sc := range sm.config.Scripts </span><span class="cov0" title="0">{
-                if sc.Name == name </span><span class="cov0" title="0">{
+        for i, sc := range sm.config.Scripts </span><span class="cov8" title="1">{
+                if sc.Name == name </span><span class="cov8" title="1">{
                         oldConfig = &amp;sc
                         // Update configuration first
                         updatedConfig.Name = name
@@ -4404,7 +4404,7 @@ func (sm *ScriptManager) UpdateScriptWithFeedback(name string, updatedConfig Scr
                 }
         }
 
-        <span class="cov0" title="0">if oldConfig == nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if oldConfig == nil </span><span class="cov8" title="1">{
                 return UpdateResponse{
                         Success:   false,
                         Message:   fmt.Sprintf("Script %s not found in configuration", name),
@@ -4415,14 +4415,14 @@ func (sm *ScriptManager) UpdateScriptWithFeedback(name string, updatedConfig Scr
         }</span>
 
         // Detect changes
-        <span class="cov0" title="0">changes := sm.detectChanges(*oldConfig, updatedConfig)
+        <span class="cov8" title="1">changes := sm.detectChanges(*oldConfig, updatedConfig)
 
         // Convert ConfigChange to ConfigChangeInfo
         changeInfos := make([]ConfigChangeInfo, len(changes))
         allApplied := true
         anyScheduled := false
 
-        for i, change := range changes </span><span class="cov0" title="0">{
+        for i, change := range changes </span><span class="cov8" title="1">{
                 applied := false
                 reason := ""
 
@@ -4461,17 +4461,17 @@ func (sm *ScriptManager) UpdateScriptWithFeedback(name string, updatedConfig Scr
                                         runner.SetRestartPending(updatedConfig)</span>
                                 }
                         }
-                } else<span class="cov0" title="0"> {
+                } else<span class="cov8" title="1"> {
                         // Script not running, all changes are effectively "applied"
                         applied = true
                         reason = "Script not currently running, configuration updated"
                 }</span>
 
-                <span class="cov0" title="0">if !applied </span><span class="cov0" title="0">{
+                <span class="cov8" title="1">if !applied </span><span class="cov0" title="0">{
                         allApplied = false
                 }</span>
 
-                <span class="cov0" title="0">changeInfos[i] = ConfigChangeInfo{
+                <span class="cov8" title="1">changeInfos[i] = ConfigChangeInfo{
                         Field:    change.Field,
                         OldValue: change.OldValue,
                         NewValue: change.NewValue,
@@ -4481,12 +4481,12 @@ func (sm *ScriptManager) UpdateScriptWithFeedback(name string, updatedConfig Scr
         }
 
         // Determine overall status
-        <span class="cov0" title="0">message := fmt.Sprintf("Script %s updated successfully", name)
+        <span class="cov8" title="1">message := fmt.Sprintf("Script %s updated successfully", name)
         if anyScheduled </span><span class="cov0" title="0">{
                 message += " (some changes scheduled for next execution cycle)"
         }</span>
 
-        <span class="cov0" title="0">return UpdateResponse{
+        <span class="cov8" title="1">return UpdateResponse{
                 Success:   true,
                 Message:   message,
                 Applied:   allApplied &amp;&amp; !anyScheduled,
@@ -4550,15 +4550,15 @@ func NewScriptExecutorWithoutLogging(scriptPath string) *ScriptExecutor <span cl
 }</span>
 
 // Execute executes the script with context support and optional arguments
-func (se *ScriptExecutor) Execute(ctx context.Context, args ...string) error <span class="cov0" title="0">{
+func (se *ScriptExecutor) Execute(ctx context.Context, args ...string) error <span class="cov8" title="1">{
         result, err := se.ExecuteWithResult(ctx, args...)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return err
         }</span>
-        <span class="cov0" title="0">if result.ExitCode != 0 </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if result.ExitCode != 0 </span><span class="cov8" title="1">{
                 return fmt.Errorf("script exited with code %d", result.ExitCode)
         }</span>
-        <span class="cov0" title="0">return nil</span>
+        <span class="cov8" title="1">return nil</span>
 }
 
 // ExecuteWithResult executes the script and returns detailed execution result
