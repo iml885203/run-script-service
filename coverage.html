@@ -61,7 +61,7 @@
 
 				<option value="file2">run-script-service/auth/session.go (93.5%)</option>
 
-				<option value="file3">run-script-service/main.go (73.3%)</option>
+				<option value="file3">run-script-service/main.go (73.7%)</option>
 
 				<option value="file4">run-script-service/mocks/filesystem.go (100.0%)</option>
 
@@ -1538,7 +1538,7 @@ func handleDaemonStatus() (CommandResult, error) <span class="cov8" title="1">{
                 <span class="cov8" title="1">return CommandResult{shouldRunService: false}, fmt.Errorf("failed to read PID file: %v", err)</span>
         }
 
-        <span class="cov8" title="1">if isProcessRunning(pid) </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if isProcessRunning(pid) </span><span class="cov8" title="1">{
                 fmt.Printf("Service is running (PID: %d)\n", pid)
                 fmt.Println("Web interface: http://localhost:8080")
         }</span> else<span class="cov8" title="1"> {

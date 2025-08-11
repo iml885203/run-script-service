@@ -834,7 +834,7 @@ run-script-service/main.go:1107.16,1108.25 1 1
 run-script-service/main.go:1108.25,1111.4 2 1
 run-script-service/main.go:1112.3,1112.96 1 1
 run-script-service/main.go:1115.2,1115.27 1 1
-run-script-service/main.go:1115.27,1118.3 2 0
+run-script-service/main.go:1115.27,1118.3 2 1
 run-script-service/main.go:1118.8,1121.3 2 1
 run-script-service/main.go:1123.2,1123.52 1 1
 run-script-service/main.go:1127.68,1130.65 2 1

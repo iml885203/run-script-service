@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -691,6 +692,91 @@ func TestGenerateRandomKey(t *testing.T) {
 	if len(key1)%2 != 0 {
 		t.Error("Generated key should be valid hex string (even length)")
 	}
+}
+
+// 🔴 Red Phase: Test for runMultiScriptService error handling
+func TestRunMultiScriptServiceErrorHandling(t *testing.T) {
+	t.Run("should start successfully with non-existent config file", func(t *testing.T) {
+		// Test runMultiScriptServiceWithMockSignals directly to avoid os.Exit()
+		// This should succeed and return 0 because it uses default config
+		exitCode := runMultiScriptServiceWithMockSignals("/non/existent/config.json")
+
+		if exitCode != 0 {
+			t.Error("Expected zero exit code for non-existent config path (should use defaults)")
+		}
+	})
+
+	t.Run("should return zero exit code even with execution errors", func(t *testing.T) {
+		// Create a temporary config file with an invalid script path
+		tempDir, err := ioutil.TempDir("", "test_script_error")
+		if err != nil {
+			t.Fatalf("Failed to create temp dir: %v", err)
+		}
+		defer os.RemoveAll(tempDir)
+
+		configPath := filepath.Join(tempDir, "config.json")
+
+		// Create config with a script that has an invalid path - this causes execution errors but not startup errors
+		invalidConfig := service.ServiceConfig{
+			WebPort: 8080,
+			Scripts: []service.ScriptConfig{
+				{
+					Name:        "test",
+					Path:        "/invalid/script/path.sh",
+					Interval:    60,
+					Enabled:     true,
+					MaxLogLines: 100,
+				},
+			},
+		}
+
+		configData, err := json.Marshal(invalidConfig)
+		if err != nil {
+			t.Fatalf("Failed to marshal config: %v", err)
+		}
+
+		if err := ioutil.WriteFile(configPath, configData, 0644); err != nil {
+			t.Fatalf("Failed to write config file: %v", err)
+		}
+
+		// This should return zero because script execution errors don't cause service startup failures
+		exitCode := runMultiScriptServiceWithMockSignals(configPath)
+
+		if exitCode != 0 {
+			t.Error("Expected zero exit code even when scripts fail to execute (service should continue running)")
+		}
+	})
+}
+
+// 🔴 Red Phase: Test for handleClearLogs error handling
+func TestHandleClearLogsErrorHandling(t *testing.T) {
+	t.Run("should handle missing script flag", func(t *testing.T) {
+		// Test with no --script flag - this should return an error
+		args := []string{}
+		_, err := handleClearLogs(args, "")
+
+		if err == nil {
+			t.Error("Expected error when --script flag is missing")
+		}
+
+		if !strings.Contains(err.Error(), "usage:") {
+			t.Errorf("Expected usage error message, got: %v", err)
+		}
+	})
+
+	t.Run("should handle non-existent log file gracefully", func(t *testing.T) {
+		// Test with script that doesn't have a log file - this should succeed without error
+		args := []string{"--script=nonexistent-script"}
+		result, err := handleClearLogs(args, "")
+
+		if err != nil {
+			t.Errorf("Expected no error for non-existent log file, got: %v", err)
+		}
+
+		if result.shouldRunService {
+			t.Error("Expected shouldRunService to be false")
+		}
+	})
 }
 
 // Test for runMultiScriptService function
