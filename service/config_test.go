@@ -352,6 +352,89 @@ func TestEnhancedConfig_GetWebPort(t *testing.T) {
 	if webPort != 9090 {
 		t.Errorf("Expected web port 9090 (from env), got %d", webPort)
 	}
+
+	// Test case for invalid environment variable format
+	t.Run("should_fallback_when_env_port_is_invalid", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		// Create .env file with invalid WEB_PORT
+		envFile := filepath.Join(tempDir, ".env")
+		envContent := `WEB_PORT=invalid_port`
+		err := os.WriteFile(envFile, []byte(envContent), 0600)
+		if err != nil {
+			t.Fatalf("Failed to create .env file: %v", err)
+		}
+
+		// Create service config with valid port
+		configFile := filepath.Join(tempDir, "service_config.json")
+		configContent := `{"scripts": [], "web_port": 3000}`
+		err = os.WriteFile(configFile, []byte(configContent), 0644)
+		if err != nil {
+			t.Fatalf("Failed to create config file: %v", err)
+		}
+
+		enhancedConfig := NewEnhancedConfig()
+		err = enhancedConfig.LoadWithEnv(configFile, envFile)
+		if err != nil {
+			t.Fatalf("LoadWithEnv failed: %v", err)
+		}
+
+		// Should fallback to JSON config when env var is invalid
+		webPort := enhancedConfig.GetWebPort()
+		if webPort != 3000 {
+			t.Errorf("Expected web port 3000 (fallback to JSON), got %d", webPort)
+		}
+	})
+
+	// Test case for default fallback when no port is configured
+	t.Run("should_use_default_port_when_no_config", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		// Create config file without web_port
+		configFile := filepath.Join(tempDir, "service_config.json")
+		configContent := `{"scripts": []}`
+		err := os.WriteFile(configFile, []byte(configContent), 0644)
+		if err != nil {
+			t.Fatalf("Failed to create config file: %v", err)
+		}
+
+		enhancedConfig := NewEnhancedConfig()
+		err = enhancedConfig.LoadWithEnv(configFile, "")
+		if err != nil {
+			t.Fatalf("LoadWithEnv failed: %v", err)
+		}
+
+		// Should use default port 8080
+		webPort := enhancedConfig.GetWebPort()
+		if webPort != 8080 {
+			t.Errorf("Expected default web port 8080, got %d", webPort)
+		}
+	})
+
+	// Test case for JSON config port when no environment variable
+	t.Run("should_use_json_config_when_no_env_var", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		// Create config file with web_port
+		configFile := filepath.Join(tempDir, "service_config.json")
+		configContent := `{"scripts": [], "web_port": 4000}`
+		err := os.WriteFile(configFile, []byte(configContent), 0644)
+		if err != nil {
+			t.Fatalf("Failed to create config file: %v", err)
+		}
+
+		enhancedConfig := NewEnhancedConfig()
+		err = enhancedConfig.LoadWithEnv(configFile, "")
+		if err != nil {
+			t.Fatalf("LoadWithEnv failed: %v", err)
+		}
+
+		// Should use JSON config port
+		webPort := enhancedConfig.GetWebPort()
+		if webPort != 4000 {
+			t.Errorf("Expected web port 4000 (from JSON), got %d", webPort)
+		}
+	})
 }
 
 func TestEnhancedConfig_GetSecretKey(t *testing.T) {

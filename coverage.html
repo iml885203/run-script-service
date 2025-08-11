@@ -65,7 +65,7 @@
 
 				<option value="file4">run-script-service/mocks/filesystem.go (100.0%)</option>
 
-				<option value="file5">run-script-service/service/config.go (73.6%)</option>
+				<option value="file5">run-script-service/service/config.go (76.9%)</option>
 
 				<option value="file6">run-script-service/service/debug_logger.go (100.0%)</option>
 
@@ -2146,12 +2146,12 @@ func (ec *EnhancedConfig) GetWebPort() int <span class="cov8" title="1">{
         }
 
         // Fallback to JSON config
-        <span class="cov0" title="0">if ec.Config.WebPort &gt; 0 </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if ec.Config.WebPort &gt; 0 </span><span class="cov8" title="1">{
                 return ec.Config.WebPort
         }</span>
 
         // Final fallback
-        <span class="cov0" title="0">return 8080</span>
+        <span class="cov8" title="1">return 8080</span>
 }
 
 // GetSecretKey returns the secret key from environment variables

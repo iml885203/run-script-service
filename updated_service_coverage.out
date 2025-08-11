@@ -69,9 +69,9 @@ run-script-service/service/config.go:269.78,271.2 1 1
 run-script-service/service/config.go:274.44,276.53 1 1
 run-script-service/service/config.go:276.53,277.53 1 1
 run-script-service/service/config.go:277.53,279.4 1 1
-run-script-service/service/config.go:283.2,283.27 1 0
-run-script-service/service/config.go:283.27,285.3 1 0
-run-script-service/service/config.go:288.2,288.13 1 0
+run-script-service/service/config.go:283.2,283.27 1 1
+run-script-service/service/config.go:283.27,285.3 1 1
+run-script-service/service/config.go:288.2,288.13 1 1
 run-script-service/service/config.go:292.49,294.2 1 1
 run-script-service/service/debug_logger.go:17.36,27.2 4 1
 run-script-service/service/debug_logger.go:30.40,32.2 1 1
