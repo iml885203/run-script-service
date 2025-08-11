@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
@@ -179,4 +180,62 @@ func TestSystemMonitor_PeriodicBroadcasting(t *testing.T) {
 			t.Errorf("Message %d missing total_executions field", i)
 		}
 	}
+}
+
+// TestSystemMonitor_GetUptime tests the GetUptime functionality
+func TestSystemMonitor_GetUptime(t *testing.T) {
+	t.Run("should return formatted uptime string", func(t *testing.T) {
+		monitor := NewSystemMonitor()
+
+		// Get uptime immediately after creation
+		uptime := monitor.GetUptime()
+		if uptime == "" {
+			t.Error("Expected GetUptime to return non-empty string")
+		}
+
+		// Should be very short uptime (0 minutes initially)
+		if uptime != "0m" {
+			t.Errorf("Expected initial uptime to be '0m', got '%s'", uptime)
+		}
+	})
+
+	t.Run("should show minutes when uptime is less than an hour", func(t *testing.T) {
+		monitor := NewSystemMonitor()
+
+		// Wait a bit to ensure some time has passed
+		time.Sleep(100 * time.Millisecond)
+
+		uptime := monitor.GetUptime()
+
+		// Should still be minutes only (less than 1 hour)
+		if !strings.Contains(uptime, "m") || strings.Contains(uptime, "h") {
+			t.Errorf("Expected uptime to contain minutes only, got '%s'", uptime)
+		}
+	})
+
+	t.Run("should handle different time formats correctly", func(t *testing.T) {
+		monitor := NewSystemMonitor()
+
+		// Manually set start time to test different formats
+		monitor.mu.Lock()
+
+		// Test hours format (2 hours ago)
+		monitor.startTime = time.Now().Add(-2*time.Hour - 30*time.Minute)
+		monitor.mu.Unlock()
+
+		uptime := monitor.GetUptime()
+		if !strings.Contains(uptime, "h") || !strings.Contains(uptime, "m") {
+			t.Errorf("Expected uptime to contain hours and minutes, got '%s'", uptime)
+		}
+
+		// Test days format (2 days ago)
+		monitor.mu.Lock()
+		monitor.startTime = time.Now().Add(-2*24*time.Hour - 3*time.Hour - 15*time.Minute)
+		monitor.mu.Unlock()
+
+		uptime = monitor.GetUptime()
+		if !strings.Contains(uptime, "d") || !strings.Contains(uptime, "h") || !strings.Contains(uptime, "m") {
+			t.Errorf("Expected uptime to contain days, hours and minutes, got '%s'", uptime)
+		}
+	})
 }
