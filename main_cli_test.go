@@ -301,6 +301,91 @@ func TestCLICommands(t *testing.T) {
 		}
 	})
 
+	t.Run("add-script command - with optional parameters", func(t *testing.T) {
+		// Test with max-log-lines and timeout parameters
+		args := []string{"run-script-service", "add-script", "--name=optional", "--path=" + scriptPath, "--interval=1m", "--max-log-lines=200", "--timeout=30"}
+		result, err := handleCommand(args, scriptPath, logPath, configPath, 100)
+
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+
+		if result.shouldRunService {
+			t.Error("Expected shouldRunService to be false for add-script command")
+		}
+
+		// Verify config was updated with optional parameters
+		var config service.ServiceConfig
+		err = service.LoadServiceConfig(configPath, &config)
+		if err != nil {
+			t.Fatalf("Failed to load config: %v", err)
+		}
+
+		found := false
+		for _, script := range config.Scripts {
+			if script.Name == "optional" && script.MaxLogLines == 200 && script.Timeout == 30 {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("Script with optional parameters was not added correctly")
+		}
+	})
+
+	testInvalidParameterFallback := func(name, flag, value string, checkFunc func(service.ScriptConfig) bool) {
+		args := []string{"run-script-service", "add-script", "--name=" + name, "--path=" + scriptPath, "--interval=1m", flag + "=" + value}
+		result, err := handleCommand(args, scriptPath, logPath, configPath, 100)
+
+		if err != nil {
+			t.Errorf("Expected no error (should use default), got: %v", err)
+		}
+
+		if result.shouldRunService {
+			t.Error("Expected shouldRunService to be false")
+		}
+
+		var config service.ServiceConfig
+		err = service.LoadServiceConfig(configPath, &config)
+		if err != nil {
+			t.Fatalf("Failed to load config: %v", err)
+		}
+
+		found := false
+		for _, script := range config.Scripts {
+			if script.Name == name && checkFunc(script) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Script should use default %s when invalid value provided", flag)
+		}
+	}
+
+	t.Run("add-script command - invalid max-log-lines", func(t *testing.T) {
+		testInvalidParameterFallback("invalid-max-log", "--max-log-lines", "invalid", 
+			func(s service.ScriptConfig) bool { return s.MaxLogLines == 100 })
+	})
+
+	t.Run("add-script command - invalid timeout", func(t *testing.T) {
+		testInvalidParameterFallback("invalid-timeout", "--timeout", "invalid", 
+			func(s service.ScriptConfig) bool { return s.Timeout == 0 })
+	})
+
+	t.Run("add-script command - invalid interval", func(t *testing.T) {
+		// Test with invalid interval format
+		args := []string{"run-script-service", "add-script", "--name=invalid-interval", "--path=" + scriptPath, "--interval=invalid"}
+		_, err := handleCommand(args, scriptPath, logPath, configPath, 100)
+
+		if err == nil {
+			t.Error("Expected error for invalid interval")
+		}
+		if err != nil && !contains(err.Error(), "invalid interval") {
+			t.Errorf("Expected 'invalid interval' error, got: %v", err)
+		}
+	})
+
 	t.Run("logs command - invalid exit code", func(t *testing.T) {
 		args := []string{"run-script-service", "logs", "--exit-code=invalid"}
 		_, err := handleCommand(args, scriptPath, logPath, configPath, 100)

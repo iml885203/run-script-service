@@ -61,7 +61,7 @@
 
 				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
 
-				<option value="file3">run-script-service/main.go (73.8%)</option>
+				<option value="file3">run-script-service/main.go (74.6%)</option>
 
 				<option value="file4">run-script-service/mocks/filesystem.go (100.0%)</option>
 
@@ -799,21 +799,21 @@ func handleAddScript(args []string, configPath string) (CommandResult, error) <s
 
         // Parse interval
         <span class="cov8" title="1">interval, err := parseInterval(flags["interval"])
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return CommandResult{shouldRunService: false}, fmt.Errorf("invalid interval: %v", err)
         }</span>
 
         // Parse optional flags
         <span class="cov8" title="1">maxLogLines := 100
-        if val, ok := flags["max-log-lines"]; ok </span><span class="cov0" title="0">{
-                if parsed, parseErr := strconv.Atoi(val); parseErr == nil &amp;&amp; parsed &gt; 0 </span><span class="cov0" title="0">{
+        if val, ok := flags["max-log-lines"]; ok </span><span class="cov8" title="1">{
+                if parsed, parseErr := strconv.Atoi(val); parseErr == nil &amp;&amp; parsed &gt; 0 </span><span class="cov8" title="1">{
                         maxLogLines = parsed
                 }</span>
         }
 
         <span class="cov8" title="1">timeout := 0
-        if val, ok := flags["timeout"]; ok </span><span class="cov0" title="0">{
-                if parsed, parseErr := strconv.Atoi(val); parseErr == nil &amp;&amp; parsed &gt;= 0 </span><span class="cov0" title="0">{
+        if val, ok := flags["timeout"]; ok </span><span class="cov8" title="1">{
+                if parsed, parseErr := strconv.Atoi(val); parseErr == nil &amp;&amp; parsed &gt;= 0 </span><span class="cov8" title="1">{
                         timeout = parsed
                 }</span>
         }
