@@ -87,6 +87,12 @@ func TestParseInterval(t *testing.T) {
 			expected: 0,
 			hasError: true,
 		},
+		{
+			name:     "negative plain number (triggers default case)",
+			input:    "-30",
+			expected: 0,
+			hasError: true,
+		},
 	}
 
 	for _, tt := range tests {

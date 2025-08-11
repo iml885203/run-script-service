@@ -597,7 +597,7 @@ run-script-service/main.go:325.3,325.27 1 1
 run-script-service/main.go:326.10,329.17 2 1
 run-script-service/main.go:329.17,331.4 1 1
 run-script-service/main.go:332.3,332.17 1 1
-run-script-service/main.go:332.17,334.4 1 0
+run-script-service/main.go:332.17,334.4 1 1
 run-script-service/main.go:335.3,335.21 1 1
 run-script-service/main.go:340.65,343.27 2 1
 run-script-service/main.go:343.27,344.36 1 1
