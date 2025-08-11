@@ -912,3 +912,67 @@ func TestScriptManager_RunScriptOnce_NotFound(t *testing.T) {
 		t.Error("Expected error when running non-existent script once")
 	}
 }
+
+// TestScriptManager_SaveConfig tests the SaveConfig functionality
+func TestScriptManager_SaveConfig(t *testing.T) {
+	t.Run("should save config to file successfully", func(t *testing.T) {
+		// Create a temporary config file path
+		tempDir := t.TempDir()
+		configPath := tempDir + "/test_config.json"
+
+		config := &ServiceConfig{
+			Scripts: []ScriptConfig{
+				{
+					Name:        "test-script",
+					Path:        "./test.sh",
+					Interval:    60,
+					Enabled:     true,
+					MaxLogLines: 100,
+					Timeout:     30,
+				},
+			},
+			WebPort: 8080,
+		}
+
+		// Create script manager with config path
+		manager := NewScriptManager(config)
+		manager.configPath = configPath
+
+		// This should save the config to file
+		err := manager.SaveConfig()
+		if err != nil {
+			t.Errorf("Expected SaveConfig to succeed, but got error: %v", err)
+		}
+
+		// Verify the config file was created and has correct content
+		savedConfig := &ServiceConfig{}
+		err = LoadServiceConfig(configPath, savedConfig)
+		if err != nil {
+			t.Errorf("Expected to load saved config, but got error: %v", err)
+		}
+
+		if len(savedConfig.Scripts) != 1 {
+			t.Errorf("Expected 1 script in saved config, got %d", len(savedConfig.Scripts))
+		}
+
+		if savedConfig.Scripts[0].Name != "test-script" {
+			t.Errorf("Expected script name 'test-script', got %s", savedConfig.Scripts[0].Name)
+		}
+	})
+
+	t.Run("should return error when config path not set", func(t *testing.T) {
+		config := &ServiceConfig{Scripts: []ScriptConfig{}}
+		manager := NewScriptManager(config)
+		// Don't set configPath
+
+		err := manager.SaveConfig()
+		if err == nil {
+			t.Error("Expected SaveConfig to return error when config path not set")
+		}
+
+		expectedErrMsg := "config path not set - cannot save configuration"
+		if err.Error() != expectedErrMsg {
+			t.Errorf("Expected error message '%s', got '%s'", expectedErrMsg, err.Error())
+		}
+	})
+}
