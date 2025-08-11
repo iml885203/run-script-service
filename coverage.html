@@ -103,7 +103,7 @@
 
 				<option value="file23">run-script-service/web/handlers_script_files.go (68.0%)</option>
 
-				<option value="file24">run-script-service/web/server.go (71.4%)</option>
+				<option value="file24">run-script-service/web/server.go (72.6%)</option>
 
 				<option value="file25">run-script-service/web/vue_build_manager.go (90.9%)</option>
 
@@ -6857,8 +6857,8 @@ func (ws *WebServer) handleGetScriptLogs(c *gin.Context) <span class="cov8" titl
         }</span>
 
         // Read raw log file content
-        <span class="cov0" title="0">content, err := os.ReadFile(logFile)
-        if err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">content, err := os.ReadFile(logFile)
+        if err != nil </span><span class="cov8" title="1">{
                 c.JSON(http.StatusInternalServerError, APIResponse{
                         Success: false,
                         Error:   fmt.Sprintf("Failed to read log file: %v", err),
@@ -6866,7 +6866,7 @@ func (ws *WebServer) handleGetScriptLogs(c *gin.Context) <span class="cov8" titl
                 return
         }</span>
 
-        <span class="cov0" title="0">c.JSON(http.StatusOK, APIResponse{
+        <span class="cov8" title="1">c.JSON(http.StatusOK, APIResponse{
                 Success: true,
                 Data: map[string]interface{}{
                         "content": string(content),

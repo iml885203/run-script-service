@@ -653,45 +653,177 @@ func TestWebServer_LogsEndpoint_ExpectedFormat(t *testing.T) {
 func TestWebServer_GetScriptLogs(t *testing.T) {
 	server := NewWebServer(nil, 8080, "test-secret")
 
-	// Create authenticated test request for specific script
-	req, err := createAuthenticatedRequest("GET", "/api/logs/test-script", "", server)
-	if err != nil {
-		t.Fatalf("Failed to create authenticated request: %v", err)
-	}
-	w := httptest.NewRecorder()
+	t.Run("should return error when log file cannot be read", func(t *testing.T) {
+		// Create a directory instead of a file to simulate read error
+		dir, err := os.Executable()
+		if err != nil {
+			dir, _ = os.Getwd()
+		} else {
+			dir = filepath.Dir(dir)
+		}
 
-	// Call the script logs handler
-	server.router.ServeHTTP(w, req)
+		// Create a directory with the same name as the log file we're trying to read
+		logPath := filepath.Join(dir, "unreadable-script.log")
+		err = os.Mkdir(logPath, 0755)
+		if err != nil {
+			t.Fatalf("Failed to create directory for test: %v", err)
+		}
+		defer os.Remove(logPath) // Clean up after test
 
-	// Check response
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
+		req, err := createAuthenticatedRequest("GET", "/api/logs/unreadable-script", "", server)
+		if err != nil {
+			t.Fatalf("Failed to create authenticated request: %v", err)
+		}
+		w := httptest.NewRecorder()
 
-	var response APIResponse
-	err = json.Unmarshal(w.Body.Bytes(), &response)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
+		server.router.ServeHTTP(w, req)
 
-	if !response.Success {
-		t.Error("Expected successful response")
-	}
+		// Should return 500 Internal Server Error due to read error
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("Expected status 500, got %d", w.Code)
+		}
 
-	// Check that data contains log content for the specific script
-	data, ok := response.Data.(map[string]interface{})
-	if !ok {
-		t.Fatal("Expected data to be a map")
-	}
+		var response APIResponse
+		err = json.Unmarshal(w.Body.Bytes(), &response)
+		if err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
 
-	script, ok := data["script"].(string)
-	if !ok {
-		t.Fatal("Expected script to be a string")
-	}
+		if response.Success {
+			t.Error("Expected unsuccessful response for unreadable log file")
+		}
 
-	if script != "test-script" {
-		t.Errorf("Expected script 'test-script', got '%s'", script)
-	}
+		if !strings.Contains(response.Error, "Failed to read log file") {
+			t.Errorf("Expected error containing 'Failed to read log file', got '%s'", response.Error)
+		}
+	})
+
+	t.Run("should return log content for existing script with no log file", func(t *testing.T) {
+		// Test for non-existing log file
+		req, err := createAuthenticatedRequest("GET", "/api/logs/test-script", "", server)
+		if err != nil {
+			t.Fatalf("Failed to create authenticated request: %v", err)
+		}
+		w := httptest.NewRecorder()
+
+		server.router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d", w.Code)
+		}
+
+		var response APIResponse
+		err = json.Unmarshal(w.Body.Bytes(), &response)
+		if err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		if !response.Success {
+			t.Error("Expected successful response")
+		}
+
+		data, ok := response.Data.(map[string]interface{})
+		if !ok {
+			t.Fatal("Expected data to be a map")
+		}
+
+		script, ok := data["script"].(string)
+		if !ok {
+			t.Fatal("Expected script to be a string")
+		}
+
+		if script != "test-script" {
+			t.Errorf("Expected script 'test-script', got '%s'", script)
+		}
+
+		content, ok := data["content"].(string)
+		if !ok {
+			t.Fatal("Expected content to be a string")
+		}
+
+		if content != "" {
+			t.Errorf("Expected empty content for non-existing log file, got '%s'", content)
+		}
+
+		message, ok := data["message"].(string)
+		if !ok {
+			t.Fatal("Expected message to be a string")
+		}
+
+		if message != "No log file found" {
+			t.Errorf("Expected message 'No log file found', got '%s'", message)
+		}
+	})
+
+	t.Run("should return log content for existing script with log file", func(t *testing.T) {
+		// Create a temporary log file for testing
+		dir, err := os.Executable()
+		if err != nil {
+			dir, _ = os.Getwd()
+		} else {
+			dir = filepath.Dir(dir)
+		}
+
+		logFile := filepath.Join(dir, "test-script-with-logs.log")
+		logContent := "2025-08-11 Test log entry\n2025-08-11 Another log entry\n"
+
+		// Create the test log file
+		err = os.WriteFile(logFile, []byte(logContent), 0644)
+		if err != nil {
+			t.Fatalf("Failed to create test log file: %v", err)
+		}
+		defer os.Remove(logFile) // Clean up after test
+
+		req, err := createAuthenticatedRequest("GET", "/api/logs/test-script-with-logs", "", server)
+		if err != nil {
+			t.Fatalf("Failed to create authenticated request: %v", err)
+		}
+		w := httptest.NewRecorder()
+
+		server.router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d", w.Code)
+		}
+
+		var response APIResponse
+		err = json.Unmarshal(w.Body.Bytes(), &response)
+		if err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		if !response.Success {
+			t.Error("Expected successful response")
+		}
+
+		data, ok := response.Data.(map[string]interface{})
+		if !ok {
+			t.Fatal("Expected data to be a map")
+		}
+
+		script, ok := data["script"].(string)
+		if !ok {
+			t.Fatal("Expected script to be a string")
+		}
+
+		if script != "test-script-with-logs" {
+			t.Errorf("Expected script 'test-script-with-logs', got '%s'", script)
+		}
+
+		content, ok := data["content"].(string)
+		if !ok {
+			t.Fatal("Expected content to be a string")
+		}
+
+		if content != logContent {
+			t.Errorf("Expected content '%s', got '%s'", logContent, content)
+		}
+
+		// Verify message field is not present when log file exists
+		if _, hasMessage := data["message"]; hasMessage {
+			t.Error("Expected no message field when log file exists and has content")
+		}
+	})
 }
 
 func TestWebServer_GetSpecificScript(t *testing.T) {

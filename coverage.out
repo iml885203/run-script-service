@@ -356,9 +356,9 @@ run-script-service/web/server.go:872.16,874.3 1 0
 run-script-service/web/server.go:874.8,876.3 1 1
 run-script-service/web/server.go:878.2,881.52 2 1
 run-script-service/web/server.go:881.52,891.3 2 1
-run-script-service/web/server.go:894.2,895.16 2 0
-run-script-service/web/server.go:895.16,901.3 2 0
-run-script-service/web/server.go:903.2,909.4 1 0
+run-script-service/web/server.go:894.2,895.16 2 1
+run-script-service/web/server.go:895.16,901.3 2 1
+run-script-service/web/server.go:903.2,909.4 1 1
 run-script-service/web/server.go:913.60,915.22 2 1
 run-script-service/web/server.go:915.22,921.3 2 1
 run-script-service/web/server.go:924.2,925.16 2 1
