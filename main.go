@@ -286,19 +286,6 @@ func runMultiScriptServiceWithErrorHandling(configPath string) error {
 	return nil
 }
 
-// runMultiScriptServiceWithErrorHandling provides a testable version of runMultiScriptService
-// that returns errors instead of calling os.Exit
-func runMultiScriptServiceWithErrorHandling(configPath string) error {
-	_, _, err := runMultiScriptServiceTestable(configPath)
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
-	// For minimal implementation, we only test the config loading part
-	// In a real implementation, this would also handle script starting/stopping
-	return nil
-}
-
 func parseInterval(intervalStr string) (int, error) {
 	if intervalStr == "" {
 		return 0, fmt.Errorf("empty interval")
