@@ -59,7 +59,7 @@
 
 				<option value="file1">run-script-service/auth/middleware.go (100.0%)</option>
 
-				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
+				<option value="file2">run-script-service/auth/session.go (93.5%)</option>
 
 				<option value="file3">run-script-service/main.go (73.7%)</option>
 
@@ -103,7 +103,7 @@
 
 				<option value="file23">run-script-service/web/handlers_script_files.go (68.0%)</option>
 
-				<option value="file24">run-script-service/web/server.go (72.6%)</option>
+				<option value="file24">run-script-service/web/server.go (75.5%)</option>
 
 				<option value="file25">run-script-service/web/vue_build_manager.go (90.9%)</option>
 
@@ -393,7 +393,7 @@ func (sm *SessionManager) ValidateSession(token string) (string, bool) <span cla
         // Check if session has expired
         <span class="cov8" title="1">if time.Now().After(session.ExpiresAt) </span><span class="cov8" title="1">{
                 // Clean up expired session
-                go func() </span><span class="cov0" title="0">{
+                go func() </span><span class="cov8" title="1">{
                         sm.mutex.Lock()
                         defer sm.mutex.Unlock()
                         delete(sm.sessions, token)
@@ -6339,7 +6339,7 @@ func (ws *WebServer) handleGetScripts(c *gin.Context) <span class="cov8" title="
 
 // handlePostScript creates a new script
 func (ws *WebServer) handlePostScript(c *gin.Context) <span class="cov8" title="1">{
-        if ws.scriptManager == nil </span><span class="cov0" title="0">{
+        if ws.scriptManager == nil </span><span class="cov8" title="1">{
                 c.JSON(http.StatusInternalServerError, APIResponse{
                         Success: false,
                         Error:   "Script manager not initialized",
@@ -6348,7 +6348,7 @@ func (ws *WebServer) handlePostScript(c *gin.Context) <span class="cov8" title="
         }</span>
 
         <span class="cov8" title="1">var scriptConfig service.ScriptConfig
-        if err := c.ShouldBindJSON(&amp;scriptConfig); err != nil </span><span class="cov0" title="0">{
+        if err := c.ShouldBindJSON(&amp;scriptConfig); err != nil </span><span class="cov8" title="1">{
                 c.JSON(http.StatusBadRequest, APIResponse{
                         Success: false,
                         Error:   fmt.Sprintf("Invalid request body: %v", err),
@@ -6357,7 +6357,7 @@ func (ws *WebServer) handlePostScript(c *gin.Context) <span class="cov8" title="
         }</span>
 
         // Validate required fields
-        <span class="cov8" title="1">if scriptConfig.Name == "" </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if scriptConfig.Name == "" </span><span class="cov8" title="1">{
                 c.JSON(http.StatusBadRequest, APIResponse{
                         Success: false,
                         Error:   "Script name is required",
@@ -6365,7 +6365,7 @@ func (ws *WebServer) handlePostScript(c *gin.Context) <span class="cov8" title="
                 return
         }</span>
 
-        <span class="cov8" title="1">if scriptConfig.Path == "" </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if scriptConfig.Path == "" </span><span class="cov8" title="1">{
                 c.JSON(http.StatusBadRequest, APIResponse{
                         Success: false,
                         Error:   "Script path is required",
@@ -6374,15 +6374,15 @@ func (ws *WebServer) handlePostScript(c *gin.Context) <span class="cov8" title="
         }</span>
 
         // Set defaults for optional fields
-        <span class="cov8" title="1">if scriptConfig.Interval &lt;= 0 </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if scriptConfig.Interval &lt;= 0 </span><span class="cov8" title="1">{
                 scriptConfig.Interval = 60 // Default to 1 minute
         }</span>
-        <span class="cov8" title="1">if scriptConfig.MaxLogLines &lt;= 0 </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if scriptConfig.MaxLogLines &lt;= 0 </span><span class="cov8" title="1">{
                 scriptConfig.MaxLogLines = 100 // Default to 100 lines
         }</span>
 
         // Add the script
-        <span class="cov8" title="1">if err := ws.scriptManager.AddScript(scriptConfig); err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if err := ws.scriptManager.AddScript(scriptConfig); err != nil </span><span class="cov8" title="1">{
                 c.JSON(http.StatusConflict, APIResponse{
                         Success: false,
                         Error:   err.Error(),

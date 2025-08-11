@@ -481,6 +481,193 @@ func TestWebServer_PostScript(t *testing.T) {
 	}
 }
 
+// testPostScriptError is a helper function to reduce code duplication in error case tests
+func testPostScriptError(t *testing.T, server *WebServer, scriptData string, expectedStatus int, expectedError string, errorCheck func(string) bool) {
+	req, err := createAuthenticatedRequest("POST", "/api/scripts", scriptData, server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
+	w := httptest.NewRecorder()
+
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != expectedStatus {
+		t.Errorf("Expected status %d, got %d", expectedStatus, w.Code)
+	}
+
+	var response APIResponse
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if response.Success {
+		t.Error("Expected failed response")
+	}
+
+	if errorCheck != nil {
+		if !errorCheck(response.Error) {
+			t.Errorf("Error check failed for: '%s'", response.Error)
+		}
+	} else if response.Error != expectedError {
+		t.Errorf("Expected '%s', got '%s'", expectedError, response.Error)
+	}
+}
+
+func TestWebServer_PostScript_ErrorCases(t *testing.T) {
+	t.Run("script manager not initialized", func(t *testing.T) {
+		server := NewWebServer(nil, 8080, "test-secret")
+		// Don't set script manager to test the error case
+
+		scriptData := `{
+			"name": "test-script",
+			"path": "./test.sh",
+			"interval": 60
+		}`
+
+		testPostScriptError(t, server, scriptData, http.StatusInternalServerError, "Script manager not initialized", nil)
+	})
+
+	t.Run("invalid JSON request body", func(t *testing.T) {
+		config := &service.ServiceConfig{Scripts: []service.ScriptConfig{}}
+		scriptManager := service.NewScriptManager(config)
+		server := NewWebServer(nil, 8080, "test-secret")
+		server.SetScriptManager(scriptManager)
+
+		invalidJSON := `{"name": "test", invalid json`
+
+		testPostScriptError(t, server, invalidJSON, http.StatusBadRequest, "", func(err string) bool {
+			return strings.Contains(err, "Invalid request body")
+		})
+	})
+
+	t.Run("missing script name", func(t *testing.T) {
+		config := &service.ServiceConfig{Scripts: []service.ScriptConfig{}}
+		scriptManager := service.NewScriptManager(config)
+		server := NewWebServer(nil, 8080, "test-secret")
+		server.SetScriptManager(scriptManager)
+
+		scriptData := `{
+			"path": "./test.sh",
+			"interval": 60
+		}`
+
+		testPostScriptError(t, server, scriptData, http.StatusBadRequest, "Script name is required", nil)
+	})
+
+	t.Run("missing script path", func(t *testing.T) {
+		config := &service.ServiceConfig{Scripts: []service.ScriptConfig{}}
+		scriptManager := service.NewScriptManager(config)
+		server := NewWebServer(nil, 8080, "test-secret")
+		server.SetScriptManager(scriptManager)
+
+		scriptData := `{
+			"name": "test-script",
+			"interval": 60
+		}`
+
+		testPostScriptError(t, server, scriptData, http.StatusBadRequest, "Script path is required", nil)
+	})
+
+	t.Run("default values applied", func(t *testing.T) {
+		config := &service.ServiceConfig{Scripts: []service.ScriptConfig{}}
+		scriptManager := service.NewScriptManager(config)
+		server := NewWebServer(nil, 8080, "test-secret")
+		server.SetScriptManager(scriptManager)
+
+		scriptData := `{
+			"name": "test-script",
+			"path": "./test.sh"
+		}`
+
+		req, err := createAuthenticatedRequest("POST", "/api/scripts", scriptData, server)
+		if err != nil {
+			t.Fatalf("Failed to create authenticated request: %v", err)
+		}
+		w := httptest.NewRecorder()
+
+		server.router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusCreated {
+			t.Errorf("Expected status 201, got %d", w.Code)
+		}
+
+		var response APIResponse
+		err = json.Unmarshal(w.Body.Bytes(), &response)
+		if err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		if !response.Success {
+			t.Error("Expected successful response")
+		}
+
+		data, ok := response.Data.(map[string]interface{})
+		if !ok {
+			t.Fatal("Expected response data to be a map")
+		}
+
+		if data["interval"] != float64(60) {
+			t.Errorf("Expected default interval 60, got %v", data["interval"])
+		}
+
+		if data["max_log_lines"] != float64(100) {
+			t.Errorf("Expected default max_log_lines 100, got %v", data["max_log_lines"])
+		}
+	})
+
+	t.Run("duplicate script name error", func(t *testing.T) {
+		config := &service.ServiceConfig{
+			Scripts: []service.ScriptConfig{
+				{
+					Name:        "existing-script",
+					Path:        "./existing.sh",
+					Interval:    60,
+					Enabled:     true,
+					MaxLogLines: 100,
+					Timeout:     30,
+				},
+			},
+		}
+		scriptManager := service.NewScriptManager(config)
+		server := NewWebServer(nil, 8080, "test-secret")
+		server.SetScriptManager(scriptManager)
+
+		// Try to add a script with the same name
+		scriptData := `{
+			"name": "existing-script",
+			"path": "./duplicate.sh",
+			"interval": 120
+		}`
+
+		req, err := createAuthenticatedRequest("POST", "/api/scripts", scriptData, server)
+		if err != nil {
+			t.Fatalf("Failed to create authenticated request: %v", err)
+		}
+		w := httptest.NewRecorder()
+
+		server.router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusConflict {
+			t.Errorf("Expected status 409, got %d", w.Code)
+		}
+
+		var response APIResponse
+		err = json.Unmarshal(w.Body.Bytes(), &response)
+		if err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		if response.Success {
+			t.Error("Expected failed response for duplicate script name")
+		}
+
+		if !strings.Contains(response.Error, "already exists") {
+			t.Errorf("Expected error containing 'already exists', got '%s'", response.Error)
+		}
+	})
+}
+
 func TestWebServer_RunScript(t *testing.T) {
 	// Create test dependencies with a script
 	config := &service.ServiceConfig{
