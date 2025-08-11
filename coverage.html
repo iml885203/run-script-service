@@ -103,7 +103,7 @@
 
 				<option value="file23">run-script-service/web/handlers_script_files.go (68.0%)</option>
 
-				<option value="file24">run-script-service/web/server.go (68.8%)</option>
+				<option value="file24">run-script-service/web/server.go (71.4%)</option>
 
 				<option value="file25">run-script-service/web/vue_build_manager.go (90.9%)</option>
 
@@ -7003,7 +7003,7 @@ func (ws *WebServer) handleGetConfig(c *gin.Context) <span class="cov8" title="1
 
 // handleUpdateConfig updates system configuration
 func (ws *WebServer) handleUpdateConfig(c *gin.Context) <span class="cov8" title="1">{
-        if ws.scriptManager == nil </span><span class="cov0" title="0">{
+        if ws.scriptManager == nil </span><span class="cov8" title="1">{
                 c.JSON(http.StatusInternalServerError, APIResponse{
                         Success: false,
                         Error:   "Script manager not initialized",
@@ -7024,18 +7024,18 @@ func (ws *WebServer) handleUpdateConfig(c *gin.Context) <span class="cov8" title
         <span class="cov8" title="1">config := ws.scriptManager.GetConfig()
 
         // Update web port if provided (handle both camelCase and snake_case)
-        if webPort, ok := updateData["webPort"]; ok </span><span class="cov0" title="0">{
-                if port, isFloat := webPort.(float64); isFloat </span><span class="cov0" title="0">{
-                        if port &gt;= 1 &amp;&amp; port &lt;= 65535 </span><span class="cov0" title="0">{
+        if webPort, ok := updateData["webPort"]; ok </span><span class="cov8" title="1">{
+                if port, isFloat := webPort.(float64); isFloat </span><span class="cov8" title="1">{
+                        if port &gt;= 1 &amp;&amp; port &lt;= 65535 </span><span class="cov8" title="1">{
                                 config.WebPort = int(port)
-                        }</span> else<span class="cov0" title="0"> {
+                        }</span> else<span class="cov8" title="1"> {
                                 c.JSON(http.StatusBadRequest, APIResponse{
                                         Success: false,
                                         Error:   "Web port must be between 1 and 65535",
                                 })
                                 return
                         }</span>
-                } else<span class="cov0" title="0"> {
+                } else<span class="cov8" title="1"> {
                         c.JSON(http.StatusBadRequest, APIResponse{
                                 Success: false,
                                 Error:   "Web port must be a number",
@@ -7046,7 +7046,7 @@ func (ws *WebServer) handleUpdateConfig(c *gin.Context) <span class="cov8" title
                 if port, isFloat := webPort.(float64); isFloat </span><span class="cov8" title="1">{
                         if port &gt;= 1 &amp;&amp; port &lt;= 65535 </span><span class="cov8" title="1">{
                                 config.WebPort = int(port)
-                        }</span> else<span class="cov0" title="0"> {
+                        }</span> else<span class="cov8" title="1"> {
                                 c.JSON(http.StatusBadRequest, APIResponse{
                                         Success: false,
                                         Error:   "Web port must be between 1 and 65535",

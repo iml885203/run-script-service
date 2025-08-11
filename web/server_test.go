@@ -898,6 +898,144 @@ func TestWebServer_UpdateConfig_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestWebServer_UpdateConfig_NoScriptManager(t *testing.T) {
+	server := NewWebServer(nil, 8080, "test-secret")
+	// Don't set script manager to test error handling
+
+	req, err := createAuthenticatedRequest("PUT", "/api/config", `{"web_port": 9090}`, server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
+	w := httptest.NewRecorder()
+
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status 500, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if response.Success {
+		t.Error("Expected failed response when script manager not initialized")
+	}
+}
+
+func TestWebServer_UpdateConfig_CamelCaseWebPort(t *testing.T) {
+	config := &service.ServiceConfig{WebPort: 8080}
+	configPath := "/tmp/test_config_camel.json"
+	if err := service.SaveServiceConfig(configPath, config); err != nil {
+		t.Fatalf("Failed to save test config: %v", err)
+	}
+	defer func() {
+		_ = os.Remove(configPath)
+	}()
+
+	scriptManager := service.NewScriptManagerWithPath(config, configPath)
+	server := NewWebServer(nil, 8080, "test-secret")
+	server.SetScriptManager(scriptManager)
+
+	configData := `{"webPort": 9090}`
+	req, err := createAuthenticatedRequest("PUT", "/api/config", configData, server)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated request: %v", err)
+	}
+	w := httptest.NewRecorder()
+
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response APIResponse
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if !response.Success {
+		t.Error("Expected successful response for camelCase webPort")
+	}
+}
+
+func TestWebServer_UpdateConfig_InvalidInputs(t *testing.T) {
+	tests := []struct {
+		name           string
+		configData     string
+		expectedStatus int
+		description    string
+	}{
+		{
+			name:           "port_too_high",
+			configData:     `{"webPort": 99999}`,
+			expectedStatus: http.StatusBadRequest,
+			description:    "port too high",
+		},
+		{
+			name:           "non_numeric_port",
+			configData:     `{"webPort": "invalid"}`,
+			expectedStatus: http.StatusBadRequest,
+			description:    "non-numeric port",
+		},
+		{
+			name:           "port_too_low",
+			configData:     `{"webPort": 0}`,
+			expectedStatus: http.StatusBadRequest,
+			description:    "port too low",
+		},
+		{
+			name:           "snake_case_port_too_high",
+			configData:     `{"web_port": 99999}`,
+			expectedStatus: http.StatusBadRequest,
+			description:    "snake_case port too high",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &service.ServiceConfig{WebPort: 8080}
+			configPath := "/tmp/test_config_" + tt.name + ".json"
+			if err := service.SaveServiceConfig(configPath, config); err != nil {
+				t.Fatalf("Failed to save test config: %v", err)
+			}
+			defer func() {
+				_ = os.Remove(configPath)
+			}()
+
+			scriptManager := service.NewScriptManagerWithPath(config, configPath)
+			server := NewWebServer(nil, 8080, "test-secret")
+			server.SetScriptManager(scriptManager)
+
+			req, err := createAuthenticatedRequest("PUT", "/api/config", tt.configData, server)
+			if err != nil {
+				t.Fatalf("Failed to create authenticated request: %v", err)
+			}
+			w := httptest.NewRecorder()
+
+			server.router.ServeHTTP(w, req)
+
+			if w.Code != tt.expectedStatus {
+				t.Errorf("Expected status %d for %s, got %d", tt.expectedStatus, tt.description, w.Code)
+			}
+
+			var response APIResponse
+			err = json.Unmarshal(w.Body.Bytes(), &response)
+			if err != nil {
+				t.Fatalf("Failed to unmarshal response: %v", err)
+			}
+
+			if response.Success {
+				t.Errorf("Expected failed response for %s", tt.description)
+			}
+		})
+	}
+}
+
 func TestWebServer_UpdateScript(t *testing.T) {
 	// Create test dependencies with a script
 	config := &service.ServiceConfig{
