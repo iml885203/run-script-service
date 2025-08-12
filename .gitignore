@@ -34,6 +34,10 @@ Thumbs.db
 *.tmp
 *.temp
 
+# Cookie files (testing artifacts)
+cookies.txt
+cookie.txt
+
 # Project-specific scripts
 run-*.sh
 run.sh
@@ -42,8 +46,15 @@ run.sh
 # Test scripts (should not be committed)
 test*.sh
 
+# User-created scripts (managed via web interface)
+scripts/
+
 # Frontend build output
 web/frontend/node_modules/
 web/frontend/dist/
 web/frontend/test-results/
 web/frontend/playwright-report/
+
+# Go test coverage files
+coverage.out
+coverage.html

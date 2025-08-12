@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
+	"run-script-service/auth"
 	"run-script-service/service"
 )
 
@@ -25,13 +27,17 @@ var frontendFS embed.FS
 
 // WebServer represents the HTTP API server
 type WebServer struct {
-	router        *gin.Engine
-	service       *service.Service
-	scriptManager *service.ScriptManager
-	fileManager   *service.FileManager
-	wsHub         *WebSocketHub
-	systemMonitor *service.SystemMonitor
-	port          int
+	router            *gin.Engine
+	service           *service.Service
+	scriptManager     *service.ScriptManager
+	scriptFileManager *service.ScriptFileManager
+	fileManager       *service.FileManager
+	wsHub             *WebSocketHub
+	systemMonitor     *service.SystemMonitor
+	authHandler       *auth.AuthHandler
+	authMiddleware    *auth.AuthMiddleware
+	debugLogger       *service.DebugLogger
+	port              int
 }
 
 // APIResponse represents the standard API response format
@@ -49,8 +55,33 @@ type LogEntry struct {
 	Script    string `json:"script,omitempty"`
 }
 
+// enhancedRecoveryMiddleware provides enhanced error handling with structured JSON responses
+func enhancedRecoveryMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		defer func() {
+			if err := recover(); err != nil {
+				// Log the panic with request context for debugging
+				log.Printf("Panic recovered: %v - Request: %s %s, User-Agent: %s, X-Request-ID: %s",
+					err,
+					c.Request.Method,
+					c.Request.URL.Path,
+					c.GetHeader("User-Agent"),
+					c.GetHeader("X-Request-ID"))
+
+				// Return structured JSON error response
+				c.JSON(http.StatusInternalServerError, APIResponse{
+					Success: false,
+					Error:   "Internal server error",
+				})
+				c.Abort()
+			}
+		}()
+		c.Next()
+	}
+}
+
 // NewWebServer creates a new web server instance
-func NewWebServer(svc *service.Service, port int) *WebServer {
+func NewWebServer(svc *service.Service, port int, secretKey string) *WebServer {
 	// Set Gin to release mode for production
 	gin.SetMode(gin.ReleaseMode)
 
@@ -58,18 +89,25 @@ func NewWebServer(svc *service.Service, port int) *WebServer {
 
 	// Add middleware
 	router.Use(gin.Logger())
-	router.Use(gin.Recovery())
+	router.Use(enhancedRecoveryMiddleware())
 	router.Use(cors.Default())
 
 	// Create WebSocket hub
 	wsHub := NewWebSocketHub()
 	go wsHub.Run()
 
+	// Initialize authentication
+	authHandler := auth.NewAuthHandler(secretKey)
+	authMiddleware := auth.NewAuthMiddleware(authHandler.GetSessionManager())
+
 	server := &WebServer{
-		router:  router,
-		service: svc,
-		wsHub:   wsHub,
-		port:    port,
+		router:         router,
+		service:        svc,
+		wsHub:          wsHub,
+		authHandler:    authHandler,
+		authMiddleware: authMiddleware,
+		debugLogger:    service.NewDebugLogger(),
+		port:           port,
 	}
 
 	// Setup routes
@@ -81,6 +119,11 @@ func NewWebServer(svc *service.Service, port int) *WebServer {
 // SetScriptManager sets the script manager for the web server
 func (ws *WebServer) SetScriptManager(sm *service.ScriptManager) {
 	ws.scriptManager = sm
+}
+
+// SetScriptFileManager sets the script file manager for the web server
+func (ws *WebServer) SetScriptFileManager(sfm *service.ScriptFileManager) {
+	ws.scriptFileManager = sfm
 }
 
 // GetWebSocketHub returns the WebSocket hub for broadcasting messages
@@ -113,27 +156,48 @@ func (ws *WebServer) StartSystemMetricsBroadcasting(ctx context.Context, interva
 	return nil
 }
 
+// BroadcastConfigUpdate broadcasts configuration update events to all connected WebSocket clients
+func (ws *WebServer) BroadcastConfigUpdate(event service.ConfigUpdateEvent) {
+	if ws.wsHub == nil {
+		return
+	}
+
+	data := map[string]interface{}{
+		"script_name": event.ScriptName,
+		"status":      event.Status,
+		"changes":     event.Changes,
+		"applied":     event.Applied,
+		"scheduled":   event.Scheduled,
+		"message":     event.Message,
+		"timestamp":   event.Timestamp,
+	}
+
+	if err := ws.wsHub.BroadcastMessage("config_update", data); err != nil {
+		log.Printf("Failed to broadcast config update: %v", err)
+	}
+}
+
 // setupRoutes configures all API routes
 func (ws *WebServer) setupRoutes() {
 	// Create a sub filesystem for the dist directory
 	distFS, err := fs.Sub(frontendFS, "frontend/dist")
 	if err != nil {
-		fmt.Printf("DEBUG: embed fs.Sub failed: %v, using fallback\n", err)
+		ws.debugLogger.Debugf("embed fs.Sub failed: %v, using fallback", err)
 		// Fallback to file system if embed fails (development mode)
 		ws.router.Static("/static", "./web/frontend/dist")
 		ws.router.GET("/", func(c *gin.Context) {
 			c.File("./web/frontend/dist/index.html")
 		})
 	} else {
-		fmt.Println("DEBUG: Using embedded filesystem")
-		// Use embedded filesystem for static files
+		ws.debugLogger.Debugf("Using embedded filesystem")
+		// Use embedded filesystem for static files (public)
 		ws.router.StaticFS("/static", http.FS(distFS))
 
-		// Root route serves index.html from embedded FS
-		ws.router.GET("/", func(c *gin.Context) {
+		// Login route (unprotected)
+		ws.router.GET("/login", func(c *gin.Context) {
 			indexFile, err := distFS.Open("index.html")
 			if err != nil {
-				fmt.Printf("DEBUG: Failed to open embedded index.html: %v\n", err)
+				ws.debugLogger.Debugf("Failed to open embedded index.html: %v", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load frontend"})
 				return
 			}
@@ -143,7 +207,21 @@ func (ws *WebServer) setupRoutes() {
 			http.ServeContent(c.Writer, c.Request, "index.html", time.Now(), indexFile.(io.ReadSeeker))
 		})
 
-		// Serve index.html for SPA routes (NoRoute handler)
+		// Root route serves index.html from embedded FS (protected)
+		ws.router.GET("/", ws.authMiddleware.RequireAuth(), func(c *gin.Context) {
+			indexFile, err := distFS.Open("index.html")
+			if err != nil {
+				ws.debugLogger.Debugf("Failed to open embedded index.html: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load frontend"})
+				return
+			}
+			defer indexFile.Close()
+
+			c.Header("Content-Type", "text/html")
+			http.ServeContent(c.Writer, c.Request, "index.html", time.Now(), indexFile.(io.ReadSeeker))
+		})
+
+		// Serve index.html for SPA routes (NoRoute handler) - protected
 		ws.router.NoRoute(func(c *gin.Context) {
 			path := c.Request.URL.Path
 
@@ -153,10 +231,16 @@ func (ws *WebServer) setupRoutes() {
 				return
 			}
 
+			// Check authentication for SPA routes
+			if !ws.authMiddleware.IsAuthenticated(c) {
+				c.Redirect(http.StatusFound, "/login")
+				return
+			}
+
 			// For all other routes, serve index.html (Vue.js SPA)
 			indexFile, err := distFS.Open("index.html")
 			if err != nil {
-				fmt.Printf("DEBUG: Failed to open embedded index.html in NoRoute: %v\n", err)
+				ws.debugLogger.Debugf("Failed to open embedded index.html in NoRoute: %v", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load frontend"})
 				return
 			}
@@ -167,35 +251,52 @@ func (ws *WebServer) setupRoutes() {
 		})
 	}
 
-	// WebSocket endpoint
-	ws.router.GET("/ws", func(c *gin.Context) {
+	// WebSocket endpoint (protected)
+	ws.router.GET("/ws", ws.authMiddleware.RequireAuth(), func(c *gin.Context) {
 		HandleWebSocket(ws.wsHub, c)
 	})
 
 	api := ws.router.Group("/api")
 
+	// Authentication routes (unprotected)
+	auth := api.Group("/auth")
+	auth.POST("/login", ws.authHandler.Login)
+	auth.POST("/logout", ws.authHandler.Logout)
+	auth.GET("/status", ws.authHandler.AuthStatus)
+
+	// Protected routes (require authentication)
+	protected := api.Group("/")
+	protected.Use(ws.authMiddleware.RequireAuth())
+
 	// System status endpoint
-	api.GET("/status", ws.handleStatus)
+	protected.GET("/status", ws.handleStatus)
 
 	// Script management endpoints
-	api.GET("/scripts", ws.handleGetScripts)
-	api.POST("/scripts", ws.handlePostScript)
-	api.GET("/scripts/:name", ws.handleGetScript)
-	api.PUT("/scripts/:name", ws.handleUpdateScript)
-	api.DELETE("/scripts/:name", ws.handleDeleteScript)
-	api.POST("/scripts/:name/run", ws.handleRunScript)
-	api.POST("/scripts/:name/enable", ws.handleEnableScript)
-	api.POST("/scripts/:name/disable", ws.handleDisableScript)
+	protected.GET("/scripts", ws.handleGetScripts)
+	protected.POST("/scripts", ws.handlePostScript)
+	protected.POST("/scripts/template", ws.handlePostScriptTemplate)
+	protected.GET("/scripts/:name", ws.handleGetScript)
+	protected.PUT("/scripts/:name", ws.handleUpdateScript)
+	protected.DELETE("/scripts/:name", ws.handleDeleteScript)
+	protected.POST("/scripts/:name/run", ws.handleRunScript)
+	protected.POST("/scripts/:name/enable", ws.handleEnableScript)
+	protected.POST("/scripts/:name/disable", ws.handleDisableScript)
 
 	// Log management endpoints
-	api.GET("/logs", ws.handleGetLogs)
-	api.GET("/logs/:script", ws.handleGetScriptLogs)
-	api.GET("/logs/raw/:script", ws.handleGetRawLogs) // New simple endpoint
-	api.DELETE("/logs/:script", ws.handleClearScriptLogs)
+	protected.GET("/logs", ws.handleGetLogs)
+	protected.GET("/logs/:script", ws.handleGetScriptLogs)
+	protected.GET("/logs/raw/:script", ws.handleGetRawLogs) // New simple endpoint
+	protected.DELETE("/logs/:script", ws.handleClearScriptLogs)
 
 	// Configuration endpoints
-	api.GET("/config", ws.handleGetConfig)
-	api.PUT("/config", ws.handleUpdateConfig)
+	protected.GET("/config", ws.handleGetConfig)
+	protected.PUT("/config", ws.handleUpdateConfig)
+
+	// Git project discovery endpoints
+	protected.GET("/git-projects", ws.handleGetGitProjects)
+
+	// Script file management routes (if available)
+	ws.setupScriptFileRoutes()
 }
 
 // handleStatus returns system status information
@@ -336,6 +437,117 @@ func (ws *WebServer) handlePostScript(c *gin.Context) {
 	})
 }
 
+// handlePostScriptTemplate creates a new script from a template
+func (ws *WebServer) handlePostScriptTemplate(c *gin.Context) {
+	if ws.scriptManager == nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   "Script manager not initialized",
+		})
+		return
+	}
+
+	var template service.ScriptTemplate
+	if err := c.ShouldBindJSON(&template); err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Invalid request body: %v", err),
+		})
+		return
+	}
+
+	// Create script generator
+	scriptGenerator := service.NewScriptGenerator()
+
+	// Generate script from template
+	generatedScript, err := scriptGenerator.GenerateScript(&template)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, APIResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Script generation failed: %v", err),
+		})
+		return
+	}
+
+	// Convert generated script to ScriptConfig for script manager
+	scriptConfig := service.ScriptConfig{
+		Name:        generatedScript.Name,
+		Path:        generatedScript.Path,
+		Interval:    convertIntervalToSeconds(generatedScript.Config.Interval),
+		Enabled:     true,
+		MaxLogLines: generatedScript.Config.MaxLogLines,
+		Timeout:     generatedScript.Config.Timeout,
+	}
+
+	// Set defaults for optional fields
+	if scriptConfig.Interval <= 0 {
+		scriptConfig.Interval = 3600 // Default to 1 hour
+	}
+	if scriptConfig.MaxLogLines <= 0 {
+		scriptConfig.MaxLogLines = 100
+	}
+
+	// Write the generated script to file
+	if err := writeScriptToFile(generatedScript.Path, generatedScript.Content); err != nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Failed to write script file: %v", err),
+		})
+		return
+	}
+
+	// Add the script to the manager
+	if err := ws.scriptManager.AddScript(scriptConfig); err != nil {
+		c.JSON(http.StatusConflict, APIResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Success: true,
+		Data: map[string]interface{}{
+			"name":         generatedScript.Name,
+			"path":         generatedScript.Path,
+			"type":         template.Type,
+			"project_path": template.ProjectPath,
+			"config":       generatedScript.Config,
+		},
+	})
+}
+
+// Helper function to convert interval string to seconds
+func convertIntervalToSeconds(interval string) int {
+	// Simple conversion for common intervals
+	switch interval {
+	case "5m":
+		return 300
+	case "30m":
+		return 1800
+	case "1h":
+		return 3600
+	case "6h":
+		return 21600
+	case "24h":
+		return 86400
+	default:
+		return 3600 // Default to 1 hour
+	}
+}
+
+// Helper function to write script content to file
+func writeScriptToFile(path, content string) error {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.WriteString(content)
+	return err
+}
+
 // handleRunScript executes a script once
 func (ws *WebServer) handleRunScript(c *gin.Context) {
 	if ws.scriptManager == nil {
@@ -463,20 +675,54 @@ func (ws *WebServer) handleUpdateScript(c *gin.Context) {
 		updateData.MaxLogLines = 100 // Default to 100 lines
 	}
 
-	// Update the script
-	if err := ws.scriptManager.UpdateScript(scriptName, updateData); err != nil {
+	// Update the script with detailed feedback
+	updateResult := ws.scriptManager.UpdateScriptWithFeedback(scriptName, updateData)
+
+	if !updateResult.Success {
+		// Broadcast failure event
+		ws.BroadcastConfigUpdate(service.ConfigUpdateEvent{
+			Type:       "config_update",
+			ScriptName: scriptName,
+			Status:     "failed",
+			Changes:    []service.ConfigChangeInfo{},
+			Applied:    false,
+			Scheduled:  false,
+			Message:    updateResult.Message,
+			Timestamp:  time.Now().Format(time.RFC3339),
+		})
+
 		c.JSON(http.StatusNotFound, APIResponse{
 			Success: false,
-			Error:   err.Error(),
+			Error:   updateResult.Message,
 		})
 		return
 	}
 
+	// Broadcast successful update event
+	status := "applied"
+	if updateResult.Scheduled {
+		status = "scheduled"
+	}
+
+	ws.BroadcastConfigUpdate(service.ConfigUpdateEvent{
+		Type:       "config_update",
+		ScriptName: scriptName,
+		Status:     status,
+		Changes:    updateResult.Changes,
+		Applied:    updateResult.Applied,
+		Scheduled:  updateResult.Scheduled,
+		Message:    updateResult.Message,
+		Timestamp:  time.Now().Format(time.RFC3339),
+	})
+
 	c.JSON(http.StatusOK, APIResponse{
 		Success: true,
 		Data: map[string]interface{}{
-			"message":       fmt.Sprintf("Script %s updated successfully", scriptName),
+			"message":       updateResult.Message,
 			"script":        scriptName,
+			"applied":       updateResult.Applied,
+			"scheduled":     updateResult.Scheduled,
+			"changes":       updateResult.Changes,
 			"name":          updateData.Name,
 			"path":          updateData.Path,
 			"interval":      updateData.Interval,
@@ -665,7 +911,7 @@ func (ws *WebServer) handleGetScriptLogs(c *gin.Context) {
 
 // handleClearScriptLogs clears logs for a specific script (simplified)
 func (ws *WebServer) handleClearScriptLogs(c *gin.Context) {
-	scriptName := c.Param("script")
+	scriptName := strings.TrimSpace(c.Param("script"))
 	if scriptName == "" {
 		c.JSON(http.StatusBadRequest, APIResponse{
 			Success: false,
@@ -943,7 +1189,7 @@ func (ws *WebServer) getScriptLogs(scriptName string, maxEntries int) []LogEntry
 
 		// Try to extract timestamp and level from line if possible
 		if len(line) > 19 && line[10] == 'T' { // ISO timestamp format
-			if timestampEnd := strings.Index(line[20:], " "); timestampEnd > 0 {
+			if timestampEnd := strings.Index(line[20:], " "); timestampEnd >= 0 {
 				logEntry.Timestamp = line[:20+timestampEnd]
 				remaining := strings.TrimSpace(line[20+timestampEnd:])
 
@@ -967,4 +1213,31 @@ func (ws *WebServer) getScriptLogs(scriptName string, maxEntries int) []LogEntry
 	}
 
 	return logs
+}
+
+// handleGetGitProjects discovers and returns Git projects in a specified directory
+func (ws *WebServer) handleGetGitProjects(c *gin.Context) {
+	// Get directory parameter from query
+	dir := c.DefaultQuery("dir", os.Getenv("HOME"))
+	if dir == "" {
+		dir = os.Getenv("HOME") // Fallback to home directory
+	}
+
+	// Create Git discovery service
+	gitService := service.NewGitDiscoveryService()
+	projects, err := gitService.DiscoverGitProjects(dir)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, APIResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Failed to discover Git projects: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, APIResponse{
+		Success: true,
+		Data: map[string]interface{}{
+			"projects": projects,
+		},
+	})
 }

@@ -7,16 +7,49 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 // ScriptConfig represents configuration for a single script
 type ScriptConfig struct {
 	Name        string `json:"name"`
+	Filename    string `json:"filename,omitempty"` // For inline script management
 	Path        string `json:"path"`
 	Interval    int    `json:"interval"` // seconds
 	Enabled     bool   `json:"enabled"`
 	MaxLogLines int    `json:"max_log_lines"`
 	Timeout     int    `json:"timeout"` // seconds, 0 means no limit
+}
+
+// UpdateResponse represents the detailed response for script updates
+type UpdateResponse struct {
+	Success       bool               `json:"success"`
+	Message       string             `json:"message"`
+	Applied       bool               `json:"applied"`
+	Scheduled     bool               `json:"scheduled"`
+	Changes       []ConfigChangeInfo `json:"changes"`
+	NextExecution *string            `json:"next_execution,omitempty"`
+}
+
+// ConfigChangeInfo represents information about a specific configuration change
+type ConfigChangeInfo struct {
+	Field    string      `json:"field"`
+	OldValue interface{} `json:"old_value"`
+	NewValue interface{} `json:"new_value"`
+	Applied  bool        `json:"applied"`
+	Reason   string      `json:"reason,omitempty"`
+}
+
+// ConfigUpdateEvent represents a configuration update event for WebSocket broadcasting
+type ConfigUpdateEvent struct {
+	Type       string             `json:"type"` // "config_update"
+	ScriptName string             `json:"script_name"`
+	Status     string             `json:"status"` // "applied", "scheduled", "failed"
+	Changes    []ConfigChangeInfo `json:"changes"`
+	Applied    bool               `json:"applied"`
+	Scheduled  bool               `json:"scheduled"`
+	Message    string             `json:"message"`
+	Timestamp  string             `json:"timestamp"`
 }
 
 // ServiceConfig represents the overall service configuration
@@ -28,6 +61,12 @@ type ServiceConfig struct {
 // Config is a legacy struct for backward compatibility
 type Config struct {
 	Interval int `json:"interval"`
+}
+
+// EnhancedConfig combines service configuration with environment variable loading
+type EnhancedConfig struct {
+	Config    ServiceConfig
+	envLoader *EnvLoader
 }
 
 // Validate checks if the script configuration is valid
@@ -193,4 +232,63 @@ func SaveServiceConfig(configPath string, config *ServiceConfig) error {
 	}
 
 	return nil
+}
+
+// NewEnhancedConfig creates a new enhanced configuration manager
+func NewEnhancedConfig() *EnhancedConfig {
+	return &EnhancedConfig{
+		Config: ServiceConfig{
+			Scripts: []ScriptConfig{},
+			WebPort: 8080, // default
+		},
+		envLoader: NewEnvLoader(),
+	}
+}
+
+// LoadWithEnv loads both service configuration and environment variables
+func (ec *EnhancedConfig) LoadWithEnv(configPath, envPath string) error {
+	// Load .env file first
+	if err := ec.envLoader.LoadFromFile(envPath); err != nil {
+		return fmt.Errorf("failed to load env file: %v", err)
+	}
+
+	// Load service configuration
+	if err := LoadServiceConfig(configPath, &ec.Config); err != nil {
+		return fmt.Errorf("failed to load service config: %v", err)
+	}
+
+	return nil
+}
+
+// GetEnv retrieves environment variable with .env file support
+func (ec *EnhancedConfig) GetEnv(key string) string {
+	return ec.envLoader.Get(key)
+}
+
+// GetEnvWithDefault retrieves environment variable with default fallback
+func (ec *EnhancedConfig) GetEnvWithDefault(key, defaultValue string) string {
+	return ec.envLoader.GetWithDefault(key, defaultValue)
+}
+
+// GetWebPort returns the web port, prioritizing environment variables
+func (ec *EnhancedConfig) GetWebPort() int {
+	// Check environment variable first
+	if portStr := ec.GetEnv("WEB_PORT"); portStr != "" {
+		if port, err := strconv.Atoi(portStr); err == nil {
+			return port
+		}
+	}
+
+	// Fallback to JSON config
+	if ec.Config.WebPort > 0 {
+		return ec.Config.WebPort
+	}
+
+	// Final fallback
+	return 8080
+}
+
+// GetSecretKey returns the secret key from environment variables
+func (ec *EnhancedConfig) GetSecretKey() string {
+	return ec.GetEnv("WEB_SECRET_KEY")
 }

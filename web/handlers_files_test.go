@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"run-script-service/service"
@@ -41,7 +40,7 @@ func TestWebServer_FileOperations(t *testing.T) {
 	// Create test dependencies
 	fileManager := service.NewFileManager(tempDir)
 
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 	server.SetFileManager(fileManager)
 
 	// Create test file
@@ -53,7 +52,10 @@ func TestWebServer_FileOperations(t *testing.T) {
 	}
 
 	t.Run("get file - success", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/files/test.sh", nil)
+		req, err := createAuthenticatedRequest("GET", "/api/files/test.sh", "", server)
+		if err != nil {
+			t.Fatalf("Failed to create authenticated request: %v", err)
+		}
 		w := httptest.NewRecorder()
 
 		server.router.ServeHTTP(w, req)
@@ -63,7 +65,7 @@ func TestWebServer_FileOperations(t *testing.T) {
 		}
 
 		var response APIResponse
-		err := json.Unmarshal(w.Body.Bytes(), &response)
+		err = json.Unmarshal(w.Body.Bytes(), &response)
 		if err != nil {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
@@ -89,7 +91,10 @@ func TestWebServer_FileOperations(t *testing.T) {
 	})
 
 	t.Run("get file - access denied", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/files/../../etc/passwd", nil)
+		req, err := createAuthenticatedRequest("GET", "/api/files/../../etc/passwd", "", server)
+		if err != nil {
+			t.Fatalf("Failed to create authenticated request: %v", err)
+		}
 		w := httptest.NewRecorder()
 
 		server.router.ServeHTTP(w, req)
@@ -98,7 +103,10 @@ func TestWebServer_FileOperations(t *testing.T) {
 	})
 
 	t.Run("get file - not found", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/files/nonexistent.sh", nil)
+		req, err := createAuthenticatedRequest("GET", "/api/files/nonexistent.sh", "", server)
+		if err != nil {
+			t.Fatalf("Failed to create authenticated request: %v", err)
+		}
 		w := httptest.NewRecorder()
 
 		server.router.ServeHTTP(w, req)
@@ -112,8 +120,10 @@ func TestWebServer_FileOperations(t *testing.T) {
 		newContent := "#!/bin/bash\necho 'Updated content'\n"
 		requestBody := `{"content": "#!/bin/bash\necho 'Updated content'\n"}`
 
-		req := httptest.NewRequest("PUT", "/api/files/new_test.sh", strings.NewReader(requestBody))
-		req.Header.Set("Content-Type", "application/json")
+		req, err := createAuthenticatedRequest("PUT", "/api/files/new_test.sh", requestBody, server)
+		if err != nil {
+			t.Fatalf("Failed to create authenticated request: %v", err)
+		}
 		w := httptest.NewRecorder()
 
 		server.router.ServeHTTP(w, req)
@@ -123,7 +133,7 @@ func TestWebServer_FileOperations(t *testing.T) {
 		}
 
 		var response APIResponse
-		err := json.Unmarshal(w.Body.Bytes(), &response)
+		err = json.Unmarshal(w.Body.Bytes(), &response)
 		if err != nil {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
@@ -147,8 +157,10 @@ func TestWebServer_FileOperations(t *testing.T) {
 	t.Run("put file - access denied", func(t *testing.T) {
 		requestBody := `{"content": "malicious content"}`
 
-		req := httptest.NewRequest("PUT", "/api/files/../../etc/malicious.sh", strings.NewReader(requestBody))
-		req.Header.Set("Content-Type", "application/json")
+		req, err := createAuthenticatedRequest("PUT", "/api/files/../../etc/malicious.sh", requestBody, server)
+		if err != nil {
+			t.Fatalf("Failed to create authenticated request: %v", err)
+		}
 		w := httptest.NewRecorder()
 
 		server.router.ServeHTTP(w, req)
@@ -158,7 +170,7 @@ func TestWebServer_FileOperations(t *testing.T) {
 		}
 
 		var response APIResponse
-		err := json.Unmarshal(w.Body.Bytes(), &response)
+		err = json.Unmarshal(w.Body.Bytes(), &response)
 		if err != nil {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
@@ -169,8 +181,10 @@ func TestWebServer_FileOperations(t *testing.T) {
 	})
 
 	t.Run("put file - invalid JSON", func(t *testing.T) {
-		req := httptest.NewRequest("PUT", "/api/files/test.sh", strings.NewReader("invalid json"))
-		req.Header.Set("Content-Type", "application/json")
+		req, err := createAuthenticatedRequest("PUT", "/api/files/test.sh", "invalid json", server)
+		if err != nil {
+			t.Fatalf("Failed to create authenticated request: %v", err)
+		}
 		w := httptest.NewRecorder()
 
 		server.router.ServeHTTP(w, req)
@@ -183,8 +197,10 @@ func TestWebServer_FileOperations(t *testing.T) {
 	t.Run("validate file - valid script", func(t *testing.T) {
 		requestBody := `{"content": "#!/bin/bash\necho 'Hello World'\nls -la"}`
 
-		req := httptest.NewRequest("POST", "/api/files/validate", strings.NewReader(requestBody))
-		req.Header.Set("Content-Type", "application/json")
+		req, err := createAuthenticatedRequest("POST", "/api/files/validate", requestBody, server)
+		if err != nil {
+			t.Fatalf("Failed to create authenticated request: %v", err)
+		}
 		w := httptest.NewRecorder()
 
 		server.router.ServeHTTP(w, req)
@@ -194,7 +210,7 @@ func TestWebServer_FileOperations(t *testing.T) {
 		}
 
 		var response APIResponse
-		err := json.Unmarshal(w.Body.Bytes(), &response)
+		err = json.Unmarshal(w.Body.Bytes(), &response)
 		if err != nil {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
@@ -221,8 +237,10 @@ func TestWebServer_FileOperations(t *testing.T) {
 	t.Run("validate file - script with issues", func(t *testing.T) {
 		requestBody := `{"content": "#!/bin/bash\necho \"Unmatched quote\nsudo rm -rf /tmp/*"}`
 
-		req := httptest.NewRequest("POST", "/api/files/validate", strings.NewReader(requestBody))
-		req.Header.Set("Content-Type", "application/json")
+		req, err := createAuthenticatedRequest("POST", "/api/files/validate", requestBody, server)
+		if err != nil {
+			t.Fatalf("Failed to create authenticated request: %v", err)
+		}
 		w := httptest.NewRecorder()
 
 		server.router.ServeHTTP(w, req)
@@ -232,7 +250,7 @@ func TestWebServer_FileOperations(t *testing.T) {
 		}
 
 		var response APIResponse
-		err := json.Unmarshal(w.Body.Bytes(), &response)
+		err = json.Unmarshal(w.Body.Bytes(), &response)
 		if err != nil {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
@@ -266,7 +284,10 @@ func TestWebServer_FileOperations(t *testing.T) {
 	})
 
 	t.Run("list files - success", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/files-list/", nil)
+		req, err := createAuthenticatedRequest("GET", "/api/files-list/", "", server)
+		if err != nil {
+			t.Fatalf("Failed to create authenticated request: %v", err)
+		}
 		w := httptest.NewRecorder()
 
 		server.router.ServeHTTP(w, req)
@@ -276,7 +297,7 @@ func TestWebServer_FileOperations(t *testing.T) {
 		}
 
 		var response APIResponse
-		err := json.Unmarshal(w.Body.Bytes(), &response)
+		err = json.Unmarshal(w.Body.Bytes(), &response)
 		if err != nil {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
@@ -297,7 +318,10 @@ func TestWebServer_FileOperations(t *testing.T) {
 	})
 
 	t.Run("list files - access denied", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/files-list/../../etc", nil)
+		req, err := createAuthenticatedRequest("GET", "/api/files-list/../../etc", "", server)
+		if err != nil {
+			t.Fatalf("Failed to create authenticated request: %v", err)
+		}
 		w := httptest.NewRecorder()
 
 		server.router.ServeHTTP(w, req)
@@ -308,7 +332,7 @@ func TestWebServer_FileOperations(t *testing.T) {
 
 func TestWebServer_FileOperations_NoFileManager(t *testing.T) {
 	// Create web server without file manager
-	server := NewWebServer(nil, 8080)
+	server := NewWebServer(nil, 8080, "test-secret")
 	// Note: not setting file manager
 
 	t.Run("get file without file manager", func(t *testing.T) {

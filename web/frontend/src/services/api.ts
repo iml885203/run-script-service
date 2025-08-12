@@ -29,7 +29,7 @@ export class ApiService {
     return this.request<ScriptConfig[]>('/scripts')
   }
 
-  static async addScript(script: Omit<ScriptConfig, 'name'>): Promise<void> {
+  static async addScript(script: ScriptConfig): Promise<void> {
     await this.request('/scripts', {
       method: 'POST',
       body: JSON.stringify(script),
@@ -81,5 +81,13 @@ export class ApiService {
       method: 'PUT',
       body: JSON.stringify(config),
     })
+  }
+
+  static async getGitProjects(directory?: string): Promise<{ projects: any[] }> {
+    const endpoint = directory
+      ? `/git-projects?dir=${encodeURIComponent(directory)}`
+      : '/git-projects'
+
+    return this.request<{ projects: any[] }>(endpoint)
   }
 }

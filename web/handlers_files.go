@@ -31,23 +31,25 @@ type ValidationResponse struct {
 // SetFileManager sets the file manager for the web server
 func (ws *WebServer) SetFileManager(fm *service.FileManager) {
 	ws.fileManager = fm
-
-	// Setup file routes now that file manager is available
-	api := ws.router.Group("/api")
-	ws.setupFileRoutes(api)
+	ws.setupFileRoutes()
 }
 
-// setupFileRoutes configures file operation API routes
-func (ws *WebServer) setupFileRoutes(api *gin.RouterGroup) {
-	if ws.fileManager == nil {
+// setupFileRoutes configures file operation API routes with authentication
+func (ws *WebServer) setupFileRoutes() {
+	if ws.fileManager == nil || ws.authMiddleware == nil {
 		return
 	}
 
-	// File operation endpoints
-	api.GET("/files/*path", ws.handleGetFile)
-	api.PUT("/files/*path", ws.handlePutFile)
-	api.POST("/files/validate", ws.handleValidateFile)
-	api.GET("/files-list/*path", ws.handleListFiles)
+	// Create protected file routes group
+	api := ws.router.Group("/api")
+	protected := api.Group("/")
+	protected.Use(ws.authMiddleware.RequireAuth())
+
+	// File operation endpoints (protected)
+	protected.GET("/files/*path", ws.handleGetFile)
+	protected.PUT("/files/*path", ws.handlePutFile)
+	protected.POST("/files/validate", ws.handleValidateFile)
+	protected.GET("/files-list/*path", ws.handleListFiles)
 }
 
 // handleGetFile reads and returns a file's content

@@ -75,6 +75,10 @@ type ScriptRunner struct {
 	logManager       *LogManager
 	eventBroadcaster *EventBroadcaster
 	running          bool
+	executing        bool
+	executionMutex   sync.RWMutex
+	restartPending   *ScriptConfig
+	restartCallback  func(ScriptConfig) error
 	mutex            sync.RWMutex
 }
 
@@ -169,6 +173,10 @@ func (sr *ScriptRunner) Stop() {
 func (sr *ScriptRunner) RunOnce(ctx context.Context, args ...string) error {
 	startTime := time.Now()
 
+	// Set executing state
+	sr.setExecuting(true)
+	defer sr.setExecuting(false)
+
 	// Broadcast starting event
 	if sr.eventBroadcaster != nil {
 		startEvent := NewScriptStatusEvent(sr.config.Name, "starting", 0, 0)
@@ -252,6 +260,14 @@ func (sr *ScriptRunner) RunOnce(ctx context.Context, args ...string) error {
 		}
 	}
 
+	// Check for pending restart after execution
+	defer func() {
+		if sr.restartPending != nil && sr.restartCallback != nil {
+			go sr.restartCallback(*sr.restartPending)
+			sr.restartPending = nil
+		}
+	}()
+
 	// Fallback to old executor method behavior
 	if result.ExitCode != 0 {
 		return fmt.Errorf("script exited with code %d", result.ExitCode)
@@ -269,4 +285,39 @@ func (sr *ScriptRunner) IsRunning() bool {
 // GetConfig returns the script configuration
 func (sr *ScriptRunner) GetConfig() ScriptConfig {
 	return sr.config
+}
+
+// IsExecuting returns whether the script is currently executing
+func (sr *ScriptRunner) IsExecuting() bool {
+	sr.executionMutex.RLock()
+	defer sr.executionMutex.RUnlock()
+	return sr.executing
+}
+
+// setExecuting sets the execution state (internal method)
+func (sr *ScriptRunner) setExecuting(executing bool) {
+	sr.executionMutex.Lock()
+	sr.executing = executing
+	sr.executionMutex.Unlock()
+}
+
+// SetRestartPending sets a pending restart configuration
+func (sr *ScriptRunner) SetRestartPending(config ScriptConfig) {
+	sr.executionMutex.Lock()
+	sr.restartPending = &config
+	sr.executionMutex.Unlock()
+}
+
+// HasRestartPending returns whether there is a restart pending
+func (sr *ScriptRunner) HasRestartPending() bool {
+	sr.executionMutex.RLock()
+	defer sr.executionMutex.RUnlock()
+	return sr.restartPending != nil
+}
+
+// GetRestartPendingConfig returns the pending restart configuration
+func (sr *ScriptRunner) GetRestartPendingConfig() *ScriptConfig {
+	sr.executionMutex.RLock()
+	defer sr.executionMutex.RUnlock()
+	return sr.restartPending
 }
