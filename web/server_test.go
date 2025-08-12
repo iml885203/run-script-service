@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"run-script-service/service"
 )
@@ -2453,4 +2455,97 @@ func TestWebServer_StartMethod(t *testing.T) {
 			t.Error("Expected router to be configured")
 		}
 	})
+}
+
+// Test handlePostScriptTemplate error cases for improved coverage
+func TestHandlePostScriptTemplate_ErrorCases(t *testing.T) {
+	t.Run("script_manager_not_initialized", func(t *testing.T) {
+		// Create server without script manager
+		server := NewWebServer(nil, 8080, "test-secret")
+		// Don't set script manager - this will trigger the error
+
+		validTemplate := `{
+			"name": "test-script",
+			"type": "claude-code",
+			"project_path": "/tmp/test"
+		}`
+
+		req, err := createAuthenticatedRequest("POST", "/api/scripts/template", validTemplate, server)
+		require.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		server.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+		var response APIResponse
+		err = json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.False(t, response.Success)
+		assert.Contains(t, response.Error, "Script manager not initialized")
+	})
+
+	// Helper function to test error cases for template endpoint
+	testTemplateErrorCase := func(t *testing.T, requestBody, expectedError string) {
+		config := &service.ServiceConfig{Scripts: []service.ScriptConfig{}}
+		scriptManager := service.NewScriptManager(config)
+		server := NewWebServer(nil, 8080, "test-secret")
+		server.SetScriptManager(scriptManager)
+
+		req, err := createAuthenticatedRequest("POST", "/api/scripts/template", requestBody, server)
+		require.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		server.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var response APIResponse
+		err = json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.False(t, response.Success)
+		assert.Contains(t, response.Error, expectedError)
+	}
+
+	t.Run("invalid_json_request_body", func(t *testing.T) {
+		invalidJSON := `{"invalid": json malformed`
+		testTemplateErrorCase(t, invalidJSON, "Invalid request body")
+	})
+
+	t.Run("script_generation_fails", func(t *testing.T) {
+		// Template with invalid type should cause generation to fail
+		invalidTemplate := `{
+			"name": "test-script",
+			"type": "invalid-type",
+			"project_path": "/tmp/test"
+		}`
+		testTemplateErrorCase(t, invalidTemplate, "Script generation failed")
+	})
+}
+
+// Test convertIntervalToSeconds function for improved coverage
+func TestConvertIntervalToSeconds(t *testing.T) {
+	tests := []struct {
+		name     string
+		interval string
+		expected int
+	}{
+		{"5 minutes", "5m", 300},
+		{"30 minutes", "30m", 1800},
+		{"1 hour", "1h", 3600},
+		{"6 hours", "6h", 21600},
+		{"24 hours", "24h", 86400},
+		{"unknown interval defaults to 1 hour", "unknown", 3600},
+		{"empty string defaults to 1 hour", "", 3600},
+		{"invalid format defaults to 1 hour", "invalid123", 3600},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := convertIntervalToSeconds(tt.interval)
+			if result != tt.expected {
+				t.Errorf("convertIntervalToSeconds(%q) = %d, expected %d", tt.interval, result, tt.expected)
+			}
+		})
+	}
 }

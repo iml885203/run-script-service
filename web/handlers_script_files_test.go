@@ -85,6 +85,69 @@ func TestHandleGetScriptFiles(t *testing.T) {
 	assert.Len(t, files, 2)
 }
 
+// Test handleGetScriptFiles error cases for improved coverage
+func TestHandleGetScriptFiles_ErrorCases(t *testing.T) {
+	t.Run("script_file_manager_not_initialized", func(t *testing.T) {
+		// Create server without scriptFileManager but manually register the route
+		gin.SetMode(gin.TestMode)
+		router := gin.New()
+		server := &WebServer{
+			router:            router,
+			scriptFileManager: nil, // This will trigger the error
+		}
+
+		// Manually register the route to test the nil check inside the handler
+		api := router.Group("/api")
+		api.GET("/script-files", server.handleGetScriptFiles)
+
+		req := httptest.NewRequest("GET", "/api/script-files", nil)
+		w := httptest.NewRecorder()
+
+		server.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+		var response APIResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.False(t, response.Success)
+		assert.Contains(t, response.Error, "Script file manager not initialized")
+	})
+
+	t.Run("list_scripts_returns_error", func(t *testing.T) {
+		// Create server with scriptFileManager pointing to a non-existent directory
+		// This should cause ListScripts to fail
+		gin.SetMode(gin.TestMode)
+
+		// Create script file manager with invalid directory to trigger error
+		invalidDir := "/non/existent/directory"
+		scriptFileManager := service.NewScriptFileManager(invalidDir)
+
+		router := gin.New()
+		server := &WebServer{
+			router:            router,
+			scriptFileManager: scriptFileManager,
+		}
+
+		// Manually register the route
+		api := router.Group("/api")
+		api.GET("/script-files", server.handleGetScriptFiles)
+
+		req := httptest.NewRequest("GET", "/api/script-files", nil)
+		w := httptest.NewRecorder()
+
+		server.router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+		var response APIResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.False(t, response.Success)
+		assert.Contains(t, response.Error, "Failed to list scripts")
+	})
+}
+
 func TestHandleGetScriptFile(t *testing.T) {
 	server, _ := setupTestScriptFileServer(t)
 

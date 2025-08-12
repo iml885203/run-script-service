@@ -101,9 +101,9 @@
 
 				<option value="file22">run-script-service/web/handlers_files.go (78.3%)</option>
 
-				<option value="file23">run-script-service/web/handlers_script_files.go (68.0%)</option>
+				<option value="file23">run-script-service/web/handlers_script_files.go (73.3%)</option>
 
-				<option value="file24">run-script-service/web/server.go (75.5%)</option>
+				<option value="file24">run-script-service/web/server.go (78.0%)</option>
 
 				<option value="file25">run-script-service/web/vue_build_manager.go (90.9%)</option>
 
@@ -5782,7 +5782,7 @@ func (ws *WebServer) setupScriptFileRoutes() <span class="cov8" title="1">{
 
 // handleGetScriptFiles lists all script files
 func (ws *WebServer) handleGetScriptFiles(c *gin.Context) <span class="cov8" title="1">{
-        if ws.scriptFileManager == nil </span><span class="cov0" title="0">{
+        if ws.scriptFileManager == nil </span><span class="cov8" title="1">{
                 c.JSON(http.StatusInternalServerError, APIResponse{
                         Success: false,
                         Error:   "Script file manager not initialized",
@@ -5791,7 +5791,7 @@ func (ws *WebServer) handleGetScriptFiles(c *gin.Context) <span class="cov8" tit
         }</span>
 
         <span class="cov8" title="1">scripts, err := ws.scriptFileManager.ListScripts()
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 c.JSON(http.StatusInternalServerError, APIResponse{
                         Success: false,
                         Error:   fmt.Sprintf("Failed to list scripts: %v", err),
@@ -6405,7 +6405,7 @@ func (ws *WebServer) handlePostScript(c *gin.Context) <span class="cov8" title="
 
 // handlePostScriptTemplate creates a new script from a template
 func (ws *WebServer) handlePostScriptTemplate(c *gin.Context) <span class="cov8" title="1">{
-        if ws.scriptManager == nil </span><span class="cov0" title="0">{
+        if ws.scriptManager == nil </span><span class="cov8" title="1">{
                 c.JSON(http.StatusInternalServerError, APIResponse{
                         Success: false,
                         Error:   "Script manager not initialized",
@@ -6414,7 +6414,7 @@ func (ws *WebServer) handlePostScriptTemplate(c *gin.Context) <span class="cov8"
         }</span>
 
         <span class="cov8" title="1">var template service.ScriptTemplate
-        if err := c.ShouldBindJSON(&amp;template); err != nil </span><span class="cov0" title="0">{
+        if err := c.ShouldBindJSON(&amp;template); err != nil </span><span class="cov8" title="1">{
                 c.JSON(http.StatusBadRequest, APIResponse{
                         Success: false,
                         Error:   fmt.Sprintf("Invalid request body: %v", err),
@@ -6427,7 +6427,7 @@ func (ws *WebServer) handlePostScriptTemplate(c *gin.Context) <span class="cov8"
 
         // Generate script from template
         generatedScript, err := scriptGenerator.GenerateScript(&amp;template)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 c.JSON(http.StatusBadRequest, APIResponse{
                         Success: false,
                         Error:   fmt.Sprintf("Script generation failed: %v", err),
@@ -6487,17 +6487,17 @@ func (ws *WebServer) handlePostScriptTemplate(c *gin.Context) <span class="cov8"
 func convertIntervalToSeconds(interval string) int <span class="cov8" title="1">{
         // Simple conversion for common intervals
         switch interval </span>{
-        case "5m":<span class="cov0" title="0">
+        case "5m":<span class="cov8" title="1">
                 return 300</span>
         case "30m":<span class="cov8" title="1">
                 return 1800</span>
         case "1h":<span class="cov8" title="1">
                 return 3600</span>
-        case "6h":<span class="cov0" title="0">
+        case "6h":<span class="cov8" title="1">
                 return 21600</span>
-        case "24h":<span class="cov0" title="0">
+        case "24h":<span class="cov8" title="1">
                 return 86400</span>
-        default:<span class="cov0" title="0">
+        default:<span class="cov8" title="1">
                 return 3600</span> // Default to 1 hour
         }
 }
