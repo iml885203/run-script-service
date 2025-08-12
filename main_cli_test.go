@@ -364,12 +364,12 @@ func TestCLICommands(t *testing.T) {
 	}
 
 	t.Run("add-script command - invalid max-log-lines", func(t *testing.T) {
-		testInvalidParameterFallback("invalid-max-log", "--max-log-lines", "invalid", 
+		testInvalidParameterFallback("invalid-max-log", "--max-log-lines", "invalid",
 			func(s service.ScriptConfig) bool { return s.MaxLogLines == 100 })
 	})
 
 	t.Run("add-script command - invalid timeout", func(t *testing.T) {
-		testInvalidParameterFallback("invalid-timeout", "--timeout", "invalid", 
+		testInvalidParameterFallback("invalid-timeout", "--timeout", "invalid",
 			func(s service.ScriptConfig) bool { return s.Timeout == 0 })
 	})
 
