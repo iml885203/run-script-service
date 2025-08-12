@@ -677,7 +677,7 @@ run-script-service/main.go:572.16,574.3 1 0
 run-script-service/main.go:574.8,576.3 1 1
 run-script-service/main.go:578.2,578.52 1 1
 run-script-service/main.go:582.65,584.16 2 1
-run-script-service/main.go:584.16,586.3 1 0
+run-script-service/main.go:584.16,586.3 1 1
 run-script-service/main.go:589.2,590.16 2 1
 run-script-service/main.go:590.16,592.3 1 0
 run-script-service/main.go:592.8,594.3 1 1
@@ -703,7 +703,7 @@ run-script-service/main.go:643.26,645.5 1 0
 run-script-service/main.go:646.4,646.17 1 0
 run-script-service/main.go:650.2,650.52 1 1
 run-script-service/main.go:654.70,656.16 2 1
-run-script-service/main.go:656.16,658.3 1 0
+run-script-service/main.go:656.16,658.3 1 1
 run-script-service/main.go:660.2,661.9 2 1
 run-script-service/main.go:661.9,664.3 1 1
 run-script-service/main.go:667.2,668.16 2 1

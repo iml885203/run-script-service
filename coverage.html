@@ -61,7 +61,7 @@
 
 				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
 
-				<option value="file3">run-script-service/main.go (74.6%)</option>
+				<option value="file3">run-script-service/main.go (75.0%)</option>
 
 				<option value="file4">run-script-service/mocks/filesystem.go (100.0%)</option>
 
@@ -1007,7 +1007,7 @@ func handleRunScript(scriptName, configPath string) (CommandResult, error) <span
 // handleLogs displays logs for scripts
 func handleLogs(args []string, _ string) (CommandResult, error) <span class="cov8" title="1">{
         flags, err := parseLogFlags(args)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return CommandResult{shouldRunService: false}, err
         }</span>
 
@@ -1079,7 +1079,7 @@ func handleLogs(args []string, _ string) (CommandResult, error) <span class="cov
 // handleClearLogs clears logs for a specific script
 func handleClearLogs(args []string, _ string) (CommandResult, error) <span class="cov8" title="1">{
         flags, err := parseLogFlags(args)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return CommandResult{shouldRunService: false}, err
         }</span>
 

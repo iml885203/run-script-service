@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"run-script-service/service"
 )
@@ -471,4 +472,215 @@ func TestParseScriptFlags(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestHandleLogs tests the handleLogs function with various scenarios
+func TestHandleLogs(t *testing.T) {
+	// Create temporary directory for test files
+	tempDir := t.TempDir()
+	logsDir := filepath.Join(tempDir, "logs")
+	err := os.MkdirAll(logsDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create logs directory: %v", err)
+	}
+
+	// Create test log entries by using the GetLogger method
+	logManager := service.NewLogManager(logsDir)
+	logger := logManager.GetLogger("test-script")
+
+	// Add a test log entry by using the logger
+	testEntry := &service.LogEntry{
+		ScriptName: "test-script",
+		Timestamp:  time.Now(),
+		ExitCode:   0,
+		Duration:   1500,
+		Stdout:     "test output",
+		Stderr:     "",
+	}
+	err = logger.AddEntry(testEntry)
+	if err != nil {
+		t.Fatalf("Failed to add test log entry: %v", err)
+	}
+
+	// Test 1: Basic logs command without filters
+	t.Run("logs without filters", func(t *testing.T) {
+		args := []string{}
+		result, err := handleLogs(args, "")
+
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+
+		if result.shouldRunService {
+			t.Error("Expected shouldRunService to be false")
+		}
+	})
+
+	// Test 2: Logs command with script filter
+	t.Run("logs with script filter", func(t *testing.T) {
+		args := []string{"--script=test-script"}
+		result, err := handleLogs(args, "")
+
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+
+		if result.shouldRunService {
+			t.Error("Expected shouldRunService to be false")
+		}
+	})
+
+	// Test 3: Logs command with exit-code filter
+	t.Run("logs with exit-code filter", func(t *testing.T) {
+		args := []string{"--exit-code=0"}
+		result, err := handleLogs(args, "")
+
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+
+		if result.shouldRunService {
+			t.Error("Expected shouldRunService to be false")
+		}
+	})
+
+	// Test 4: Logs command with limit
+	t.Run("logs with limit", func(t *testing.T) {
+		args := []string{"--limit=10"}
+		result, err := handleLogs(args, "")
+
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+
+		if result.shouldRunService {
+			t.Error("Expected shouldRunService to be false")
+		}
+	})
+
+	// Test 5: Invalid exit-code parameter
+	t.Run("logs with invalid exit-code", func(t *testing.T) {
+		args := []string{"--exit-code=invalid"}
+		_, err := handleLogs(args, "")
+
+		if err == nil {
+			t.Error("Expected error for invalid exit-code")
+		}
+
+		if !contains(err.Error(), "invalid exit-code") {
+			t.Errorf("Expected 'invalid exit-code' error, got: %v", err)
+		}
+	})
+
+	// Test 6: Invalid limit parameter
+	t.Run("logs with invalid limit", func(t *testing.T) {
+		args := []string{"--limit=invalid"}
+		_, err := handleLogs(args, "")
+
+		if err == nil {
+			t.Error("Expected error for invalid limit")
+		}
+
+		if !contains(err.Error(), "invalid limit") {
+			t.Errorf("Expected 'invalid limit' error, got: %v", err)
+		}
+	})
+
+	// Test 7: All filters combined
+	t.Run("logs with all filters", func(t *testing.T) {
+		args := []string{"--script=test-script", "--exit-code=0", "--limit=5"}
+		result, err := handleLogs(args, "")
+
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+
+		if result.shouldRunService {
+			t.Error("Expected shouldRunService to be false")
+		}
+	})
+
+	// Test 8: Invalid parseLogFlags input
+	t.Run("logs with invalid flags", func(t *testing.T) {
+		args := []string{"invalid-flag"}
+		_, err := handleLogs(args, "")
+
+		if err == nil {
+			t.Error("Expected error for invalid flags")
+		}
+	})
+}
+
+// TestHandleClearLogs tests the handleClearLogs function with various scenarios
+func TestHandleClearLogs(t *testing.T) {
+	// Create temporary directory for test files
+	tempDir := t.TempDir()
+	logsDir := filepath.Join(tempDir, "logs")
+	err := os.MkdirAll(logsDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create logs directory: %v", err)
+	}
+
+	// Create a test log file
+	testLogFile := filepath.Join(logsDir, "test-script.log")
+	err = os.WriteFile(testLogFile, []byte("test log content\n"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test log file: %v", err)
+	}
+
+	// Test 1: Clear logs with script parameter - test execution paths
+	t.Run("clear logs with script parameter", func(t *testing.T) {
+		args := []string{"--script=test-script"}
+		result, err := handleClearLogs(args, "")
+
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+
+		if result.shouldRunService {
+			t.Error("Expected shouldRunService to be false")
+		}
+
+		// Note: We can't test file removal directly since the function uses os.Executable()
+		// to determine the logs directory, which won't match our test directory
+		// The test validates that the function executes without error for valid input
+	})
+
+	// Test 2: Clear logs without script parameter
+	t.Run("clear logs without script parameter", func(t *testing.T) {
+		args := []string{}
+		_, err := handleClearLogs(args, "")
+
+		if err == nil {
+			t.Error("Expected error for missing script parameter")
+		}
+
+		if !contains(err.Error(), "usage:") {
+			t.Errorf("Expected usage error, got: %v", err)
+		}
+	})
+
+	// Test 3: Clear logs for non-existent script
+	t.Run("clear logs for non-existent script", func(t *testing.T) {
+		args := []string{"--script=non-existent"}
+		result, err := handleClearLogs(args, "")
+
+		if err != nil {
+			t.Errorf("Expected no error for non-existent script, got: %v", err)
+		}
+
+		if result.shouldRunService {
+			t.Error("Expected shouldRunService to be false")
+		}
+	})
+
+	// Test 4: Invalid flags
+	t.Run("clear logs with invalid flags", func(t *testing.T) {
+		args := []string{"invalid-flag"}
+		_, err := handleClearLogs(args, "")
+
+		if err == nil {
+			t.Error("Expected error for invalid flags")
+		}
+	})
 }
