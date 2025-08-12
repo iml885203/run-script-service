@@ -73,7 +73,7 @@
 
 				<option value="file8">run-script-service/service/event.go (100.0%)</option>
 
-				<option value="file9">run-script-service/service/executor.go (74.4%)</option>
+				<option value="file9">run-script-service/service/executor.go (75.0%)</option>
 
 				<option value="file10">run-script-service/service/file_manager.go (85.1%)</option>
 
@@ -2463,7 +2463,14 @@ func (e *Executor) ExecuteScriptWithContext(ctx context.Context, args ...string)
                 Timestamp: timestamp,
         }
 
-        cmd := exec.CommandContext(ctx, e.scriptPath, args...)
+        // Apply timeout if configured
+        if e.timeout &gt; 0 </span><span class="cov8" title="1">{
+                var cancel context.CancelFunc
+                ctx, cancel = context.WithTimeout(ctx, e.timeout)
+                defer cancel()
+        }</span>
+
+        <span class="cov8" title="1">cmd := exec.CommandContext(ctx, e.scriptPath, args...)
         cmd.Dir = filepath.Dir(e.scriptPath)
 
         // Set process group to enable proper cleanup
@@ -2516,7 +2523,13 @@ func (e *Executor) ExecuteScriptWithContext(ctx context.Context, args ...string)
         err = cmd.Wait()
         result.ExitCode = 0
         if err != nil </span><span class="cov8" title="1">{
-                if exitError, ok := err.(*exec.ExitError); ok </span><span class="cov8" title="1">{
+                // Check for timeout first
+                if ctx.Err() == context.DeadlineExceeded </span><span class="cov8" title="1">{
+                        e.logError(timestamp, fmt.Sprintf("Script execution timed out after %v", e.timeout))
+                        result.ExitCode = -1
+                        return result
+                }</span>
+                <span class="cov8" title="1">if exitError, ok := err.(*exec.ExitError); ok </span><span class="cov8" title="1">{
                         result.ExitCode = exitError.ExitCode()
                 }</span> else<span class="cov0" title="0"> {
                         e.logError(timestamp, fmt.Sprintf("Error waiting for command: %v", err))
@@ -2539,7 +2552,7 @@ func (e *Executor) logError(timestamp time.Time, message string) <span class="co
         if e.logPath != "" </span><span class="cov8" title="1">{
                 errorMsg := fmt.Sprintf("[%s] ERROR: %s\n%s\n",
                         timestamp.Format("2006-01-02 15:04:05"), message, strings.Repeat("-", 50))
-                if err := e.WriteLog(errorMsg); err != nil </span><span class="cov0" title="0">{
+                if err := e.WriteLog(errorMsg); err != nil </span><span class="cov8" title="1">{
                         fmt.Printf("Error writing error to log: %v\n", err)
                 }</span>
         }
@@ -2558,7 +2571,7 @@ func (e *Executor) writeExecutionLog(timestamp time.Time, result *ExecutionResul
                 }</span>
                 <span class="cov8" title="1">logEntry += strings.Repeat("-", 50) + "\n"
 
-                if err := e.WriteLog(logEntry); err != nil </span><span class="cov8" title="1">{
+                if err := e.WriteLog(logEntry); err != nil </span><span class="cov0" title="0">{
                         fmt.Printf("Error writing to log: %v\n", err)
                 }</span>
 
@@ -2583,7 +2596,7 @@ func (e *Executor) WriteLog(content string) error <span class="cov8" title="1">{
 // TrimLog keeps only the last maxLines lines in the log file
 func (e *Executor) TrimLog() error <span class="cov8" title="1">{
         file, err := os.Open(e.logPath)
-        if os.IsNotExist(err) </span><span class="cov8" title="1">{
+        if os.IsNotExist(err) </span><span class="cov0" title="0">{
                 return nil
         }</span>
         <span class="cov8" title="1">if err != nil </span><span class="cov0" title="0">{

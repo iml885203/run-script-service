@@ -66,6 +66,13 @@ func (e *Executor) ExecuteScriptWithContext(ctx context.Context, args ...string)
 		Timestamp: timestamp,
 	}
 
+	// Apply timeout if configured
+	if e.timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, e.timeout)
+		defer cancel()
+	}
+
 	cmd := exec.CommandContext(ctx, e.scriptPath, args...)
 	cmd.Dir = filepath.Dir(e.scriptPath)
 
@@ -119,6 +126,12 @@ func (e *Executor) ExecuteScriptWithContext(ctx context.Context, args ...string)
 	err = cmd.Wait()
 	result.ExitCode = 0
 	if err != nil {
+		// Check for timeout first
+		if ctx.Err() == context.DeadlineExceeded {
+			e.logError(timestamp, fmt.Sprintf("Script execution timed out after %v", e.timeout))
+			result.ExitCode = -1
+			return result
+		}
 		if exitError, ok := err.(*exec.ExitError); ok {
 			result.ExitCode = exitError.ExitCode()
 		} else {
