@@ -1180,3 +1180,149 @@ func TestScriptManager_UpdateScriptWithFeedback(t *testing.T) {
 		}
 	})
 }
+
+func TestScriptManager_ApplyConfigChanges(t *testing.T) {
+	config := &ServiceConfig{
+		Scripts: []ScriptConfig{
+			{
+				Name:        "test-script",
+				Path:        "./test.sh",
+				Interval:    60,
+				Enabled:     true,
+				MaxLogLines: 100,
+				Timeout:     30,
+			},
+		},
+		WebPort: 8080,
+	}
+
+	manager := NewScriptManager(config)
+
+	t.Run("should_disable_enabled_script", func(t *testing.T) {
+		// Create a script runner
+		oldConfig := ScriptConfig{Name: "test-script", Enabled: true, Path: "./test.sh", Interval: 60}
+		newConfig := ScriptConfig{Name: "test-script", Enabled: false, Path: "./test.sh", Interval: 60}
+		changes := []ConfigChange{
+			{Field: "enabled", OldValue: true, NewValue: false, RequiresRestart: false},
+		}
+
+		// Create a runner and add it to the manager
+		runner := NewScriptRunner(oldConfig, "test-script.log")
+		manager.scripts["test-script"] = runner
+
+		err := manager.applyConfigChanges("test-script", runner, oldConfig, newConfig, changes)
+
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+
+		if _, exists := manager.scripts["test-script"]; exists {
+			t.Error("Expected script to be removed from manager after disabling")
+		}
+	})
+
+	t.Run("should_handle_enable_script_that_was_disabled", func(t *testing.T) {
+		// Create a script runner
+		oldConfig := ScriptConfig{Name: "test-script", Enabled: false, Path: "./test.sh", Interval: 60}
+		newConfig := ScriptConfig{Name: "test-script", Enabled: true, Path: "./test.sh", Interval: 60}
+		changes := []ConfigChange{
+			{Field: "enabled", OldValue: false, NewValue: true, RequiresRestart: false},
+		}
+
+		runner := NewScriptRunner(oldConfig, "test-script.log")
+
+		err := manager.applyConfigChanges("test-script", runner, oldConfig, newConfig, changes)
+
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+
+		// For enabling a disabled script that's already running, no action should be taken
+		// This test verifies the logic but doesn't have a way to verify Stop() wasn't called
+		// since we're using real ScriptRunner
+	})
+
+	// Helper function to test graceful restart scenarios
+	testGracefulRestart := func(t *testing.T, testName string, oldConfig, newConfig ScriptConfig, changes []ConfigChange, verifyConfig func(*ScriptRunner)) {
+		t.Run(testName, func(t *testing.T) {
+			runner := NewScriptRunner(oldConfig, "test-script.log")
+			manager.scripts["test-script"] = runner
+
+			err := manager.applyConfigChanges("test-script", runner, oldConfig, newConfig, changes)
+
+			if err != nil {
+				t.Errorf("Expected no error from graceful restart, got: %v", err)
+			}
+
+			// Verify script was replaced with new configuration
+			if newRunner, exists := manager.scripts["test-script"]; exists {
+				verifyConfig(newRunner)
+			} else {
+				t.Error("Expected script to exist after restart")
+			}
+		})
+	}
+
+	testGracefulRestart(t, "should_trigger_graceful_restart_for_interval_change",
+		ScriptConfig{Name: "test-script", Enabled: true, Path: "./test.sh", Interval: 60},
+		ScriptConfig{Name: "test-script", Enabled: true, Path: "./test.sh", Interval: 120},
+		[]ConfigChange{{Field: "interval", OldValue: 60, NewValue: 120, RequiresRestart: true}},
+		func(newRunner *ScriptRunner) {
+			if newRunner.GetConfig().Interval != 120 {
+				t.Errorf("Expected new runner to have interval 120, got %d", newRunner.GetConfig().Interval)
+			}
+		})
+
+	testGracefulRestart(t, "should_trigger_graceful_restart_for_path_change",
+		ScriptConfig{Name: "test-script", Enabled: true, Path: "./test.sh", Interval: 60},
+		ScriptConfig{Name: "test-script", Enabled: true, Path: "./new-test.sh", Interval: 60},
+		[]ConfigChange{{Field: "path", OldValue: "./test.sh", NewValue: "./new-test.sh", RequiresRestart: true}},
+		func(newRunner *ScriptRunner) {
+			if newRunner.GetConfig().Path != "./new-test.sh" {
+				t.Errorf("Expected new runner to have path ./new-test.sh, got %s", newRunner.GetConfig().Path)
+			}
+		})
+
+	t.Run("should_handle_timeout_and_max_log_lines_changes_without_restart", func(t *testing.T) {
+		oldConfig := ScriptConfig{Name: "test-script", Enabled: true, Path: "./test.sh", Interval: 60, Timeout: 30, MaxLogLines: 100}
+		newConfig := ScriptConfig{Name: "test-script", Enabled: true, Path: "./test.sh", Interval: 60, Timeout: 60, MaxLogLines: 200}
+		changes := []ConfigChange{
+			{Field: "timeout", OldValue: 30, NewValue: 60, RequiresRestart: false},
+			{Field: "max_log_lines", OldValue: 100, NewValue: 200, RequiresRestart: false},
+		}
+
+		runner := NewScriptRunner(oldConfig, "test-script.log")
+		manager.scripts["test-script"] = runner
+
+		err := manager.applyConfigChanges("test-script", runner, oldConfig, newConfig, changes)
+
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+
+		// For timeout and max_log_lines changes, script should remain unchanged
+		// (current implementation just continues with no action)
+		if _, exists := manager.scripts["test-script"]; !exists {
+			t.Error("Expected script to remain in manager after non-restart changes")
+		}
+	})
+
+	t.Run("should_handle_empty_changes_list", func(t *testing.T) {
+		oldConfig := ScriptConfig{Name: "test-script", Enabled: true, Path: "./test.sh", Interval: 60}
+		newConfig := ScriptConfig{Name: "test-script", Enabled: true, Path: "./test.sh", Interval: 60}
+		changes := []ConfigChange{}
+
+		runner := NewScriptRunner(oldConfig, "test-script.log")
+
+		err := manager.applyConfigChanges("test-script", runner, oldConfig, newConfig, changes)
+
+		if err != nil {
+			t.Errorf("Expected no error for empty changes, got: %v", err)
+		}
+
+		// With empty changes, nothing should happen to the runner
+		if runner.GetConfig().Name != "test-script" {
+			t.Error("Expected runner configuration to remain unchanged")
+		}
+	})
+}

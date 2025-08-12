@@ -59,7 +59,7 @@
 
 				<option value="file1">run-script-service/auth/middleware.go (100.0%)</option>
 
-				<option value="file2">run-script-service/auth/session.go (83.9%)</option>
+				<option value="file2">run-script-service/auth/session.go (93.5%)</option>
 
 				<option value="file3">run-script-service/main.go (75.0%)</option>
 
@@ -87,9 +87,9 @@
 
 				<option value="file15">run-script-service/service/script_generator.go (84.8%)</option>
 
-				<option value="file16">run-script-service/service/script_manager.go (84.5%)</option>
+				<option value="file16">run-script-service/service/script_manager.go (88.3%)</option>
 
-				<option value="file17">run-script-service/service/script_runner.go (81.4%)</option>
+				<option value="file17">run-script-service/service/script_runner.go (82.3%)</option>
 
 				<option value="file18">run-script-service/service/service.go (89.5%)</option>
 
@@ -393,7 +393,7 @@ func (sm *SessionManager) ValidateSession(token string) (string, bool) <span cla
         // Check if session has expired
         <span class="cov8" title="1">if time.Now().After(session.ExpiresAt) </span><span class="cov8" title="1">{
                 // Clean up expired session
-                go func() </span><span class="cov0" title="0">{
+                go func() </span><span class="cov8" title="1">{
                         sm.mutex.Lock()
                         defer sm.mutex.Unlock()
                         delete(sm.sessions, token)
@@ -4365,11 +4365,11 @@ func (sm *ScriptManager) applyConfigChanges(name string, runner *ScriptRunner, o
         // For now, implement basic logic - this will be enhanced in subsequent steps
         for _, change := range changes </span><span class="cov8" title="1">{
                 switch change.Field </span>{
-                case "enabled":<span class="cov0" title="0">
-                        if newConfig.Enabled &amp;&amp; !oldConfig.Enabled </span><span class="cov0" title="0">{
+                case "enabled":<span class="cov8" title="1">
+                        if newConfig.Enabled &amp;&amp; !oldConfig.Enabled </span><span class="cov8" title="1">{
                                 // Script was disabled, now enabled - but it's already running, so no action needed
                                 return nil
-                        }</span> else<span class="cov0" title="0"> if !newConfig.Enabled &amp;&amp; oldConfig.Enabled </span><span class="cov0" title="0">{
+                        }</span> else<span class="cov8" title="1"> if !newConfig.Enabled &amp;&amp; oldConfig.Enabled </span><span class="cov8" title="1">{
                                 // Script was enabled, now disabled - stop it
                                 runner.Stop()
                                 delete(sm.scripts, name)
@@ -4378,13 +4378,13 @@ func (sm *ScriptManager) applyConfigChanges(name string, runner *ScriptRunner, o
                 case "interval", "path":<span class="cov8" title="1">
                         // Changes that require restart - implement graceful restart
                         return sm.gracefulRestartScript(name, runner, newConfig)</span>
-                case "timeout", "max_log_lines":<span class="cov0" title="0">
+                case "timeout", "max_log_lines":<span class="cov8" title="1">
                         // These changes can be applied without restart
                         // For now, just log that they would be applied
                         continue</span>
                 }
         }
-        <span class="cov0" title="0">return nil</span>
+        <span class="cov8" title="1">return nil</span>
 }
 
 // UpdateScriptWithFeedback updates a script and returns detailed feedback about the changes
@@ -4805,7 +4805,7 @@ func (sr *ScriptRunner) IsRunning() bool <span class="cov8" title="1">{
 }</span>
 
 // GetConfig returns the script configuration
-func (sr *ScriptRunner) GetConfig() ScriptConfig <span class="cov0" title="0">{
+func (sr *ScriptRunner) GetConfig() ScriptConfig <span class="cov8" title="1">{
         return sr.config
 }</span>
 

@@ -65,7 +65,7 @@ run-script-service/auth/session.go:63.72,68.13 4 1
 run-script-service/auth/session.go:68.13,70.3 1 1
 run-script-service/auth/session.go:73.2,73.41 1 1
 run-script-service/auth/session.go:73.41,75.13 1 1
-run-script-service/auth/session.go:75.13,79.4 3 0
+run-script-service/auth/session.go:75.13,79.4 3 1
 run-script-service/auth/session.go:80.3,80.19 1 1
 run-script-service/auth/session.go:83.2,83.29 1 1
 run-script-service/auth/session.go:87.62,93.2 4 1
@@ -1439,13 +1439,13 @@ run-script-service/service/script_manager.go:366.48,368.3 1 1
 run-script-service/service/script_manager.go:371.2,371.12 1 1
 run-script-service/service/script_manager.go:375.145,377.33 1 1
 run-script-service/service/script_manager.go:377.33,378.23 1 1
-run-script-service/service/script_manager.go:379.18,380.47 1 0
-run-script-service/service/script_manager.go:380.47,383.5 1 0
-run-script-service/service/script_manager.go:383.10,383.54 1 0
-run-script-service/service/script_manager.go:383.54,388.5 3 0
+run-script-service/service/script_manager.go:379.18,380.47 1 1
+run-script-service/service/script_manager.go:380.47,383.5 1 1
+run-script-service/service/script_manager.go:383.10,383.54 1 1
+run-script-service/service/script_manager.go:383.54,388.5 3 1
 run-script-service/service/script_manager.go:389.27,391.60 1 1
-run-script-service/service/script_manager.go:392.35,395.12 1 0
-run-script-service/service/script_manager.go:398.2,398.12 1 0
+run-script-service/service/script_manager.go:392.35,395.12 1 1
+run-script-service/service/script_manager.go:398.2,398.12 1 1
 run-script-service/service/script_manager.go:402.107,408.39 4 1
 run-script-service/service/script_manager.go:408.39,409.22 1 1
 run-script-service/service/script_manager.go:409.22,414.9 4 1
@@ -1536,7 +1536,7 @@ run-script-service/service/script_runner.go:272.2,272.26 1 1
 run-script-service/service/script_runner.go:272.26,274.3 1 1
 run-script-service/service/script_runner.go:275.2,275.12 1 1
 run-script-service/service/script_runner.go:279.42,283.2 3 1
-run-script-service/service/script_runner.go:286.50,288.2 1 0
+run-script-service/service/script_runner.go:286.50,288.2 1 1
 run-script-service/service/script_runner.go:291.44,295.2 3 1
 run-script-service/service/script_runner.go:298.54,302.2 3 1
 run-script-service/service/script_runner.go:305.64,309.2 3 1
